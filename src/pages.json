@@ -1,0 +1,29 @@
+{
+  "pages": [
+    {
+      "path": "pages/home/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "首页" }
+    },
+    {
+      "path": "pages/profile/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "个人主页" }
+    },
+    {
+      "path": "pages/create/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "创建比赛" }
+    },
+    {
+      "path": "pages/room/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "房间", "disableScroll": true }
+    }
+  ],
+  "globalStyle": {
+    "navigationStyle": "custom",
+    "navigationBarTextStyle": "white",
+    "navigationBarBackgroundColor": "#181A20",
+    "backgroundColor": "#181A20",
+    "backgroundColorTop": "#181A20",
+    "backgroundColorBottom": "#181A20",
+    "backgroundTextStyle": "light"
+  }
+}
