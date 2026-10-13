@@ -166,6 +166,7 @@ function joinByLink() {
 /* 服务器栏 */
 .rail {
   position: fixed; left: 0; top: 0; bottom: 0; width: 144rpx; z-index: 10;
+  padding-bottom: calc(240rpx + env(safe-area-inset-bottom));
   background: #121419; display: flex; flex-direction: column; align-items: center;
 }
 .logo { position: relative; width: 96rpx; height: 96rpx; border-radius: 32rpx; background: #F3EEE6; }
@@ -263,8 +264,8 @@ function joinByLink() {
 .dock-name { display: block; margin-top: 4rpx; font-size: 34rpx; font-weight: 500; color: #FFFFFF; }
 .dock-set { width: 72rpx; height: 72rpx; border-radius: 50%; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
 .dock-avatar {
-  position: fixed; z-index: 21; left: 20rpx; bottom: calc(88rpx + env(safe-area-inset-bottom));
-  width: 112rpx; height: 112rpx; box-sizing: border-box; border-radius: 50%;
+  position: fixed; z-index: 21; left: 16rpx; bottom: calc(64rpx + env(safe-area-inset-bottom));
+  width: 130rpx; height: 130rpx; box-sizing: border-box; border-radius: 50%;
   background: #F1E4D3; border: 6rpx solid #121419;
   display: flex; align-items: center; justify-content: center; font-size: 44rpx; font-weight: 500; color: #8A1C1C;
 }
