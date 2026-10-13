@@ -65,7 +65,7 @@
       </view>
 
       <!-- 赛事卡片 -->
-      <view class="card event" hover-class="press-soft" @tap="toast('狼人杀房间待接入')">
+      <view class="card event" hover-class="press-soft" @tap="uni.navigateTo({ url: '/pages/room/index' })">
         <view class="event-banner" :style="bannerStyle">
           <view class="event-more" @tap.stop="toast('更多操作')">
             <z-icon name="dots" :size="16" color="#FFFFFF" />
