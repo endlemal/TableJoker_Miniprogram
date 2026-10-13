@@ -105,7 +105,6 @@ function moveTo(i) {
 
 function select(i) {
   if (i === shown.value) return
-  uni.vibrateShort({ type: 'light', fail: () => {} })
   moveTo(i)
   emit('change', i)
 }
