@@ -92,31 +92,15 @@
       <view class="rank"><z-icon name="diamond" :size="13" color="#F4B740" /><text class="rank-t">{{ me.rank }}</text></view>
     </view>
 
-    <!-- 底部悬浮导航 -->
-    <view class="fnav">
-      <view class="fnav-item fnav-on">
-        <z-icon name="user" :size="22" color="#FF4D4D" />
-        <text class="fnav-t">我的</text>
-      </view>
-      <view class="fnav-item" hover-class="press" @tap="toast('广场页面待接入')">
-        <z-icon name="compass" :size="22" color="#9CA3AF" />
-        <text class="fnav-t">广场</text>
-      </view>
-      <view class="fnav-item" hover-class="press" @tap="toast('排行页面待接入')">
-        <z-icon name="chart-bar" :size="22" color="#9CA3AF" />
-        <text class="fnav-t">排行</text>
-      </view>
-      <view class="fnav-item fnav-cta" hover-class="press" @tap="toast('主办方申请待接入')">
-        <view class="fnav-cta-ic"><z-icon name="flag" :size="18" color="#FFFFFF" /></view>
-        <text class="fnav-t">成为主办方</text>
-      </view>
-    </view>
+    <!-- 底部悬浮导航：凹槽 + 选中球，图标在球里，文字在球外 -->
+    <z-tabbar :items="navItems" :active="navActive" @change="onNav" />
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
+import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, diceFacesPattern } from '@/common/svg.js'
 import { me, activity, badgeRows, badgeTone, badgeTotal } from '@/mock/data.js'
@@ -147,6 +131,20 @@ badgeRows.forEach((row, r) => {
 })
 
 const toast = (title) => uni.showToast({ title, icon: 'none' })
+
+const navItems = [
+  { key: 'me', label: '我的', icon: 'user' },
+  { key: 'plaza', label: '广场', icon: 'compass' },
+  { key: 'rank', label: '排行', icon: 'chart-bar' },
+  { key: 'host', label: '成为主办方', icon: 'flag' }
+]
+const navActive = ref(0)
+// 其他三个页面还没有，先停在选中项并提示；接入后改成 uni.switchTab，新页面的导航会从上一个位置滑过来
+const NAV_TIPS = ['', '广场页面待接入', '排行页面待接入', '主办方申请待接入']
+function onNav(i) {
+  navActive.value = i
+  if (NAV_TIPS[i]) setTimeout(() => toast(NAV_TIPS[i]), 420)
+}
 </script>
 
 <style>
@@ -164,7 +162,7 @@ const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 .sheet {
   position: relative; z-index: 1; min-height: calc(100vh - 328rpx);
-  padding: 20rpx 32rpx calc(240rpx + env(safe-area-inset-bottom)); box-sizing: border-box;
+  padding: 20rpx 32rpx calc(300rpx + env(safe-area-inset-bottom)); box-sizing: border-box;
   background: #181A20; border-radius: 56rpx 56rpx 0 0;
 }
 
@@ -235,14 +233,4 @@ const toast = (title) => uni.showToast({ title, icon: 'none' })
 .rank { margin-left: 16rpx; padding: 6rpx 16rpx; border-radius: 999rpx; background: #3A2C10; display: flex; align-items: center; }
 .rank-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 500; color: #F4B740; }
 
-.fnav {
-  position: fixed; z-index: 40; left: 32rpx; right: 32rpx; bottom: calc(44rpx + env(safe-area-inset-bottom));
-  height: 128rpx; box-sizing: border-box; padding: 0 12rpx;
-  background: #262A34; border: 1rpx solid #353845; border-radius: 64rpx; display: flex;
-}
-.fnav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 20rpx; }
-.fnav-t { margin-top: 6rpx; font-size: 22rpx; line-height: 1.2; color: #9CA3AF; }
-.fnav-on .fnav-t { color: #FF4D4D; font-weight: 500; }
-.fnav-cta .fnav-t { color: #FFFFFF; font-weight: 500; }
-.fnav-cta-ic { width: 72rpx; height: 72rpx; border-radius: 50%; background: #DC0000; box-shadow: 0 8rpx 24rpx rgba(220, 0, 0, .35); display: flex; align-items: center; justify-content: center; }
 </style>
