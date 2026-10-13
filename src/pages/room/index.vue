@@ -454,7 +454,7 @@ onShow(start)
 onHide(stop)
 onUnload(stop)
 onReady(() => { chatAnchor.value = 'm' + chat.value[chat.value.length - 1].id })
-onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入座`, path: '/pages/room/index' }))
+onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入座`, path: '/pages/invite/index' }))
 </script>
 
 <style>

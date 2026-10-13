@@ -40,11 +40,18 @@ def face(name, family, weight, text, css_weight):
     faces.append((name, css_weight, data))
     print(f'{name} {css_weight}: {len(text)} chars, {len(data)} bytes')
 
-hei_text = chars_in('src/pages/room/index.vue') + chars_in('src/mock/data.js', start_marker='export const room', end_marker='// 创建比赛页') + '骰子先生' + '休息中最后一分钟进行中暂停未开始超时' + ASCII
+hei_text = chars_in('src/pages/room/index.vue', 'src/pages/invite/index.vue') + chars_in('src/mock/data.js', start_marker='export const room', end_marker='// 创建比赛页') + '骰子先生' + '休息中最后一分钟进行中暂停未开始超时' + ASCII
 face('BoardNum', 'Big Shoulders Display', 700, ASCII, 700)
 face('BoardNum', 'Big Shoulders Display', 800, ASCII, 800)
 face('BoardHei', 'Noto Sans SC', 900, ''.join(sorted(set(hei_text))), 900)
-face('ZZDisplay', 'ZCOOL QingKe HuangYou', None, '比赛骰子先生创建' + '0123456789', 400)
+ZZ_TEXT = '比赛骰子先生创建周五德扑锦标赛' + '0123456789'
+face('ZZDisplay', 'ZCOOL QingKe HuangYou', None, ZZ_TEXT, 400)
+# 记录子集覆盖的字，页面可以据此判断动态文字能不能用标题字体，避免一行里混用两种字体
+(ROOT / 'src/common/font-coverage.js').write_text(
+    '// 由 tools/build_fonts.py 生成：ZZDisplay 子集包含的字\n'
+    f'export const ZZ_DISPLAY_CHARS = {ZZ_TEXT!r}\n'
+    'export const fitsDisplay = (text) => !!text && [...String(text)].every((ch) => ch === " " || ZZ_DISPLAY_CHARS.includes(ch))\n',
+    encoding='utf-8')
 
 lines = ['/* 由 tools/build_fonts.py 生成。字体均为 SIL Open Font License；这里只包含页面用到的字。 */']
 for name, w, data in faces:

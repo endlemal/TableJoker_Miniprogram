@@ -291,7 +291,7 @@ import { onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, coverScene } from '@/common/svg.js'
-import { MAX_SCHEMES, loadList, saveList } from '@/common/store.js'
+import { MAX_SCHEMES, loadList, saveList, saveMatch } from '@/common/store.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
@@ -541,15 +541,43 @@ function templateActions(t) {
 }
 
 /* ---------- 发布 ---------- */
+// 比赛 id 在进入页面时就生成，分享路径和发布记录用同一个 id
+const matchId = 'm' + Date.now()
+function buildMatch() {
+  const start = new Date(today)
+  start.setDate(today.getDate() + form.dayIdx)
+  start.setHours(form.hour, form.minute, 0, 0)
+  const meP = { name: me.nickname, c: me.char, bg: '#F1E4D3', fg: '#8A1C1C' }
+  return {
+    id: matchId,
+    server: '周五桌游夜',
+    cover: form.cover,
+    coverImage: form.coverImage,
+    name: form.name.trim(),
+    blindName: currentScheme.value.name,
+    blindRows: clone(currentScheme.value.rows),
+    startAt: start.getTime(),
+    cap: form.cap,
+    intro: form.intro.trim(),
+    isPublic: form.isPublic,
+    autoApprove: form.autoApprove,
+    inviter: meP,
+    hosts: [{ ...meP, role: 'owner' }].concat(hosts.value.filter((h) => h.status === 'joined')
+      .map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' }))),
+    participants: [meP],
+    createdAt: Date.now()
+  }
+}
 const canPublish = computed(() => !!form.name.trim() && !!currentScheme.value)
 function onPublish() {
-  if (published.value) return uni.navigateTo({ url: '/pages/room/index' })
+  if (published.value) return uni.navigateTo({ url: '/pages/room/index?id=' + matchId })
   if (!form.name.trim()) return toast('先给比赛起个名字')
   if (!currentScheme.value) return toast('先选一个盲注方案')
+  saveMatch(buildMatch())
   published.value = true
   toast('已发布')
 }
-onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等你入座`, path: '/pages/room/index' }))
+onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等你入座`, path: '/pages/invite/index?id=' + matchId }))
 </script>
 
 <style>

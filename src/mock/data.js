@@ -162,3 +162,30 @@ export const matchTemplateSeeds = [
     hosts: []
   }
 ]
+
+// 分享落地页 · 演示用比赛（链接里没有 id 或找不到时使用）
+const person = (p) => ({ name: p.name, c: p.c, bg: p.bg, fg: p.fg })
+export function makeDemoMatch() {
+  const now = new Date()
+  const start = new Date(now)
+  start.setDate(now.getDate() + ((5 - now.getDay() + 7) % 7 || 7))
+  start.setHours(19, 0, 0, 0)
+  const meP = { name: me.nickname, c: me.char, bg: '#F1E4D3', fg: '#8A1C1C' }
+  return {
+    id: 'demo',
+    server: '周五桌游夜',
+    cover: 'wild',
+    coverImage: '',
+    name: '周五德扑锦标赛',
+    blindName: blindSchemeSeeds[0].name,
+    blindRows: JSON.parse(JSON.stringify(blindSchemeSeeds[0].rows)),
+    startAt: start.getTime(),
+    cap: 27,
+    intro: createDraft.intro,
+    isPublic: true,
+    autoApprove: true,
+    inviter: meP,
+    hosts: [{ ...meP, role: 'owner' }, { ...person(coHostSeeds[0]), role: 'cohost' }, { ...person(coHostSeeds[1]), role: 'cohost' }],
+    participants: room.seats.map(person)
+  }
+}
