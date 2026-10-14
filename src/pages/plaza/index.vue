@@ -8,7 +8,10 @@
 
     <!-- 大标题：和胶囊同一行；下面是醒目的数字锚点 -->
     <view class="head" :style="headStyle">
-      <view class="head-row" :style="headRowStyle"><text class="h-title">广场</text></view>
+      <view class="head-row" :style="headRowStyle">
+        <view v-if="canBack" class="h-back" hover-class="press" @tap="goBack"><z-icon name="arrow-left" :size="18" color="#FFFFFF" /></view>
+        <text class="h-title">广场</text>
+      </view>
       <view class="h-stat">
         <text class="h-num">{{ p2(publicMatches.length) }}</text>
         <view class="h-stat-t"><text class="h-stat-a">场公开赛</text><text class="h-stat-b">正在报名，点开就能报名或进入</text></view>
@@ -38,6 +41,7 @@
             </view>
             <view class="fm-body">
               <text class="fm-name" :class="{ 'font-sys': !fitsDisplay(mt.name) }">{{ mt.name }}</text>
+              <view v-if="mt.location" class="fm-loc"><z-icon name="map-pin" :size="12" color="#9CA3AF" /><text class="fm-loc-t">{{ mt.location.name }}</text></view>
               <view class="fm-row">
                 <view class="fm-when"><text class="fm-time">{{ mt.time }}</text><text class="fm-date">{{ mt.date }}</text></view>
                 <view class="fm-sign">
@@ -94,6 +98,7 @@
           <view v-else class="mc">
             <view class="mc-top"><text class="mc-srv">{{ it.server }}</text><z-icon name="arrow-up-right" :size="16" color="#181A20" /></view>
             <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name) }">{{ it.name }}</text>
+            <text v-if="it.location" class="mc-loc">{{ it.location.name }}</text>
             <view class="mc-meta">
               <view class="mc-when"><text class="mc-time">{{ it.time }}</text><text class="mc-date">{{ it.date }}</text></view>
               <text class="mc-sign">{{ it.signed }}/{{ it.cap }}</text>
@@ -394,7 +399,12 @@ function observeCompact() {
   } catch (e) {}
 }
 let deepPost = ''
-onLoad((q) => { deepPost = (q && q.post) || '' })
+const canBack = ref(false)
+const goBack = () => uni.navigateBack()
+onLoad((q) => {
+  deepPost = (q && q.post) || ''
+  canBack.value = getCurrentPages().length > 1
+})
 onReady(() => {
   observeCompact()
   observeCards()
@@ -470,6 +480,7 @@ function onNav(i) {
 /* 大标题与数字锚点 */
 .head { padding-left: 32rpx; padding-right: 32rpx; }
 .head-row { display: flex; align-items: center; box-sizing: border-box; }
+.h-back { width: 64rpx; height: 64rpx; flex: none; margin-right: 20rpx; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
 .h-title { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 68rpx; line-height: 1; letter-spacing: 4rpx; color: #FFFFFF; }
 .h-stat { display: flex; align-items: center; margin-top: 12rpx; }
 .h-num { font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 200; font-size: 132rpx; line-height: 1; letter-spacing: -2rpx; color: #F2F2EE; }
@@ -509,7 +520,9 @@ function onNav(i) {
 .fm-flag-t { margin-left: 6rpx; font-size: 22rpx; color: #FFC53A; }
 .fm-body { padding: 22rpx 28rpx 0; }
 .fm-name { display: block; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 40rpx; line-height: 1.2; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fm-row { margin-top: 18rpx; display: flex; align-items: flex-end; justify-content: space-between; }
+.fm-loc { margin-top: 8rpx; display: flex; align-items: center; }
+.fm-loc-t { margin-left: 6rpx; font-size: 22rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fm-row { margin-top: 14rpx; display: flex; align-items: flex-end; justify-content: space-between; }
 .fm-when { display: flex; align-items: baseline; }
 .fm-time { font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 52rpx; line-height: 1; color: #F2F2EE; }
 .fm-date { margin-left: 12rpx; font-size: 24rpx; color: #9CA3AF; }
@@ -577,6 +590,7 @@ function onNav(i) {
 .mc-top { display: flex; align-items: flex-start; justify-content: space-between; }
 .mc-srv { font-size: 20rpx; line-height: 1.3; color: #6B6A64; }
 .mc-title { margin-top: auto; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 44rpx; line-height: 1.15; color: #181A20; }
+.mc-loc { margin-top: 8rpx; font-size: 20rpx; color: #6B6A64; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mc-meta { margin-top: 16rpx; padding-top: 14rpx; border-top: 2rpx solid #DEDBD2; display: flex; align-items: baseline; justify-content: space-between; }
 .mc-when { display: flex; align-items: baseline; }
 .mc-time { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 34rpx; color: #181A20; }

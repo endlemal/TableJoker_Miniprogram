@@ -59,7 +59,13 @@
         },
         "usingComponents" : true,
         "lazyCodeLoading" : "requiredComponents",
-        "darkmode" : false
+        "darkmode" : false,
+        "requiredPrivateInfos" : [ "chooseLocation" ],
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "用于在地图上选择比赛地点"
+            }
+        }
     },
     "mp-alipay" : {
         "usingComponents" : true

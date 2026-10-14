@@ -103,8 +103,16 @@
         </view>
         <text class="dock-name">{{ me.nickname }}</text>
       </view>
-      <view class="dock-set" hover-class="press" @tap.stop="toast('设置')">
-        <z-icon name="settings" :size="18" color="#9CA3AF" />
+      <view class="dock-right">
+        <!-- 直达广场：不用先进个人主页再切换 -->
+        <view class="dock-plaza" hover-class="press" @tap.stop="toPlaza">
+          <z-icon name="compass" :size="16" color="#FFFFFF" />
+          <text class="dock-plaza-t">广场</text>
+          <view class="dock-plaza-n"><text>{{ openMatches }}</text></view>
+        </view>
+        <view class="dock-set" hover-class="press" @tap.stop="toast('设置')">
+          <z-icon name="settings" :size="18" color="#9CA3AF" />
+        </view>
       </view>
     </view>
     <view class="dock-avatar" @tap="toProfile">
@@ -120,6 +128,7 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
 import { me, servers, featuredEvent as event } from '@/mock/data.js'
+import { publicMatches } from '@/mock/plaza.js'
 
 const nav = getNavMetrics()
 const current = ref(servers[0].id)
@@ -132,6 +141,8 @@ const bannerStyle = `background-image:url("${svgUri(bloodMoonBanner())}")`
 
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 const toProfile = () => uni.navigateTo({ url: '/pages/profile/index' })
+const toPlaza = () => uni.navigateTo({ url: '/pages/plaza/index' })
+const openMatches = publicMatches.length
 const createMatch = () => uni.navigateTo({ url: '/pages/create/index' })
 
 function scanJoin() {
@@ -262,6 +273,17 @@ function joinByLink() {
 .dock-rank { display: flex; align-items: center; }
 .dock-rank-text { margin-left: 8rpx; font-size: 24rpx; font-weight: 500; color: #F4B740; }
 .dock-name { display: block; margin-top: 4rpx; font-size: 34rpx; font-weight: 500; color: #FFFFFF; }
+.dock-right { display: flex; align-items: center; }
+.dock-plaza {
+  position: relative; height: 72rpx; margin-right: 16rpx; padding: 0 24rpx 0 20rpx; box-sizing: border-box;
+  border-radius: 999rpx; background: #2A1216; border: 1rpx solid #5A2228; display: flex; align-items: center;
+}
+.dock-plaza-t { margin-left: 8rpx; font-size: 26rpx; font-weight: 500; color: #FFFFFF; }
+.dock-plaza-n {
+  position: absolute; top: -12rpx; right: -10rpx; min-width: 34rpx; height: 34rpx; padding: 0 8rpx; box-sizing: border-box;
+  border-radius: 999rpx; background: #DC0000; border: 4rpx solid #1F222A;
+  display: flex; align-items: center; justify-content: center; font-size: 20rpx; font-weight: 600; color: #FFFFFF;
+}
 .dock-set { width: 72rpx; height: 72rpx; border-radius: 50%; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
 .dock-avatar {
   position: fixed; z-index: 21; left: 16rpx; bottom: calc(64rpx + env(safe-area-inset-bottom));

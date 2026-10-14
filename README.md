@@ -4,7 +4,7 @@
 
 | 页面 | 文件 | 进入方式 |
 | --- | --- | --- |
-| 首页 | `src/pages/home/index.vue` | 启动页 |
+| 首页 | `src/pages/home/index.vue` | 启动页；底部用户栏的「广场」可以直达广场 |
 | 个人主页 | `src/pages/profile/index.vue` | 首页点底部用户栏 |
 | 创建比赛 | `src/pages/create/index.vue` | 首页点「创建比赛」 |
 | 比赛邀请（分享落地页） | `src/pages/invite/index.vue` | 点开分享卡片，路径 `/pages/invite/index?id=比赛ID` |
@@ -94,6 +94,19 @@ src/pages.json                     路由，五个页面都用自定义导航栏
   - 从个人主页点「广场」时，导航球会在新页面上从「我的」滑到「广场」。
 - **系统设置**：支持「减少动态效果」。
 - **深链**：分享帖子时路径带 `?post=帖子ID`，打开后直接展开该帖子。
+
+## 地点（位置授权 + 地图选点）
+
+- **创建页「地点」的流程**：
+  1. 用 `uni.getSetting` 查看位置授权状态。
+  2. 还没问过：调用 `uni.authorize({ scope: 'scope.userLocation' })` 申请授权。
+  3. 之前拒绝过：系统不会再弹授权窗，改为弹出说明，可以「去设置」打开权限，也可以「直接选择」。
+  4. 用 `uni.chooseLocation` 打开微信地图选点。授权后地图会定位到附近；不授权也能在地图上手动搜索。
+- **发布**：没选地点不能发布。地点会写进发布的比赛和比赛方案。
+- **落地页**：在开赛时间下方显示地点。点「导航」用 `uni.openLocation` 打开微信内置地图，这个接口不需要位置授权。
+- **代码里已经配好的**：`manifest.json` 的 `mp-weixin` 里声明了 `requiredPrivateInfos: ["chooseLocation"]` 和 `scope.userLocation` 的用途说明，编译后会写进 `app.json`。
+- **需要在微信公众平台手动做的**：在「设置 → 服务内容声明 → 用户隐私保护指引」里声明收集「位置信息」，用途填「选择比赛地点」。不声明的话，用户同意不了隐私协议，`chooseLocation` 会直接失败。
+- **H5 预览**：H5 没有接地图服务，选点改为示例地点列表，导航改为复制地址。
 
 ## 运行
 

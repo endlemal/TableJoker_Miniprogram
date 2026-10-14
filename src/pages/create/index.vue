@@ -69,6 +69,17 @@
         </view>
       </view>
 
+      <!-- 地点：先确认位置授权，再打开微信地图选点 -->
+      <text class="lb lb-gap">地点</text>
+      <view class="fd loc" hover-class="press-soft" @tap="pickLocation">
+        <view class="loc-ic"><z-icon name="map-pin" :size="18" :color="form.location ? '#FF4D4D' : '#9CA3AF'" /></view>
+        <view class="loc-main">
+          <text class="loc-name" :class="{ 'loc-ph': !form.location }">{{ form.location ? form.location.name : '在地图上选择比赛地点' }}</text>
+          <text v-if="form.location && form.location.address" class="loc-addr">{{ form.location.address }}</text>
+        </view>
+        <z-icon name="chevron-right" :size="16" color="#6B7280" />
+      </view>
+
       <!-- 比赛介绍：弹层打开时换成静态文字，避免原生 textarea 盖住弹层 -->
       <text class="lb lb-gap">比赛介绍</text>
       <view class="fd intro-box">
@@ -292,7 +303,7 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, coverScene } from '@/common/svg.js'
 import { MAX_SCHEMES, loadList, saveList, saveMatch } from '@/common/store.js'
-import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds } from '@/mock/data.js'
+import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
 const KEY_TEMPLATES = 'zz_match_templates'
@@ -383,6 +394,62 @@ function onCapChange(e) { capVal.value = e.detail.value }
 function confirmCap() {
   form.cap = caps[capVal.value[0]]
   capOpen.value = false
+}
+
+/* ---------- 地点：位置授权 + 地图选点 ---------- */
+// 授权状态：true 已允许；false 之前拒绝过（系统不会再弹窗，只能引导去设置页）；undefined 还没问过
+function ensureLocationAuth() {
+  return new Promise((resolve) => {
+    uni.getSetting({
+      success: ({ authSetting }) => {
+        const state = authSetting['scope.userLocation']
+        if (state === true) return resolve(true)
+        if (state === false) return guideToSettings(resolve)
+        uni.authorize({ scope: 'scope.userLocation', success: () => resolve(true), fail: () => guideToSettings(resolve) })
+      },
+      fail: () => resolve(false)
+    })
+  })
+}
+function guideToSettings(resolve) {
+  uni.showModal({
+    title: '需要位置权限',
+    content: '允许后，地图会先定位到你附近，方便选择比赛地点。不授权也可以直接在地图上搜索。',
+    confirmText: '去设置',
+    cancelText: '直接选择',
+    success: ({ confirm }) => {
+      if (!confirm) return resolve(false)
+      uni.openSetting({ success: ({ authSetting }) => resolve(!!authSetting['scope.userLocation']), fail: () => resolve(false) })
+    },
+    fail: () => resolve(false)
+  })
+}
+function openMapPicker() {
+  const cur = form.location
+  uni.chooseLocation({
+    ...(cur ? { latitude: cur.latitude, longitude: cur.longitude } : {}),
+    success: (res) => {
+      if (!res.name && !res.address) return
+      form.location = { name: res.name || res.address, address: res.address || '', latitude: res.latitude, longitude: res.longitude }
+    },
+    fail: (err) => {
+      const msg = (err && err.errMsg) || ''
+      if (/cancel/.test(msg)) return
+      if (/privacy|auth deny|authorize/i.test(msg)) return toast('需要先同意隐私保护指引和位置权限')
+      toast('没能打开地图')
+    }
+  })
+}
+function pickLocation() {
+  // #ifdef MP-WEIXIN
+  // 不论是否授权都打开地图：授权后地图定位到附近，没授权也能手动搜索
+  ensureLocationAuth().then(openMapPicker)
+  // #endif
+  // #ifndef MP-WEIXIN
+  // H5 预览没有接地图服务，用示例地点代替
+  const list = Object.values(VENUES)
+  uni.showActionSheet({ itemList: list.map((v) => v.name), success: ({ tapIndex }) => { form.location = clone(list[tapIndex]) } })
+  // #endif
 }
 
 /* ---------- 共同主持 ---------- */
@@ -522,7 +589,7 @@ function saveTemplate() {
   if (templates.value.length >= MAX_SCHEMES) return toast('最多保存 5 个方案')
   const data = clone({
     cover: form.cover, name: form.name, blindId: form.blindId, hour: form.hour, minute: form.minute,
-    cap: form.cap, intro: form.intro, isPublic: form.isPublic, autoApprove: form.autoApprove
+    cap: form.cap, intro: form.intro, isPublic: form.isPublic, autoApprove: form.autoApprove, location: form.location
   })
   const name = form.name.trim() || '未命名比赛'
   templates.value = templates.value.concat([{ id: 't' + Date.now(), name, data, hosts: clone(hosts.value) }])
@@ -561,6 +628,7 @@ function buildMatch() {
     intro: form.intro.trim(),
     isPublic: form.isPublic,
     autoApprove: form.autoApprove,
+    location: form.location ? clone(form.location) : null,
     inviter: meP,
     hosts: [{ ...meP, role: 'owner' }].concat(hosts.value.filter((h) => h.status === 'joined')
       .map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' }))),
@@ -568,11 +636,12 @@ function buildMatch() {
     createdAt: Date.now()
   }
 }
-const canPublish = computed(() => !!form.name.trim() && !!currentScheme.value)
+const canPublish = computed(() => !!form.name.trim() && !!currentScheme.value && !!form.location)
 function onPublish() {
   if (published.value) return uni.navigateTo({ url: '/pages/room/index?id=' + matchId })
   if (!form.name.trim()) return toast('先给比赛起个名字')
   if (!currentScheme.value) return toast('先选一个盲注方案')
+  if (!form.location) return toast('先选择比赛地点')
   saveMatch(buildMatch())
   published.value = true
   toast('已发布')
@@ -637,6 +706,14 @@ onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等�
 .field-cap { justify-content: center; align-items: baseline; padding: 34rpx 0 0; }
 .cap-v { font-size: 34rpx; font-weight: 500; color: #FFFFFF; }
 .cap-u { margin-left: 4rpx; font-size: 22rpx; color: #9CA3AF; }
+
+/* 地点 */
+.loc { margin-top: 16rpx; padding: 22rpx 20rpx 22rpx 22rpx; display: flex; align-items: center; }
+.loc-ic { width: 64rpx; height: 64rpx; flex: none; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
+.loc-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; display: flex; flex-direction: column; }
+.loc-name { font-size: 28rpx; font-weight: 500; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-ph { font-weight: 400; color: #6B7280; }
+.loc-addr { margin-top: 6rpx; font-size: 24rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 介绍 */
 .intro-box { position: relative; margin-top: 16rpx; height: 176rpx; padding: 20rpx 24rpx 40rpx; box-sizing: border-box; }

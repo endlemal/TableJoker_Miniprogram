@@ -1,5 +1,5 @@
 // 广场 · 演示数据：公开赛事、带封面的帖子、海报广告。接后端时按同样字段替换。
-import { makeDemoMatch, coverScenes } from './data.js'
+import { makeDemoMatch, coverScenes, VENUES } from './data.js'
 
 const DAY = 86400000
 const at = (dayOffset, h, m = 0) => {
@@ -15,10 +15,10 @@ const people = (n) => makeDemoMatch().participants.concat(makeDemoMatch().partic
 const variant = (over) => ({ ...makeDemoMatch(), ...over })
 export const publicMatches = [
   makeDemoMatch(),
-  variant({ id: 'pm-night', name: '血月深夜赛', cover: 'blood', startAt: at(4, 22), cap: 18, participants: people(8), intro: '十点开局的深夜场，节奏快，盲注每级 15 分钟。' }),
-  variant({ id: 'pm-newbie', name: '新手德扑体验局', cover: 'snow', startAt: at(5, 14), cap: 18, participants: people(4), intro: '第一次玩德扑也能来，开局前会把规则讲一遍。' }),
-  variant({ id: 'pm-fog', name: '雾港深筹赛', cover: 'fog', startAt: at(4, 19, 30), cap: 27, participants: people(18).concat(people(3)), intro: '深筹慢节奏，适合想多打几手的朋友。' }),
-  variant({ id: 'pm-jungle', name: '丛林猎手挑战赛', cover: 'jungle', startAt: at(6, 20), cap: 18, participants: people(6), autoApprove: false, intro: '邀请制挑战赛，报名后由主持人审核。' })
+  variant({ id: 'pm-night', name: '血月深夜赛', cover: 'blood', location: VENUES.night, startAt: at(4, 22), cap: 18, participants: people(8), intro: '十点开局的深夜场，节奏快，盲注每级 15 分钟。' }),
+  variant({ id: 'pm-newbie', name: '新手德扑体验局', cover: 'snow', location: VENUES.cedar, startAt: at(5, 14), cap: 18, participants: people(4), intro: '第一次玩德扑也能来，开局前会把规则讲一遍。' }),
+  variant({ id: 'pm-fog', name: '雾港深筹赛', cover: 'fog', location: VENUES.harbor, startAt: at(4, 19, 30), cap: 27, participants: people(18).concat(people(3)), intro: '深筹慢节奏，适合想多打几手的朋友。' }),
+  variant({ id: 'pm-jungle', name: '丛林猎手挑战赛', cover: 'jungle', location: VENUES.jungle, startAt: at(6, 20), cap: 18, participants: people(6), autoApprove: false, intro: '邀请制挑战赛，报名后由主持人审核。' })
 ]
 export const findPublicMatch = (id) => publicMatches.find((m) => m.id === id) || null
 

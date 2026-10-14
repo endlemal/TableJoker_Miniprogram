@@ -137,6 +137,15 @@ export const coHostSeeds = [
   { id: 'u7', name: 'Momo', c: 'M', bg: '#24404A', fg: '#A6DDEB', status: 'pending' }
 ]
 
+// 地点（演示用；正式使用时来自 uni.chooseLocation 的返回值）
+export const VENUES = {
+  north: { name: '城北桌游吧', address: '北京市海淀区学院路 37 号 2 层', latitude: 39.9918, longitude: 116.3537 },
+  cedar: { name: '雪松桌游空间', address: '北京市东城区东四北大街 107 号', latitude: 39.9375, longitude: 116.417 },
+  night: { name: '夜航棋牌俱乐部', address: '北京市朝阳区工体北路 8 号院 3 号楼', latitude: 39.934, longitude: 116.4466 },
+  harbor: { name: '雾港会所', address: '北京市西城区西直门南小街 11 号', latitude: 39.9387, longitude: 116.3555 },
+  jungle: { name: '丛林桌游馆', address: '北京市丰台区丽泽路 18 号', latitude: 39.866, longitude: 116.311 }
+}
+
 // 创建比赛页 · 默认草稿
 export const createDraft = {
   cover: 'wild',
@@ -146,19 +155,20 @@ export const createDraft = {
   cap: 27,
   intro: '每周五晚的常规赛，第 7 级结束后休息 15 分钟，复活同时截止。新朋友也欢迎来。',
   isPublic: true,
-  autoApprove: true
+  autoApprove: true,
+  location: VENUES.north
 }
 
 // 创建比赛页 · 比赛方案（整场比赛的设置模板，不含日期），最多 5 个
 export const matchTemplateSeeds = [
   {
     id: 't1', name: '周五常规赛',
-    data: { cover: 'fog', name: '周五德扑锦标赛', blindId: 'b1', hour: 19, minute: 0, cap: 27, intro: '每周五晚的常规赛，第 7 级结束后休息 15 分钟，复活同时截止。新朋友也欢迎来。', isPublic: true, autoApprove: true },
+    data: { cover: 'fog', name: '周五德扑锦标赛', blindId: 'b1', hour: 19, minute: 0, cap: 27, intro: '每周五晚的常规赛，第 7 级结束后休息 15 分钟，复活同时截止。新朋友也欢迎来。', isPublic: true, autoApprove: true, location: VENUES.north },
     hosts: [coHostSeeds[0], coHostSeeds[1]]
   },
   {
     id: 't2', name: '深筹练习赛',
-    data: { cover: 'snow', name: '周日深筹练习赛', blindId: 'b2', hour: 14, minute: 0, cap: 18, intro: '慢节奏练习局，适合新手熟悉盲注结构。', isPublic: false, autoApprove: false },
+    data: { cover: 'snow', name: '周日深筹练习赛', blindId: 'b2', hour: 14, minute: 0, cap: 18, intro: '慢节奏练习局，适合新手熟悉盲注结构。', isPublic: false, autoApprove: false, location: VENUES.cedar },
     hosts: []
   }
 ]
@@ -184,6 +194,7 @@ export function makeDemoMatch() {
     intro: createDraft.intro,
     isPublic: true,
     autoApprove: true,
+    location: VENUES.north,
     inviter: meP,
     hosts: [{ ...meP, role: 'owner' }, { ...person(coHostSeeds[0]), role: 'cohost' }, { ...person(coHostSeeds[1]), role: 'cohost' }],
     participants: room.seats.map(person)

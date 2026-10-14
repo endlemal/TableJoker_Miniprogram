@@ -74,6 +74,16 @@
         </view>
       </view>
 
+      <!-- 地点：在开赛时间下方，点「导航」用微信内置地图打开 -->
+      <view v-if="m.location" class="loc" hover-class="press-soft" @tap="openMap">
+        <view class="loc-ic"><z-icon name="map-pin" :size="18" color="#FF4D4D" /></view>
+        <view class="loc-main">
+          <text class="loc-name">{{ m.location.name }}</text>
+          <text v-if="m.location.address" class="loc-addr">{{ m.location.address }}</text>
+        </view>
+        <view class="loc-nav"><z-icon name="navigation" :size="14" color="#FFFFFF" /><text class="loc-nav-t">导航</text></view>
+      </view>
+
       <!-- 比赛介绍 -->
       <view class="sec"><text class="st">比赛介绍</text></view>
       <text class="intro">{{ m.intro || '主持人还没有写介绍' }}</text>
@@ -150,7 +160,7 @@
           <view v-else class="sj-cover" :style="heroBg"></view>
           <view class="sj-sum-t">
             <text class="sj-name">{{ m.name }}</text>
-            <text class="sj-meta">{{ dateLabel }} {{ clockText }}，还剩 {{ m.cap - signedCount }} 个位置</text>
+            <text class="sj-meta">{{ dateLabel }} {{ clockText }}{{ m.location ? '，' + m.location.name : '' }}</text>
           </view>
         </view>
         <view class="sj-lb"><text>给主持人留言（选填）</text><text class="sj-count">{{ message.length }}/60</text></view>
@@ -316,6 +326,17 @@ function withdraw() {
   joinStatus.value = ''
   toast('已撤回报名')
 }
+function openMap() {
+  const l = m.value.location
+  if (!l) return
+  // #ifdef MP
+  // openLocation 不需要位置授权，也不在 requiredPrivateInfos 的声明范围内
+  uni.openLocation({ latitude: l.latitude, longitude: l.longitude, name: l.name, address: l.address, scale: 16, fail: () => toast('没能打开地图') })
+  // #endif
+  // #ifndef MP
+  uni.setClipboardData({ data: `${l.name} ${l.address}`, success: () => toast('地址已复制') })
+  // #endif
+}
 function leave() {
   if (canBack.value) uni.navigateBack()
   else uni.reLaunch({ url: '/pages/home/index' })
@@ -395,6 +416,16 @@ function leave() {
 .bd-bar { margin-top: 16rpx; height: 8rpx; border-radius: 4rpx; background: #1A1A1A; overflow: hidden; }
 .bd-bar-fill { height: 8rpx; background: #F2F2EE; }
 .bd-s { display: block; margin-top: 12rpx; font-size: 24rpx; color: #8F8F8A; }
+
+/* 地点 */
+.loc { margin-top: 16rpx; border-radius: 28rpx; background: #1F222A; padding: 22rpx 20rpx 22rpx 22rpx; display: flex; align-items: center; }
+.loc-ic { width: 64rpx; height: 64rpx; flex: none; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
+.loc-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; display: flex; flex-direction: column; }
+.loc-name { font-size: 28rpx; font-weight: 500; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-ph { font-weight: 400; color: #6B7280; }
+.loc-addr { margin-top: 6rpx; font-size: 24rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.loc-nav { flex: none; height: 60rpx; padding: 0 20rpx; border-radius: 999rpx; background: #35383F; display: flex; align-items: center; }
+.loc-nav-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 500; color: #FFFFFF; }
 
 /* 区块 */
 .sec { margin-top: 48rpx; display: flex; align-items: baseline; justify-content: space-between; }
