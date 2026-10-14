@@ -70,7 +70,7 @@ const L = (sb, bb, ante) => ({ type: 'level', sb, bb, ante, dur: 20 * 60 })
 const B = (min, note) => ({ type: 'break', dur: min * 60, note })
 
 export const room = {
-  name: '周五德扑锦标赛',
+  name: '周五狼人杀锦标赛',
   pinyin: 'Zhouwu Depu Jinbiaosai',
   type: '锦标赛',
   table: 2,
@@ -154,7 +154,7 @@ export const VENUES = {
 // 创建比赛页 · 默认草稿
 export const createDraft = {
   cover: 'wild',
-  name: '周五德扑锦标赛',
+  name: '周五狼人杀锦标赛',
   hour: 19,
   minute: 0,
   cap: 27,
@@ -168,7 +168,7 @@ export const createDraft = {
 export const matchTemplateSeeds = [
   {
     id: 't1', name: '周五常规赛',
-    data: { cover: 'fog', name: '周五德扑锦标赛', blindId: 'b1', hour: 19, minute: 0, cap: 27, intro: '每周五晚的常规赛，第 7 级结束后休息 15 分钟，复活同时截止。新朋友也欢迎来。', isPublic: true, autoApprove: true, location: VENUES.north },
+    data: { cover: 'fog', name: '周五狼人杀锦标赛', blindId: 'b1', hour: 19, minute: 0, cap: 27, intro: '每周五晚的常规赛，第 7 级结束后休息 15 分钟，复活同时截止。新朋友也欢迎来。', isPublic: true, autoApprove: true, location: VENUES.north },
     hosts: [coHostSeeds[0], coHostSeeds[1]]
   },
   {
@@ -191,7 +191,7 @@ export function makeDemoMatch() {
     server: '周五桌游夜',
     cover: 'wild',
     coverImage: '',
-    name: '周五德扑锦标赛',
+    name: '周五狼人杀锦标赛',
     blindName: blindSchemeSeeds[0].name,
     blindRows: JSON.parse(JSON.stringify(blindSchemeSeeds[0].rows)),
     startAt: start.getTime(),
