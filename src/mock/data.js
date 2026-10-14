@@ -109,7 +109,12 @@ export const coverScenes = [
   { key: 'wild', name: '荒野', line: '走到最后的人，才看得见日落' },
   { key: 'jungle', name: '丛林', line: '最安静的那一个，往往最危险' },
   { key: 'snow', name: '雪原', line: '雪地上的脚印，会出卖每一步' },
-  { key: 'fog', name: '迷雾', line: '雾散之前，没人知道底牌' }
+  { key: 'fog', name: '迷雾', line: '雾散之前，没人知道底牌' },
+  { key: 'moonwood', name: '月林', line: '林中每一双眼睛，都在等天亮' },
+  { key: 'iceberg', name: '冰山', line: '你看到的，只是露出水面的一角' },
+  { key: 'abyss', name: '深海', line: '最亮的诱饵后面，藏着最深的牙' },
+  { key: 'clocktower', name: '钟楼', line: '钟声每响一次，盲注就涨一级' },
+  { key: 'storm', name: '雷暴', line: '风暴来临之前，牌桌最安静' }
 ]
 
 // 创建比赛页 · 盲注方案（t: L 级别 / B 休息 / C 截止买入），最多 5 个

@@ -157,7 +157,7 @@
         <text class="sj-title">报名加入</text>
         <view class="sj-sum">
           <image v-if="m.coverImage" class="sj-cover" :src="m.coverImage" mode="aspectFill" />
-          <view v-else class="sj-cover" :style="heroBg"></view>
+          <view v-else class="sj-cover" :style="thumbBg"></view>
           <view class="sj-sum-t">
             <text class="sj-name">{{ m.name }}</text>
             <text class="sj-meta">{{ dateLabel }} {{ clockText }}{{ m.location ? '，' + m.location.name : '' }}</text>
@@ -181,7 +181,7 @@ import { onLoad, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
 import { getNavMetrics } from '@/common/nav.js'
-import { svgUri, coverScene } from '@/common/svg.js'
+import { svgUri, coverStyle } from '@/common/svg.js'
 import { getMatch, getJoin, setJoin } from '@/common/store.js'
 import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
 import { coverScenes, makeDemoMatch } from '@/mock/data.js'
@@ -231,7 +231,8 @@ const displayOk = computed(() => fitsDisplay(m.value.name))
 
 /* ---------- 封面 ---------- */
 const scene = computed(() => coverScenes.find((c) => c.key === m.value.cover) || coverScenes[0])
-const heroBg = computed(() => `background-image:url("${svgUri(coverScene(scene.value.key))}")`)
+const heroBg = computed(() => coverStyle(scene.value.key, 'wide'))
+const thumbBg = computed(() => coverStyle(scene.value.key, 'share'))
 
 /* ---------- 时间 ---------- */
 const start = computed(() => new Date(m.value.startAt))
@@ -353,7 +354,7 @@ function leave() {
 /* 封面 */
 .hero { position: relative; height: 464rpx; overflow: hidden; background: #1F222A; }
 .hero-fill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-.hero-art { background-size: cover; background-position: 62% center; }
+.hero-art { background-size: cover; background-position: center; }
 .tag {
   position: absolute; left: 32rpx; bottom: 84rpx; display: flex; align-items: center; padding: 12rpx 24rpx;
   border-radius: 999rpx; background: rgba(10, 10, 12, .55);
@@ -492,7 +493,7 @@ function leave() {
 .grab { width: 72rpx; height: 8rpx; margin: 0 auto 24rpx; border-radius: 4rpx; background: #4A4D57; }
 .sj-title { display: block; font-size: 32rpx; font-weight: 500; color: #FFFFFF; }
 .sj-sum { margin-top: 24rpx; padding: 20rpx; border-radius: 28rpx; background: #1F222A; display: flex; align-items: center; }
-.sj-cover { width: 128rpx; height: 88rpx; flex: none; border-radius: 16rpx; background-size: cover; background-position: 70% center; }
+.sj-cover { width: 128rpx; height: 88rpx; flex: none; border-radius: 16rpx; background-size: cover; background-position: center; }
 .sj-sum-t { margin-left: 20rpx; min-width: 0; display: flex; flex-direction: column; }
 .sj-name { font-size: 28rpx; font-weight: 500; color: #FFFFFF; }
 .sj-meta { margin-top: 8rpx; font-size: 24rpx; color: #9CA3AF; }

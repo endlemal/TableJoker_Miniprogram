@@ -12,7 +12,7 @@
       <text class="lb">比赛封面</text>
       <view class="cv">
         <image v-if="form.coverImage" class="cv-fill" :src="form.coverImage" mode="aspectFill" />
-        <view v-else class="cv-fill cv-art" :style="sceneBg[form.cover]"></view>
+        <view v-else class="cv-fill cv-art" :style="coverStyle(form.cover, 'banner')"></view>
       </view>
       <view class="cv-cap">
         <text class="cv-name">{{ form.coverImage ? '自定义封面' : coverInfo.name }}</text>
@@ -24,7 +24,7 @@
           :key="c.key"
           class="th"
           :class="{ 'th-on': !form.coverImage && form.cover === c.key }"
-          :style="sceneBg[c.key]"
+          :style="coverStyle(c.key, 'share')"
           @tap="pickScene(c.key)"
         >
           <view v-if="!form.coverImage && form.cover === c.key" class="th-ck"><z-icon name="check" :size="10" :stroke="3" color="#FFFFFF" /></view>
@@ -301,7 +301,7 @@ import { ref, reactive, computed, nextTick } from 'vue'
 import { onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
-import { svgUri, coverScene } from '@/common/svg.js'
+import { svgUri, coverStyle } from '@/common/svg.js'
 import { MAX_SCHEMES, loadList, saveList, saveMatch } from '@/common/store.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
@@ -319,10 +319,6 @@ const toast = (title) => uni.showToast({ title, icon: 'none' })
 const noop = () => {}
 
 /* ---------- 封面 ---------- */
-const sceneBg = coverScenes.reduce((m, c) => {
-  m[c.key] = `background-image:url("${svgUri(coverScene(c.key))}")`
-  return m
-}, {})
 
 /* ---------- 日期与人数的滚轮数据 ---------- */
 const WEEK = '日一二三四五六'
@@ -571,7 +567,7 @@ function saveScheme() {
 /* ---------- 比赛方案（整场设置模板） ---------- */
 const templateTiles = computed(() => templates.value.map((t) => {
   const s = schemes.value.find((x) => x.id === t.data.blindId)
-  return { id: t.id, name: t.name, bg: sceneBg[t.data.cover] || '', meta: `${s ? s.name : '盲注已删除'}，${t.data.cap} 人` }
+  return { id: t.id, name: t.name, bg: coverStyle(t.data.cover, 'wide'), meta: `${s ? s.name : '盲注已删除'}，${t.data.cap} 人` }
 }))
 const templateEmpty = computed(() => Math.max(0, MAX_SCHEMES - templates.value.length - 1))
 const persistTemplates = () => saveList(KEY_TEMPLATES, templates.value)
@@ -676,10 +672,11 @@ onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等�
 .cv-cap { margin-top: 16rpx; display: flex; align-items: baseline; }
 .cv-name { font-size: 26rpx; font-weight: 500; color: #FFFFFF; }
 .cv-line { margin-left: 16rpx; font-size: 24rpx; color: #9CA3AF; }
-.strip { margin-top: 24rpx; display: flex; justify-content: space-between; }
+.strip { margin: 16rpx -32rpx 0; padding: 12rpx 32rpx 14rpx; display: flex; overflow-x: auto; }
+.strip::-webkit-scrollbar { display: none; }
 .th {
-  position: relative; width: 100rpx; height: 72rpx; border-radius: 16rpx; box-sizing: border-box;
-  background-size: cover; background-position: right center;
+  position: relative; flex: none; width: 100rpx; height: 80rpx; margin-right: 20rpx; border-radius: 16rpx; box-sizing: border-box;
+  background-size: cover; background-position: center; background-color: #262A34;
 }
 .th-on { box-shadow: 0 0 0 4rpx #181A20, 0 0 0 8rpx #DC0000; }
 .th-ck {

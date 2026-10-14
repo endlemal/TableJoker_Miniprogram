@@ -134,7 +134,7 @@
             </view>
             <text v-for="(para, k) in detail.body" :key="k" class="dt-p">{{ para }}</text>
             <view v-if="detail.match" class="dt-match" hover-class="press-soft" @tap="openMatch(detail.match)">
-              <view class="dt-match-cv" :style="detail.match.coverStyle"></view>
+              <view class="dt-match-cv" :style="detail.match.thumbStyle"></view>
               <view class="dt-match-t"><text class="dt-match-n">{{ detail.match.name }}</text><text class="dt-match-s">{{ detail.match.date }} {{ detail.match.time }}，{{ detail.match.signed }}/{{ detail.match.cap }} 已报名</text></view>
               <z-icon name="chevron-right" :size="16" color="#9CA3AF" />
             </view>
@@ -163,7 +163,7 @@ import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShar
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
-import { svgUri, coverScene, postCover, isPostCover } from '@/common/svg.js'
+import { svgUri, coverStyle, nearestSize, postCover, isPostCover } from '@/common/svg.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { publicMatches, plazaPosts, plazaAds, morePosts, sceneLine, findPublicMatch } from '@/mock/plaza.js'
 
@@ -189,13 +189,11 @@ const ago = (t) => {
 }
 
 /* ---------- 封面样式（环境场景按画面重心裁切） ---------- */
-const FOCUS = { blood: '74%', wild: '66%', jungle: '36%', snow: '50%', fog: '82%' }
-const coverCache = {}
-const coverStyleOf = (key) => coverCache[key] || (coverCache[key] = buildCoverStyle(key))
-const buildCoverStyle = (key) => {
-  const svg = isPostCover(key) ? postCover(key) : coverScene(key)
-  const pos = isPostCover(key) ? 'center' : `${FOCUS[key] || '50%'} center`
-  return `background-image:url("${svgUri(svg)}");background-size:cover;background-position:${pos}`
+// 比赛场景按容器比例取对应尺寸（每种尺寸单独构图）；帖子插画只有竖版一种
+const postCache = {}
+const coverStyleOf = (key, size = 'banner') => {
+  if (!isPostCover(key)) return coverStyle(key, size)
+  return postCache[key] || (postCache[key] = `background-image:url("${svgUri(postCover(key))}");background-size:cover;background-position:center`)
 }
 
 /* ---------- 赛事 ---------- */
@@ -207,7 +205,8 @@ const decorate = (m) => {
     kind: 'match',
     key: 'm-' + m.id,
     scene: sceneLine(m.cover),
-    coverStyle: coverStyleOf(m.cover),
+    coverStyle: coverStyleOf(m.cover, 'banner'),
+    thumbStyle: coverStyleOf(m.cover, 'share'),
     time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
     date: `${p2(d.getMonth() + 1)}/${p2(d.getDate())} 周${WEEK[d.getDay()]}`,
     signed,
@@ -226,7 +225,7 @@ const CARD_W = (750 - 64 - 20) / 2
 const decoratePost = (p) => ({
   ...p,
   key: 'p-' + p.id,
-  coverStyle: coverStyleOf(p.cover),
+  coverStyle: coverStyleOf(p.cover, nearestSize(p.ratio)),
   coverH: Math.round(CARD_W / p.ratio),
   match: p.matchId ? decorate(findPublicMatch(p.matchId)) : null
 })

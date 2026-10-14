@@ -108,6 +108,13 @@ src/pages.json                     路由，五个页面都用自定义导航栏
 - **需要在微信公众平台手动做的**：在「设置 → 服务内容声明 → 用户隐私保护指引」里声明收集「位置信息」，用途填「选择比赛地点」。不声明的话，用户同意不了隐私协议，`chooseLocation` 会直接失败。
 - **H5 预览**：H5 没有接地图服务，选点改为示例地点列表，导航改为复制地址。
 
+## 封面插画
+
+- 比赛封面共 10 个场景：血夜、荒野、丛林、雪原、迷雾、月林、冰山、深海、钟楼、雷暴。每个场景有 6 种尺寸：banner 3:1、wide 16:9、share 5:4、square 1:1、portrait 3:4、story 9:16。
+- 每种尺寸都按比例单独构图（`src/common/cover-art.js`），不是从一张横图裁出来的。所以竖图里月亮、灯塔这些重心不会被切掉。
+- 页面里用 `coverStyle(场景, 尺寸)` 取背景样式（`src/common/svg.js`，带缓存）。广场的帖子按卡片比例用 `nearestSize(比例)` 自动选最接近的尺寸。
+- 导出给 Figma：运行 `node tools/export-svg.mjs`，输出到 `design/svg/`。排版建议和每个文件的用途见 `design/svg/README.md`，清单在 `design/svg/covers/index.json`。
+
 ## 运行
 
 ```bash
