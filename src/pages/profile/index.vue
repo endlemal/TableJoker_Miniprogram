@@ -143,6 +143,7 @@ const navActive = ref(0)
 const NAV_TIPS = ['', '广场页面待接入', '排行页面待接入', '主办方申请待接入']
 function onNav(i) {
   if (i === 1) return uni.redirectTo({ url: '/pages/plaza/index' })
+  if (i === 3) return uni.redirectTo({ url: '/pages/host/index' })
   navActive.value = i
   if (NAV_TIPS[i]) setTimeout(() => toast(NAV_TIPS[i]), 420)
 }

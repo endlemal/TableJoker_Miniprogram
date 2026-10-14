@@ -41,11 +41,11 @@ def face(name, family, weight, text, css_weight):
     print(f'{name} {css_weight}: {len(text)} chars, {len(data)} bytes')
 
 hei_text = chars_in('src/pages/room/index.vue', 'src/pages/invite/index.vue') + chars_in('src/mock/data.js', start_marker='export const room', end_marker='// 创建比赛页') + '骰子先生' + '休息中最后一分钟进行中暂停未开始超时' + ASCII
-face('BoardNum', 'Big Shoulders Display', 200, '0123456789/:', 200)
+face('BoardNum', 'Big Shoulders Display', 200, '0123456789/:.%', 200)
 face('BoardNum', 'Big Shoulders Display', 700, ASCII, 700)
 face('BoardNum', 'Big Shoulders Display', 800, ASCII, 800)
 face('BoardHei', 'Noto Sans SC', 900, ''.join(sorted(set(hei_text))), 900)
-ZZ_TEXT = '比赛骰子先生创建周五德扑锦标赛' + '广场城市桌游节新手训练营周边小店' + '血月深夜赛体验局雾港深筹丛林猎手挑战' + '0123456789'
+ZZ_TEXT = '比赛骰子先生创建周五德扑锦标赛' + '广场城市桌游节新手训练营周边小店' + '血月深夜赛体验局雾港深筹丛林猎手挑战' + '狼人杀点亮认证标识平台审核中已未通过' + '0123456789'
 face('ZZDisplay', 'ZCOOL QingKe HuangYou', None, ZZ_TEXT, 400)
 # 记录子集覆盖的字，页面可以据此判断动态文字能不能用标题字体，避免一行里混用两种字体
 (ROOT / 'src/common/font-coverage.js').write_text(

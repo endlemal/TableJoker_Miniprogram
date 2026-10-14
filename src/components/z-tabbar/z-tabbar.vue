@@ -1,5 +1,5 @@
 <template>
-  <view class="tb" :style="rootStyle">
+  <view class="tb" :class="{ 'tb-hide': hidden }" :style="rootStyle">
     <!-- 底座：带凹槽的横条。整条 SVG 比导航栏宽一倍，平移它就能让凹槽对准选中项，凹槽是真正透明的 -->
     <view class="tb-clip" :style="clipStyle">
       <view class="tb-track" :class="{ 'tb-anim': ready }" :style="trackStyle"><view class="tb-track-bg" :style="trackBgStyle"></view></view>
@@ -44,7 +44,9 @@ const props = defineProps({
   active: { type: Number, default: 0 },
   barColor: { type: String, default: '#262A34' },
   edgeColor: { type: String, default: '#353845' },
-  ballColor: { type: String, default: '#DC0000' }
+  ballColor: { type: String, default: '#DC0000' },
+  // 为 true 时下沉淡出（比如页面滚到底、换成底部按钮时）
+  hidden: { type: Boolean, default: false }
 })
 const emit = defineEmits(['change'])
 
@@ -127,7 +129,8 @@ const itemsStyle = `width:${W}px;height:${H}px`
 </script>
 
 <style>
-.tb { position: fixed; z-index: 40; bottom: calc(44rpx + env(safe-area-inset-bottom)); }
+.tb { position: fixed; z-index: 40; bottom: calc(44rpx + env(safe-area-inset-bottom)); transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .3s ease; }
+.tb-hide { opacity: 0; transform: translateY(calc(100% + 80rpx)); pointer-events: none; }
 .tb-clip { position: absolute; left: 0; top: 0; overflow: hidden; filter: drop-shadow(0 16rpx 24rpx rgba(0, 0, 0, .4)); }
 .tb-track { position: absolute; left: 0; top: 0; will-change: transform; }
 .tb-track-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: 100% 100%; background-repeat: no-repeat; }

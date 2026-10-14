@@ -24,6 +24,10 @@
       }
     },
     {
+      "path": "pages/host/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "平台认证", "backgroundColor": "#121419" }
+    },
+    {
       "path": "pages/webview/index",
       "style": { "navigationStyle": "default", "navigationBarTitleText": "活动", "navigationBarBackgroundColor": "#181A20", "navigationBarTextStyle": "white" }
     },
