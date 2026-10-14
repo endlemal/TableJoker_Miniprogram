@@ -17,6 +17,17 @@
       "style": { "navigationStyle": "custom", "navigationBarTitleText": "比赛邀请" }
     },
     {
+      "path": "pages/plaza/index",
+      "style": {
+        "navigationStyle": "custom", "navigationBarTitleText": "广场",
+        "enablePullDownRefresh": true, "backgroundTextStyle": "light", "backgroundColor": "#181A20", "onReachBottomDistance": 160
+      }
+    },
+    {
+      "path": "pages/webview/index",
+      "style": { "navigationStyle": "default", "navigationBarTitleText": "活动", "navigationBarBackgroundColor": "#181A20", "navigationBarTextStyle": "white" }
+    },
+    {
       "path": "pages/room/index",
       "style": { "navigationStyle": "custom", "navigationBarTitleText": "房间", "disableScroll": true }
     }

@@ -85,13 +85,18 @@ const ready = ref(false)
 const moved = ref(false)
 const flip = ref(0)
 
-watch(() => props.active, (i) => { if (i !== shown.value) moveTo(i) })
+watch(() => props.active, (i) => {
+  lastIndex = i
+  if (i !== shown.value) moveTo(i)
+})
 
 onMounted(() => {
   // 首帧不播放过渡；之后若需要（跨页面进入），从上一个位置滑到当前项
+  const target = props.active
   setTimeout(() => {
     ready.value = true
-    if (shown.value !== props.active) setTimeout(() => moveTo(props.active), 30)
+    if (shown.value !== target) setTimeout(() => moveTo(target), 30)
+    lastIndex = target
   }, 60)
 })
 
@@ -100,7 +105,6 @@ function moveTo(i) {
   flip.value = flip.value ? 0 : 1
   moved.value = true
   shown.value = i
-  lastIndex = i
 }
 
 function select(i) {

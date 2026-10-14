@@ -175,6 +175,7 @@ import { svgUri, coverScene } from '@/common/svg.js'
 import { getMatch, getJoin, setJoin } from '@/common/store.js'
 import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
 import { coverScenes, makeDemoMatch } from '@/mock/data.js'
+import { findPublicMatch } from '@/mock/plaza.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
 const nav = getNavMetrics()
@@ -198,7 +199,7 @@ const clock = ref(['0', '0', '0', '0'])
 
 onLoad((q) => {
   const query = q || {}
-  const found = query.id ? getMatch(query.id) : null
+  const found = query.id ? getMatch(query.id) || findPublicMatch(query.id) : null
   if (found) m.value = { participants: [], hosts: [], ...found }
   // 开发者工具里可以用编译参数 pub=0 / auto=0 预览另外两种状态
   if (query.pub === '0') m.value.isPublic = false

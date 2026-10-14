@@ -142,6 +142,7 @@ const navActive = ref(0)
 // 其他三个页面还没有，先停在选中项并提示；接入后改成 uni.switchTab，新页面的导航会从上一个位置滑过来
 const NAV_TIPS = ['', '广场页面待接入', '排行页面待接入', '主办方申请待接入']
 function onNav(i) {
+  if (i === 1) return uni.redirectTo({ url: '/pages/plaza/index' })
   navActive.value = i
   if (NAV_TIPS[i]) setTimeout(() => toast(NAV_TIPS[i]), 420)
 }
