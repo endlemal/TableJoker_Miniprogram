@@ -1,6 +1,8 @@
 <template>
   <page-meta :page-style="detail ? 'overflow:hidden' : ''"></page-meta>
   <view class="page">
+    <!-- 滚过这条线就切换紧凑标题栏；用相交监听代替 onPageScroll，滚动时不再逐帧通知逻辑层 -->
+    <view class="cbar-line"></view>
     <!-- 滚动后出现的紧凑标题栏 -->
     <view class="cbar" :class="{ 'cbar-on': compact }" :style="cbarStyle"><text class="cbar-t">广场</text></view>
 
@@ -106,7 +108,8 @@
     <view v-if="detail" class="dt" :class="{ 'dt-on': dtOpen }">
       <view class="dt-bg"></view>
       <view class="dt-move" :class="{ 'dt-drag': dragging }" :style="'transform:translateY(' + drag + 'px) scale(' + (1 - drag / 2400) + ')'">
-        <view class="dt-ghost" :style="detail.coverStyle + ';' + ghost"></view>
+        <!-- 位置和封面分开绑定：动画只改外层位置，封面的 data URI 只在打开时传一次 -->
+        <view class="dt-ghost" :style="ghost"><view class="dt-ghost-cv" :style="detail.coverStyle"></view></view>
         <scroll-view
           class="dt-scroll"
           scroll-y
@@ -151,7 +154,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onReady, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
@@ -182,7 +185,9 @@ const ago = (t) => {
 
 /* ---------- 封面样式（环境场景按画面重心裁切） ---------- */
 const FOCUS = { blood: '74%', wild: '66%', jungle: '36%', snow: '50%', fog: '82%' }
-const coverStyleOf = (key) => {
+const coverCache = {}
+const coverStyleOf = (key) => coverCache[key] || (coverCache[key] = buildCoverStyle(key))
+const buildCoverStyle = (key) => {
   const svg = isPostCover(key) ? postCover(key) : coverScene(key)
   const pos = isPostCover(key) ? 'center' : `${FOCUS[key] || '50%'} center`
   return `background-image:url("${svgUri(svg)}");background-size:cover;background-position:${pos}`
@@ -367,20 +372,30 @@ function toggleLike(p) {
 
 /* ---------- 页面 ---------- */
 const compact = ref(false)
-onPageScroll(({ scrollTop }) => {
-  const on = scrollTop > 72
-  if (on !== compact.value) compact.value = on
-})
+let cbarIo = null
+function observeCompact() {
+  try {
+    cbarIo = uni.createIntersectionObserver(instance && instance.proxy)
+    cbarIo.relativeToViewport({ top: 0 }).observe('.cbar-line', (res) => {
+      const on = res.intersectionRatio === 0 && res.boundingClientRect.top < 0
+      if (on !== compact.value) compact.value = on
+    })
+  } catch (e) {}
+}
 let deepPost = ''
 onLoad((q) => { deepPost = (q && q.post) || '' })
 onReady(() => {
+  observeCompact()
   observeCards()
   if (deepPost) {
     const it = posts.value.find((p) => p.id === deepPost)
     if (it) setTimeout(() => openPost(it, true), 300)
   }
 })
-onUnload(() => { if (io) io.disconnect() })
+onUnload(() => {
+  if (io) io.disconnect()
+  if (cbarIo) cbarIo.disconnect()
+})
 
 onPullDownRefresh(() => {
   setTimeout(() => {
@@ -424,7 +439,7 @@ function onNav(i) {
 </script>
 
 <style>
-.page { min-height: 100vh; background: #181A20; padding-bottom: calc(300rpx + env(safe-area-inset-bottom)); }
+.page { position: relative; min-height: 100vh; background: #181A20; padding-bottom: calc(300rpx + env(safe-area-inset-bottom)); }
 .press { opacity: .8; transform: scale(.96); }
 .press-soft { opacity: .85; }
 .font-sys { font-family: "PingFang SC", "Microsoft YaHei", sans-serif !important; font-weight: 600 !important; letter-spacing: 0 !important; }
@@ -433,6 +448,7 @@ function onNav(i) {
 .av-56 { width: 72rpx; height: 72rpx; font-size: 28rpx; }
 
 /* 紧凑标题栏 */
+.cbar-line { position: absolute; left: 0; top: 72px; width: 1px; height: 1px; pointer-events: none; }
 .cbar {
   position: fixed; z-index: 30; left: 0; right: 0; top: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   background: #181A20; opacity: 0; transform: translateY(-12rpx); transition: opacity .25s ease, transform .3s ease; pointer-events: none;
@@ -565,7 +581,8 @@ function onNav(i) {
 .dt-on .dt-bg { opacity: 1; }
 .dt-move { position: absolute; left: 0; top: 0; right: 0; bottom: 0; transition: transform .45s cubic-bezier(.34, 1.3, .64, 1); }
 .dt-drag { transition: none; }
-.dt-ghost { position: absolute; z-index: 1; background-color: #1F222A; }
+.dt-ghost { position: absolute; z-index: 1; overflow: hidden; background-color: #1F222A; }
+.dt-ghost-cv { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
 .dt-scroll { position: absolute; z-index: 2; left: 0; top: 0; right: 0; bottom: 0; box-sizing: border-box; opacity: 0; transform: translateY(80rpx); transition: opacity .35s ease, transform .5s cubic-bezier(.2, .8, .2, 1); }
 .dt-on .dt-scroll { opacity: 1; transform: translateY(0); transition-delay: .16s; }
 .dt-sheet { min-height: 100vh; padding: 16rpx 36rpx 0; background: #181A20; border-radius: 48rpx 48rpx 0 0; }

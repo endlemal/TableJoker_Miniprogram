@@ -2,7 +2,7 @@
   <view class="tb" :style="rootStyle">
     <!-- 底座：带凹槽的横条。整条 SVG 比导航栏宽一倍，平移它就能让凹槽对准选中项，凹槽是真正透明的 -->
     <view class="tb-clip" :style="clipStyle">
-      <view class="tb-track" :class="{ 'tb-anim': ready }" :style="trackStyle"></view>
+      <view class="tb-track" :class="{ 'tb-anim': ready }" :style="trackStyle"><view class="tb-track-bg" :style="trackBgStyle"></view></view>
     </view>
 
     <!-- 选中球：图标在球里，文字留在下方的横条上 -->
@@ -116,8 +116,10 @@ function select(i) {
 /* ---------- 样式 ---------- */
 const rootStyle = `left:${margin}px;width:${W}px;height:${H}px`
 const clipStyle = `width:${W}px;height:${H}px;border-radius:${RADIUS}px`
+// 底座图案单独绑定，切换时只更新 transform，不重复传 SVG
+const trackBgStyle = `background-image:url("${svgUri(trackSvg)}")`
 const trackStyle = computed(() =>
-  `width:${W * 2}px;height:${H}px;background-image:url("${svgUri(trackSvg)}");transform:translateX(${centerOf(shown.value) - W}px)`)
+  `width:${W * 2}px;height:${H}px;transform:translateX(${centerOf(shown.value) - W}px)`)
 const ballXStyle = computed(() =>
   `top:${CY - RB}px;width:${RB * 2}px;height:${RB * 2}px;transform:translateX(${centerOf(shown.value) - RB}px)`)
 const ballStyle = `background:${props.ballColor};box-shadow:0 ${px(10)}px ${px(24)}px rgba(220,0,0,.32)`
@@ -127,7 +129,8 @@ const itemsStyle = `width:${W}px;height:${H}px`
 <style>
 .tb { position: fixed; z-index: 40; bottom: calc(44rpx + env(safe-area-inset-bottom)); }
 .tb-clip { position: absolute; left: 0; top: 0; overflow: hidden; filter: drop-shadow(0 16rpx 24rpx rgba(0, 0, 0, .4)); }
-.tb-track { position: absolute; left: 0; top: 0; background-size: 100% 100%; background-repeat: no-repeat; will-change: transform; }
+.tb-track { position: absolute; left: 0; top: 0; will-change: transform; }
+.tb-track-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background-size: 100% 100%; background-repeat: no-repeat; }
 .tb-anim { transition: transform 520ms cubic-bezier(.34, 1.36, .64, 1); }
 
 .tb-ball-x { position: absolute; left: 0; z-index: 3; pointer-events: none; will-change: transform; }

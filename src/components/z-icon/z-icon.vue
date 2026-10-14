@@ -11,6 +11,9 @@ import { svgUri } from '../../common/svg.js'
 
 defineOptions({ options: { virtualHost: true } })
 
+// 同样的图标（名称、颜色、线宽、尺寸都相同）只拼一次
+const cache = {}
+
 const props = defineProps({
   name: { type: String, required: true },
   size: { type: Number, default: 20 },
@@ -19,6 +22,11 @@ const props = defineProps({
 })
 
 const iconStyle = computed(() => {
+  const key = `${props.name}|${props.color}|${props.stroke}|${props.size}`
+  return cache[key] || (cache[key] = buildStyle())
+})
+
+function buildStyle() {
   const filled = FILLED[props.name]
   const body = (filled || ICONS[props.name] || '').replace(/currentColor/g, props.color)
   const paint = filled
@@ -27,7 +35,7 @@ const iconStyle = computed(() => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" ${paint}>${body}</svg>`
   const s = props.size * 2 + 'rpx'
   return `width:${s};height:${s};background-image:url("${svgUri(svg)}")`
-})
+}
 </script>
 
 <style>
