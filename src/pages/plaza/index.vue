@@ -154,7 +154,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad, onReady, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
@@ -373,7 +373,18 @@ function toggleLike(p) {
 /* ---------- 页面 ---------- */
 const compact = ref(false)
 let cbarIo = null
+// 小程序：用相交监听，滚动时不往逻辑层发事件。
+// H5：uni 的相交监听以页面容器为参照，标记线永远算「可见」，所以改用 onPageScroll（H5 没有逻辑层和视图层之分，没有额外开销）
+// #ifdef H5
+onPageScroll(({ scrollTop }) => {
+  const on = scrollTop > 72
+  if (on !== compact.value) compact.value = on
+})
+// #endif
 function observeCompact() {
+  // #ifdef H5
+  return
+  // #endif
   try {
     cbarIo = uni.createIntersectionObserver(instance && instance.proxy)
     cbarIo.relativeToViewport({ top: 0 }).observe('.cbar-line', (res) => {
