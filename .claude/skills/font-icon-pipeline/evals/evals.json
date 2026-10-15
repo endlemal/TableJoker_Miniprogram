@@ -1,0 +1,8 @@
+{
+  "skill_name": "font-icon-pipeline",
+  "evals": [
+    { "id": 1, "prompt": "我把演示比赛名改成了周五狼人杀锦标赛，为什么名字不是标题字体了", "expected_output": "解释 fitsDisplay 回退机制，把缺的字补进 ZZ_TEXT 并重新生成字体子集", "files": [] },
+    { "id": 2, "prompt": "功能特权需要台桌、荷官、遥控器这几个图标", "expected_output": "先用 check_icons.py 确认名称存在且不重复，再加进列表并重新生成，回复里写去重后的新增数量", "files": [] },
+    { "id": 3, "prompt": "数据指标想用细体数字显示 1.2 和 35%", "expected_output": "把 . 和 % 加进 200 字重的字表并重新生成，确认 fonts.css 体积变化", "files": [] }
+  ]
+}

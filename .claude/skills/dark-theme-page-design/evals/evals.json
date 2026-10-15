@@ -1,0 +1,8 @@
+{
+  "skill_name": "dark-theme-page-design",
+  "evals": [
+    { "id": 1, "prompt": "这是我画的排行榜页草图，照着它设计一下", "expected_output": "逐区域对照草图实现，标题用 ZZDisplay、按钮用红色胶囊、右上角避开胶囊，说明和草图不同的地方及原因", "files": [] },
+    { "id": 2, "prompt": "这个页面信息太挤了，颜色也不协调", "expected_output": "收拢强调色（一屏一个红色焦点）、折叠说明文字、放大留白，辅助色从首屏图片取，并附前后截图对比", "files": [] },
+    { "id": 3, "prompt": "给成为主办方的页面加一个审核失败的状态", "expected_output": "为新状态设计标题、说明、按钮文案和颜色，流程进度标红，并提供 ?state= 预览参数", "files": [] }
+  ]
+}

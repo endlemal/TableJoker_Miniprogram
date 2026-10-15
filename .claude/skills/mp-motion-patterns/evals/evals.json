@@ -1,0 +1,8 @@
+{
+  "skill_name": "mp-motion-patterns",
+  "evals": [
+    { "id": 1, "prompt": "我想让排行页的榜单卡片点开时像参考视频那样从原位置展开", "expected_output": "用卡片展开成详情模式实现：量位置、替身过渡、正文浮上、关闭时收回，位置与封面样式分离，并附减少动态效果处理", "files": [] },
+    { "id": 2, "prompt": "从我的页面切到广场时，导航栏的球没有滑动，直接就在终点了", "expected_output": "指出 lastIndex 记录的是点击而不是页面对应项、或跳转前先改了 active，按模式修正并录 GIF 验证", "files": [] },
+    { "id": 3, "prompt": "常见问题的展开收起要有动画，不想用 JS 量高度", "expected_output": "使用 grid 0fr→1fr 折叠，内层 min-height:0，收起时保留文字避免闪空", "files": [] }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "skill_name": "mp-style-perf-check",
+  "evals": [
+    { "id": 1, "prompt": "有几张带旋转的插画在开发者工具里显示成空白，帮我查一下", "expected_output": "定位到 data URI 带 charset 或括号未编码导致内联样式被拆断，修复 svgUri 并说明原理", "files": [] },
+    { "id": 2, "prompt": "优化一下广场页的性能，滑动有点卡", "expected_output": "检查 onPageScroll、setData 里的大段样式、样式缓存，改用相交监听并保留 H5 兜底，用 mp_check.py 确认产物", "files": [] },
+    { "id": 3, "prompt": "交付前帮我检查一下这次小程序的改动有没有兼容问题", "expected_output": "运行 mp_check.py，报告 WXSS 选择器、app.json 声明、包体积和 H5 代码泄漏的结果", "files": [] }
+  ]
+}

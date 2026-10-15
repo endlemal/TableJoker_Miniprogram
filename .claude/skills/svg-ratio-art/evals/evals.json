@@ -1,0 +1,8 @@
+{
+  "skill_name": "svg-ratio-art",
+  "evals": [
+    { "id": 1, "prompt": "再设计两个新寓意的比赛封面，要有六种尺寸", "expected_output": "两个按比例构图的场景函数和寓意文案，validate_svg.py 通过，对比图逐行检查后再接入界面", "files": [] },
+    { "id": 2, "prompt": "血夜这张封面在竖版里下面一大片空的，调一下", "expected_output": "针对竖图调整地平线、焦点或加前景框景，不影响横图；重新渲染对比图确认", "files": [] },
+    { "id": 3, "prompt": "落地页顶图里灯塔被裁掉了", "expected_output": "改为按容器比例取对应尺寸（nearestSize / 16:9 构图），而不是调整裁切位置", "files": [] }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "skill_name": "uniapp-h5-regression",
+  "evals": [
+    { "id": 1, "prompt": "广场页的帖子详情展开和收起，帮我录个动图看看顺不顺", "expected_output": "H5 构建后放慢动画录制展开到收起的 GIF，抽帧检查，并说明封面是否从卡片位置展开", "files": [] },
+    { "id": 2, "prompt": "我改了平台认证页的折叠面板，回归一下这个页面的交互", "expected_output": "逐步操作并打印断言（折叠高度、底部切换、四种状态），附截图拼图和报错列表，标明哪些需要在开发者工具确认", "files": [] },
+    { "id": 3, "prompt": "页面在 H5 下有个 ERR_INVALID_URL 报错，是不是 uni 自己的问题", "expected_output": "按步骤复现并用 console 的 location 定位来源，不先入为主地归为框架问题", "files": [] }
+  ]
+}

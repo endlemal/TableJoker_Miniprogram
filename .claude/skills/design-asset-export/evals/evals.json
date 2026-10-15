@@ -1,0 +1,7 @@
+{
+  "skill_name": "design-asset-export",
+  "evals": [
+    { "id": 1, "prompt": "我新加了两个封面场景，帮我把美术资产更新一下，好让本地的 Claude 同步到 Figma", "expected_output": "运行导出脚本，列出 design/svg 的变化，更新 README 的场景表，并写出一段可直接执行的 Figma 交接指令", "files": [] },
+    { "id": 2, "prompt": "把所有封面和图标打包给设计师", "expected_output": "说明 design/svg 的目录结构、index.json 和各尺寸用途，指出导不出 SVG 的资产及处理方式", "files": [] }
+  ]
+}
