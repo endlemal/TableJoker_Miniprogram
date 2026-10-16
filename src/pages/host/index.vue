@@ -405,7 +405,7 @@ function onNav(i) {
 }
 
 /* 首屏：海报贴右边缘，底部渐隐到页面底色 */
-.hero { position: relative; z-index: 2; height: 860rpx; margin-top: 24rpx; }
+.hero { position: relative; z-index: 2; height: 860rpx; margin-top: 24rpx; margin-bottom:-90rpx}
 .slogan { position: absolute; left: 40rpx; top: 72rpx; display: flex; flex-direction: column; }
 .sl-t { font-size: 24rpx; line-height: 1.7; letter-spacing: 2rpx; color: #9CA3AF; }
 .sl-line { width: 2rpx; height: 200rpx; margin: 28rpx 0 0 4rpx; background: #3A3E48; }
@@ -413,35 +413,35 @@ function onNav(i) {
 .poster-img { width: 100%; height: 100%; display: block; }
 .poster-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 240rpx; background: linear-gradient(180deg, rgba(24, 26, 32, 0), rgba(24, 26, 32, .85)); }
 .lottie {
-  position: absolute; z-index: 3; left: 40rpx; top: 640rpx; width: 256rpx; height: 256rpx; border-radius: 40rpx;
+  position: absolute; z-index: 3; left: 40rpx; top: 540rpx; width: 256rpx; height: 256rpx; border-radius: 40rpx;
   background-size: 100% 100%; box-shadow: 0 24rpx 48rpx rgba(0, 0, 0, .45);
 }
-.h-sub { position: absolute; left: 328rpx; right: 40rpx; top: 800rpx; font-size: 24rpx; line-height: 1.65; color: #9CA3AF; }
+.h-sub { position: absolute; left: 328rpx; right: 40rpx; top: 670rpx; font-size: 24rpx; line-height: 1.65; color: #9CA3AF; }
 
 /* 面板 */
 .sheet {
   position: relative; z-index: 1; min-height: 100vh; border-radius: 48rpx 48rpx 0 0; background: #1F222A;
-  padding: 80rpx 0 calc(300rpx + env(safe-area-inset-bottom));
+  padding:80rpx 0 calc(300rpx + env(safe-area-inset-bottom));
 }
-.lead { display: flex; align-items: center; padding: 0 40rpx; }
+.lead { display: flex; align-items: center; margin-top:-20rpx ;padding: 0rpx 40rpx; }
 .lead-main { flex: 1; min-width: 0; }
 .lead-row { display: flex; align-items: center; }
 .lead-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 52rpx; line-height: 1.2; letter-spacing: 2rpx; color: #FFFFFF; }
-.lead-arrow { margin-left: 12rpx; padding: 6rpx; animation: bob 1.8s ease-in-out infinite; }
+.lead-arrow { margin-left: 12rpx; padding-top: 6rpx; animation: bob 1.8s ease-in-out infinite; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8rpx); } }
 .lead-s { display: block; margin-top: 10rpx; font-size: 24rpx; line-height: 1.5; color: #9CA3AF; }
 .s-verified .lead-s { color: #F4B740; }
 .s-rejected .lead-s { color: #FF6B6B; }
 /* 按钮：和全站主按钮一致的红色胶囊 */
 .lead-btn {
-  flex: none; margin-left: 20rpx; height: 80rpx; padding: 0 24rpx 0 34rpx; border-radius: 999rpx; background: #DC0000;
+  flex: none; margin:20rpx 40rpx 0rpx 0rpx; height: 80rpx; padding: 0 24rpx 0 34rpx; border-radius: 999rpx; background: #DC0000;
   box-shadow: 0 12rpx 28rpx rgba(220, 0, 0, .32); display: flex; align-items: center;
 }
 .lead-btn-pending, .lead-btn-verified { background: #35383F; box-shadow: none; }
 .lead-btn-t { margin-right: 4rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
 
 /* 区块：标题和广场一样用标题字体 */
-.sec { margin-top: 96rpx; padding: 0 40rpx; }
+.sec { margin-top: 26rpx; padding: 0 40rpx; }
 .sec-t { display: block; margin-bottom: 32rpx; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 40rpx; letter-spacing: 2rpx; color: #FFFFFF; }
 .sec-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32rpx; }
 .sec-t-inline { margin-bottom: 0; }
