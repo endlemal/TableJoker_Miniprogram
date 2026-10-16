@@ -109,6 +109,11 @@
     </view>
     <view class="more"><text class="more-t">{{ loading ? '正在加载…' : ended || cat === 1 ? '没有更多了' : '' }}</text></view>
 
+    <!-- 微信原生容器只负责接管系统返回，详情继续使用原来的展开/收起动画。 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <page-container :show="!!detail" :overlay="false" :duration="500" custom-style="height:0;background:transparent;" @beforeleave="closeDetail" />
+    <!-- #endif -->
+
     <!-- 帖子详情：封面从卡片位置展开成顶部大图，正文从下方浮上来；在顶部下拉可以关闭 -->
     <view v-if="detail" class="dt" :class="{ 'dt-on': dtOpen }">
       <view class="dt-bg"></view>
@@ -159,7 +164,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
@@ -320,6 +325,9 @@ function openLink(link) {
 /* ---------- 帖子详情：容器展开 ---------- */
 const detail = ref(null)
 const dtOpen = ref(false)
+let detailClosing = false
+let detailOpenTimer = null
+let detailCloseTimer = null
 const ghost = ref('')
 const EASE = 'cubic-bezier(.2,.8,.2,1)'
 const MOVE = `transition:left .5s ${EASE},top .5s ${EASE},width .5s ${EASE},height .5s ${EASE},border-radius .5s ${EASE};`
@@ -330,22 +338,38 @@ const ghostAt = (r, anim) => `left:${r.left}px;top:${r.top}px;width:${r.width}px
 const ghostFull = (anim) => `left:0;top:0;width:${winW}px;height:${heroH}px;border-radius:0;${anim ? MOVE : 'transition:none;'}`
 
 async function openPost(it, instant) {
+  if (detail.value) return
   const r = instant ? null : await rectOf('#cv-' + it.key)
+  if (detail.value) return
   detail.value = it
+  dtTop = 0
   dtOpen.value = false
   ghost.value = r ? ghostAt(r, false) : ghostFull(false)
-  setTimeout(() => {
+  detailOpenTimer = setTimeout(() => {
     ghost.value = ghostFull(true)
     dtOpen.value = true
   }, 30)
 }
 async function closeDetail() {
-  if (!detail.value) return
+  if (!detail.value || detailClosing) return
+  detailClosing = true
+  clearTimeout(detailOpenTimer)
   const r = await rectOf('#cv-' + detail.value.key)
   ghost.value = r && r.width ? ghostAt(r, true) : ghostFull(true)
   dtOpen.value = false
-  setTimeout(() => { detail.value = null; drag.value = 0 }, 500)
+  detailCloseTimer = setTimeout(() => {
+    detail.value = null
+    drag.value = 0
+    dragging.value = false
+    detailClosing = false
+  }, 500)
 }
+
+onBackPress(() => {
+  if (!detail.value) return false
+  closeDetail()
+  return true
+})
 
 // 在正文顶部往下拉：跟手位移，超过阈值就收回卡片
 const drag = ref(0)
@@ -413,6 +437,8 @@ onReady(() => {
   }
 })
 onUnload(() => {
+  clearTimeout(detailOpenTimer)
+  clearTimeout(detailCloseTimer)
   if (io) io.disconnect()
   if (cbarIo) cbarIo.disconnect()
 })
