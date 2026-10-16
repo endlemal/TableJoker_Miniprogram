@@ -3,8 +3,8 @@
   <view class="page">
     <!-- 滚过这条线就切换紧凑标题栏；用相交监听代替 onPageScroll，滚动时不再逐帧通知逻辑层 -->
     <view class="cbar-line"></view>
-    <!-- 滚动后出现的紧凑标题栏 -->
-    <view class="cbar" :class="{ 'cbar-on': compact }" :style="cbarStyle"><text class="cbar-t">广场</text></view>
+    <!-- 吸顶后的状态栏底色，导航行由收缩后的分类栏占据 -->
+    <view class="cbar" :class="{ 'cbar-on': compact }" :style="cbarStyle"></view>
 
     <!-- 大标题：和胶囊同一行；下面是醒目的数字锚点 -->
     <view class="head" :style="headStyle">
@@ -19,14 +19,16 @@
     </view>
 
     <!-- 分类：吸顶，选中块跟随滑动 -->
-    <view class="chips" :style="chipsStyle">
+    <view class="chips-anchor" :style="chipsStyle">
+    <view class="chips" :class="{ 'chips-compact': compact }" :style="chipsInnerStyle">
       <view class="chips-track">
-        <view class="chip-ind" :style="'transform:translateX(' + cat * CHIP_STEP + 'rpx)'"></view>
+        <view class="chip-ind" :style="'transform:translateX(' + cat * (compact ? CHIP_STEP / 2 : CHIP_STEP) + 'rpx)'"></view>
         <view v-for="(c, i) in cats" :key="c.key" class="chip" @tap="setCat(i)">
-          <text class="chip-t" :class="{ 'chip-t-on': cat === i }">{{ c.label }}</text>
+          <view class="chip-t" :class="{ 'chip-t-on': cat === i }"><text class="chip-char">{{ c.label[0] }}</text><text class="chip-char chip-char-last">{{ c.label[1] }}</text></view>
         </view>
       </view>
       <view class="chips-search" hover-class="press" @tap="toast('搜索待接入')"><z-icon name="search" :size="18" color="#E5E7EB" /></view>
+    </view>
     </view>
 
     <!-- 正在报名的公开赛：横向卡片，当前卡片放大 -->
@@ -181,7 +183,6 @@ const heroH = Math.round(winW * 0.82)
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
-const chipsStyle = `top:${nav.statusBar + nav.navH}px`
 const closeStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
 
 const p2 = (n) => (n < 10 ? '0' : '') + n
@@ -403,12 +404,20 @@ function toggleLike(p) {
 
 /* ---------- 页面 ---------- */
 const compact = ref(false)
+const chipsStyle = computed(() => {
+  let s = `top:${nav.statusBar + (compact.value ? 0 : nav.navH)}px`
+  if (compact.value) s += `;height:${nav.navH}px`
+  return s
+})
+const chipsInnerStyle = computed(() => compact.value
+  ? `height:${nav.navH}px;padding-right:${nav.capsuleW ? nav.capsuleW + 8 : 16}px`
+  : '')
 let cbarIo = null
 // 小程序：用相交监听，滚动时不往逻辑层发事件。
 // H5：uni 的相交监听以页面容器为参照，标记线永远算「可见」，所以改用 onPageScroll（H5 没有逻辑层和视图层之分，没有额外开销）
 // #ifdef H5
 onPageScroll(({ scrollTop }) => {
-  const on = scrollTop > 72
+  const on = scrollTop > 144 / 750 * nav.winW
   if (on !== compact.value) compact.value = on
 })
 // #endif
@@ -498,13 +507,12 @@ function onNav(i) {
 .av-56 { width: 72rpx; height: 72rpx; font-size: 28rpx; }
 
 /* 紧凑标题栏 */
-.cbar-line { position: absolute; left: 0; top: 72px; width: 1px; height: 1px; pointer-events: none; }
+.cbar-line { position: absolute; left: 0; top: 144rpx; width: 1px; height: 1px; pointer-events: none; }
 .cbar {
   position: fixed; z-index: 30; left: 0; right: 0; top: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   background: #181A20; opacity: 0; transform: translateY(-12rpx); transition: opacity .25s ease, transform .3s ease; pointer-events: none;
 }
 .cbar-on { opacity: 1; transform: translateY(0); }
-.cbar-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 34rpx; color: #FFFFFF; }
 
 /* 大标题与数字锚点 */
 .head { padding-left: 32rpx; padding-right: 32rpx; }
@@ -518,16 +526,24 @@ function onNav(i) {
 .h-stat-b { margin-top: 6rpx; font-size: 24rpx; color: #6B7280; }
 
 /* 分类 */
-.chips { position: sticky; z-index: 20; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx; background: #181A20; }
+.chips-anchor { position: sticky; z-index: 40; height: 112rpx; transition: height .35s ease; }
+.chips { height: 112rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx; background: #181A20; transition: height .35s ease, padding .35s ease; }
 .chips-track { position: relative; display: flex; padding: 6rpx; border-radius: 999rpx; background: #1F222A; }
 .chip-ind {
   position: absolute; left: 6rpx; top: 6rpx; width: 132rpx; height: 60rpx; border-radius: 999rpx; background: #F2F2EE;
-  transition: transform .42s cubic-bezier(.34, 1.36, .64, 1);
+  transition: transform .42s cubic-bezier(.34, 1.36, .64, 1), width .35s ease;
 }
-.chip { position: relative; width: 132rpx; height: 60rpx; margin-right: 4rpx; display: flex; align-items: center; justify-content: center; }
-.chip-t { font-size: 26rpx; color: #9CA3AF; transition: color .25s ease; }
+.chip { position: relative; width: 132rpx; height: 60rpx; margin-right: 4rpx; display: flex; align-items: center; justify-content: center; transition: width .35s ease, margin-right .35s ease; }
+.chip-t { position: relative; width: 52rpx; height: 28rpx; font-size: 26rpx; line-height: 28rpx; color: #9CA3AF; transition: color .25s ease, width .35s ease, height .35s ease, font-size .35s ease, line-height .35s ease; }
+.chip-char { position: absolute; left: 0; top: 0; transition: left .35s ease, top .35s ease; }
+.chip-char-last { left: 26rpx; }
 .chip-t-on { color: #181A20; font-weight: 500; }
-.chips-search { width: 72rpx; height: 72rpx; border-radius: 50%; background: #1F222A; display: flex; align-items: center; justify-content: center; }
+.chips-search { flex-shrink: 0; width: 72rpx; height: 72rpx; border-radius: 50%; background: #1F222A; display: flex; align-items: center; justify-content: center; }
+.chips-compact { padding-top: 0; padding-bottom: 0; }
+.chips-compact .chip { width: 66rpx; margin-right: 2rpx; }
+.chips-compact .chip-ind { width: 66rpx; }
+.chips-compact .chip-t { width: 22rpx; height: 48rpx; font-size: 22rpx; line-height: 24rpx; }
+.chips-compact .chip-char-last { left: 0; top: 24rpx; }
 
 /* 正在报名 */
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; padding: 16rpx 32rpx 0; }
