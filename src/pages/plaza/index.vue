@@ -96,9 +96,11 @@
           </view>
 
           <view v-else class="mc">
-            <view class="mc-top"><text class="mc-srv">{{ it.server }}</text><z-icon name="arrow-up-right" :size="16" color="#181A20" /></view>
-            <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name) }">{{ it.name }}</text>
-            <text v-if="it.location" class="mc-loc">{{ it.location.name }}</text>
+            <view class="mc-hero" :style="it.feedCoverStyle">
+              <view class="mc-top"><text class="mc-srv">{{ it.server }}</text><z-icon name="arrow-up-right" :size="16" color="#FFFFFF" /></view>
+              <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name) }">{{ it.name }}</text>
+              <text v-if="it.location" class="mc-loc">{{ it.location.name }}</text>
+            </view>
             <view class="mc-meta">
               <view class="mc-when"><text class="mc-time">{{ it.time }}</text><text class="mc-date">{{ it.date }}</text></view>
               <text class="mc-sign">{{ it.signed }}/{{ it.cap }}</text>
@@ -212,6 +214,7 @@ const decorate = (m) => {
     scene: sceneLine(m.cover),
     coverStyle: coverStyleOf(m.cover, 'banner'),
     thumbStyle: coverStyleOf(m.cover, 'share'),
+    feedCoverStyle: coverStyleOf(m.cover, 'wide'),
     time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
     date: `${p2(d.getMonth() + 1)}/${p2(d.getDate())} 周${WEEK[d.getDay()]}`,
     signed,
@@ -252,7 +255,7 @@ const ended = ref(false)
 const feedItems = computed(() => {
   if (cat.value === 1) return featured.slice()
   if (cat.value === 2) return posts.value.slice()
-  // 全部：帖子为主，穿插海报广告和文字型赛事卡片
+  // 全部：帖子为主，穿插海报广告和带封面的赛事卡片
   const out = []
   const extraMatches = featured.slice(1)
   posts.value.forEach((p, i) => {
@@ -610,18 +613,22 @@ function onNav(i) {
 .ad-cta-t { margin-right: 6rpx; font-size: 22rpx; font-weight: 500; color: #181A20; }
 .ad-shop .ad-cta-t { color: #F3EEE6; }
 
-/* 文字型赛事卡片：象牙白，对照参考里的排版卡片 */
-.card-match { background: #F2F2EE; }
-.mc { height: 300rpx; padding: 22rpx 22rpx 24rpx; box-sizing: border-box; display: flex; flex-direction: column; }
+/* 原尺寸内上下分区：封面铺满信息区，日期与人数独立使用白底。 */
+.card.card-match { background: transparent; border: 0; box-shadow: none; }
+.mc { height: 300rpx; display: flex; flex-direction: column; }
+.mc-hero { position: relative; flex: 1; min-height: 0; padding: 22rpx 22rpx 16rpx; box-sizing: border-box; display: flex; flex-direction: column; background-color: #252830; }
+.mc-hero::before { content: ''; position: absolute; inset: 0; background: rgba(18,20,26,.24); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); pointer-events: none; }
 .mc-top { display: flex; align-items: flex-start; justify-content: space-between; }
-.mc-srv { font-size: 20rpx; line-height: 1.3; color: #6B6A64; }
-.mc-title { margin-top: auto; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 44rpx; line-height: 1.15; color: #181A20; }
-.mc-loc { margin-top: 8rpx; font-size: 20rpx; color: #6B6A64; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mc-meta { margin-top: 16rpx; padding-top: 14rpx; border-top: 2rpx solid #DEDBD2; display: flex; align-items: baseline; justify-content: space-between; }
+.mc-srv { font-size: 20rpx; line-height: 1.3; color: #FFFFFF; text-shadow: 0 1rpx 6rpx rgba(0,0,0,.65); }
+.mc-title { margin-top: auto; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 44rpx; line-height: 1.15; color: #FFFFFF; text-shadow: 0 2rpx 8rpx rgba(0,0,0,.8); }
+.mc-loc { margin-top: 8rpx; font-size: 20rpx; color: #FFFFFF; text-shadow: 0 1rpx 6rpx rgba(0,0,0,.8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-meta { flex-shrink: 0; height: 80rpx; padding: 14rpx 22rpx 24rpx; box-sizing: border-box; border-top: 2rpx solid #DEDBD2; background: #F2F2EE; display: flex; align-items: baseline; justify-content: space-between; }
 .mc-when { display: flex; align-items: baseline; }
 .mc-time { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 34rpx; color: #181A20; }
 .mc-date { margin-left: 8rpx; font-size: 20rpx; color: #6B6A64; }
 .mc-sign { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 28rpx; color: #DC0000; }
+
+.mc-top, .mc-title, .mc-loc { position: relative; z-index: 1; }
 
 .more { padding: 12rpx 0 0; text-align: center; }
 .more-t { font-size: 24rpx; color: #6B7280; }
