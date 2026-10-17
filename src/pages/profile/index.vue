@@ -29,7 +29,7 @@
         </view>
       </view>
 
-      <view v-show="tab === 0">
+      <block v-if="tab === 0">
         <!-- 最近活跃 -->
         <view class="sec-head">
           <text class="sec-title">最近活跃</text>
@@ -59,7 +59,7 @@
           </view>
         </view>
 
-        <!-- 勋章：蜂巢底图合并为单张 SVG，避免 44 个 clip-path 多边形遮罩层造成进页掉帧 -->
+        <!-- 勋章 -->
         <view class="sec-head sec-head-badge">
           <text class="sec-title">勋章</text>
           <view class="sec-more" hover-class="press-soft" @tap="toast('全部勋章待接入')">
@@ -67,14 +67,16 @@
             <z-icon name="chevron-right" :size="14" color="#9CA3AF" />
           </view>
         </view>
-        <view class="hive" :style="hiveBgStyle">
-          <view v-for="(h, i) in earnedHexes" :key="i" class="hx" :style="h.pos" @tap="toast(h.name)">
-            <z-icon :name="h.icon" :size="21" :color="h.iconColor" />
+        <view class="hive">
+          <view v-for="(h, i) in hexes" :key="i" class="hx" :style="h.outer" @tap="h.name && toast(h.name)">
+            <view class="hx-in" :style="h.inner">
+              <z-icon v-if="h.icon" :name="h.icon" :size="21" :color="h.iconColor" />
+            </view>
           </view>
         </view>
-      </view>
+      </block>
 
-      <view v-show="tab !== 0" class="empty">
+      <view v-else class="empty">
         <z-icon :name="tab === 1 ? 'chart-bar' : 'settings'" :size="28" color="#6B7280" />
         <text class="empty-t">{{ tab === 1 ? '战绩' : '我的配置' }}页面待接入</text>
       </view>
@@ -95,57 +97,39 @@
   </view>
 </template>
 
-<script>
-import { getNavMetrics } from '@/common/nav.js'
-import { svgUri, diceFacesPattern } from '@/common/svg.js'
-import { badgeRows, badgeTone } from '@/mock/data.js'
-
-const COVER_STYLE = `background-image:url("${svgUri(diceFacesPattern())}")`
-
-// 蜂巢坐标：勋章 96×110rpx，横向间距 108rpx，行距 92rpx，奇数行错开半格
-// 将 22 个六边形的外框与内底一次性合成为单张 SVG 背景，仅对已点亮勋章渲染图标节点
-const EARNED_HEXES = []
-let EARNED_COUNT = 0
-let hivePolys = ''
-badgeRows.forEach((row, r) => {
-  const left0 = r % 2 === 0 ? 25 : 79
-  row.forEach((b, c) => {
-    const x = left0 + c * 108
-    const y = 24 + r * 92
-    const tone = badgeTone[b ? b.tone : 'locked']
-    hivePolys += `<polygon points="${x + 48},${y} ${x + 96},${y + 27.5} ${x + 96},${y + 82.5} ${x + 48},${y + 110} ${x},${y + 82.5} ${x},${y + 27.5}" fill="${tone.rim}"/>`
-    hivePolys += `<polygon points="${x + 48},${y + 4} ${x + 92},${y + 29.5} ${x + 92},${y + 80.5} ${x + 48},${y + 106} ${x + 4},${y + 80.5} ${x + 4},${y + 29.5}" fill="${tone.fill}"/>`
-    if (b) {
-      EARNED_COUNT++
-      EARNED_HEXES.push({
-        name: b.name,
-        icon: b.icon,
-        iconColor: tone.icon,
-        pos: `left:${x}rpx;top:${y}rpx`
-      })
-    }
-  })
-})
-const hiveSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 686 434">${hivePolys}</svg>`
-const HIVE_BG_STYLE = `background-image:url("${svgUri(hiveSvg)}")`
-</script>
-
 <script setup>
 import { ref } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
-import { goBackOrHome } from '@/common/nav.js'
-import { me, activity, badgeTotal } from '@/mock/data.js'
+import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
+import { svgUri, diceFacesPattern } from '@/common/svg.js'
+import { me, activity, badgeRows, badgeTone, badgeTotal } from '@/mock/data.js'
 
 const nav = getNavMetrics()
 const tabs = ['主页', '战绩', '我的配置']
 const tab = ref(0)
 
-const coverStyle = COVER_STYLE
-const earnedHexes = EARNED_HEXES
-const earned = EARNED_COUNT
-const hiveBgStyle = HIVE_BG_STYLE
+const coverStyle = `background-image:url("${svgUri(diceFacesPattern())}")`
 const backStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 40) / 2)}px`
+
+// 蜂巢坐标：勋章 96×110rpx，横向间距 108rpx，行距 92rpx，奇数行错开半格
+const hexes = []
+let earned = 0
+badgeRows.forEach((row, r) => {
+  const left0 = r % 2 === 0 ? 25 : 79
+  row.forEach((b, c) => {
+    const tone = badgeTone[b ? b.tone : 'locked']
+    if (b) earned++
+    hexes.push({
+      name: b ? b.name : '',
+      icon: b ? b.icon : '',
+      iconColor: tone.icon,
+      outer: `left:${left0 + c * 108}rpx;top:${24 + r * 92}rpx;background:${tone.rim}`,
+      inner: `background:${tone.fill}`
+    })
+  })
+})
+
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 const navItems = [
@@ -221,13 +205,20 @@ function onNav(i) {
 .d4 { width: 26rpx; height: 26rpx; background: #F3EEE6; }
 .dx { width: 26rpx; height: 26rpx; background: #DC0000; }
 
-.hive { position: relative; margin-top: 16rpx; height: 434rpx; border-radius: 32rpx; background-color: #121419; background-size: 100% 100%; background-repeat: no-repeat; overflow: hidden; }
+.hive { position: relative; margin-top: 16rpx; height: 434rpx; border-radius: 32rpx; background: #121419; overflow: hidden; }
 .hx {
   position: absolute; width: 96rpx; height: 110rpx;
+  -webkit-clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+.hx-in {
+  position: absolute; left: 4rpx; top: 4rpx; right: 4rpx; bottom: 4rpx;
+  -webkit-clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
   display: flex; align-items: center; justify-content: center;
 }
 
-.empty { margin-top: 120rpx; display: flex; align-items: center; flex-direction: column; }
+.empty { margin-top: 120rpx; display: flex; flex-direction: column; align-items: center; }
 .empty-t { margin-top: 16rpx; font-size: 26rpx; color: #6B7280; }
 
 .avatar {
