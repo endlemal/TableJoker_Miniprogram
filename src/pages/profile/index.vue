@@ -98,7 +98,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { tabItems, tapTab } from '@/common/tabs.js'
+import { useCertState } from '@/common/cert.js'
+import { ref, computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
@@ -132,20 +134,12 @@ badgeRows.forEach((row, r) => {
 
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 
-const navItems = [
-  { key: 'me', label: '我的', icon: 'user' },
-  { key: 'plaza', label: '广场', icon: 'compass' },
-  { key: 'rank', label: '排行', icon: 'chart-bar' },
-  { key: 'host', label: '成为主办方', icon: 'flag' }
-]
+// 底部导航：第四个入口随认证状态变化（认证后模式切换时自动更新）
+const certState = useCertState()
+const navItems = computed(() => tabItems(certState.value))
 const navActive = ref(0)
-// 其他三个页面还没有，先停在选中项并提示；接入后改成 uni.switchTab，新页面的导航会从上一个位置滑过来
-const NAV_TIPS = ['', '广场页面待接入', '排行页面待接入', '主办方申请待接入']
 function onNav(i) {
-  if (i === 1) return uni.redirectTo({ url: '/pages/plaza/index' })
-  if (i === 3) return uni.redirectTo({ url: '/pages/host/index' })
-  navActive.value = i
-  if (NAV_TIPS[i]) setTimeout(() => toast(NAV_TIPS[i]), 420)
+  tapTab(navItems.value, i, 'me', (k) => { navActive.value = k })
 }
 </script>
 

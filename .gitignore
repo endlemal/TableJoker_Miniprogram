@@ -19,3 +19,6 @@ dist
 *.njsproj
 *.sln
 *.sw?
+# Python 缓存（运行 .claude/skills 和 tools 里的脚本时生成）
+__pycache__/
+*.pyc

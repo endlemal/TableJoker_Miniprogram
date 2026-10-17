@@ -167,6 +167,8 @@
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
 import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
+import { tabItems, tapTab } from '@/common/tabs.js'
+import { useCertState } from '@/common/cert.js'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
@@ -459,19 +461,12 @@ onShareAppMessage(() => (detail.value
   : { title: '广场：正在报名的公开赛', path: '/pages/plaza/index' }))
 
 /* ---------- 底部导航 ---------- */
-const navItems = [
-  { key: 'me', label: '我的', icon: 'user' },
-  { key: 'plaza', label: '广场', icon: 'compass' },
-  { key: 'rank', label: '排行', icon: 'chart-bar' },
-  { key: 'host', label: '成为主办方', icon: 'flag' }
-]
+// 底部导航：第四个入口随认证状态变化（认证后模式切换时自动更新）
+const certState = useCertState()
+const navItems = computed(() => tabItems(certState.value))
 const navActive = ref(1)
-const NAV_TIPS = ['', '', '排行页面待接入', '主办方申请待接入']
 function onNav(i) {
-  if (i === 0) return uni.redirectTo({ url: '/pages/profile/index' })
-  if (i === 3) return uni.redirectTo({ url: '/pages/host/index' })
-  navActive.value = i
-  if (NAV_TIPS[i]) setTimeout(() => toast(NAV_TIPS[i]), 420)
+  tapTab(navItems.value, i, 'plaza', (k) => { navActive.value = k })
 }
 </script>
 

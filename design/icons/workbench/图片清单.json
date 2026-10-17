@@ -1,0 +1,77 @@
+[
+  {
+    "file": "01-遥控切屏.png",
+    "width": 356,
+    "height": 596,
+    "transparent": true
+  },
+  {
+    "file": "02-海报广告.png",
+    "width": 536,
+    "height": 456,
+    "transparent": true
+  },
+  {
+    "file": "03-设备绑定.png",
+    "width": 566,
+    "height": 488,
+    "transparent": true
+  },
+  {
+    "file": "04-盲注结构.png",
+    "width": 540,
+    "height": 516,
+    "transparent": true
+  },
+  {
+    "file": "05-台桌管理.png",
+    "width": 604,
+    "height": 352,
+    "transparent": true
+  },
+  {
+    "file": "06-荷官列表.png",
+    "width": 472,
+    "height": 530,
+    "transparent": true
+  },
+  {
+    "file": "07-方案管理.png",
+    "width": 517,
+    "height": 488,
+    "transparent": true
+  },
+  {
+    "file": "08-大屏主题.png",
+    "width": 644,
+    "height": 440,
+    "transparent": true,
+    "note": "已清理右侧孤立白点"
+  },
+  {
+    "file": "09-筹码图例.png",
+    "width": 760,
+    "height": 696,
+    "transparent": true
+  },
+  {
+    "file": "10-颁奖动画.png",
+    "width": 504,
+    "height": 645,
+    "transparent": true
+  },
+  {
+    "file": "11-结算管理.png",
+    "width": 520,
+    "height": 520,
+    "transparent": true,
+    "source": "补画，源文件 11-结算管理.svg"
+  },
+  {
+    "file": "12-周边勋章.png",
+    "width": 520,
+    "height": 520,
+    "transparent": true,
+    "source": "补画，源文件 12-周边勋章.svg"
+  }
+]

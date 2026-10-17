@@ -109,9 +109,10 @@ function moveTo(i) {
   shown.value = i
 }
 
+// 点已选中的项也要通知页面：同一个位置可能对应另一个页面（比如在平台认证页，已认证时第四个入口是「主办方工作台」）。
+// 页面里用 tapTab 处理，点的是自己就什么也不做
 function select(i) {
-  if (i === shown.value) return
-  moveTo(i)
+  if (i !== shown.value) moveTo(i)
   emit('change', i)
 }
 

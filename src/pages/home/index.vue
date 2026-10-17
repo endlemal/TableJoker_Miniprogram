@@ -2,7 +2,7 @@
   <view class="home">
     <!-- 服务器栏 -->
     <view class="rail" :style="railStyle">
-      <view class="logo" hover-class="press" @tap="toast('桌游聚')">
+      <view class="logo" hover-class="press" @tap="onLogoTap">
         <view class="logo-pip" style="left:26rpx;top:26rpx"></view>
         <view class="logo-pip" style="left:54rpx;top:26rpx"></view>
         <view class="logo-pip" style="left:26rpx;top:54rpx"></view>
@@ -117,14 +117,22 @@
     </view>
     <view class="dock-avatar" @tap="toProfile">
       <text>{{ me.char }}</text>
-      <view v-if="me.online" class="dock-online"></view>
+      <!-- 主办方模式：右下角是认证 V 标识；普通玩家是在线绿点 -->
+      <z-host-only>
+        <view class="dock-v"><z-icon name="letter-v" :size="9" :stroke="3.4" color="#FFFFFF" /></view>
+        <template #fallback><view v-if="me.online" class="dock-online"></view></template>
+      </z-host-only>
     </view>
+    <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
   </view>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
+import ZPop from '@/components/z-pop/z-pop.vue'
+import ZHostOnly from '@/components/z-host-only/z-host-only.vue'
+import { useCertState, setHostMode } from '@/common/cert.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
 import { me, servers, featuredEvent as event } from '@/mock/data.js'
@@ -141,6 +149,35 @@ const bannerStyle = `background-image:url("${svgUri(bloodMoonBanner())}")`
 
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 const toProfile = () => uni.navigateTo({ url: '/pages/profile/index' })
+
+/* ---------- 认证后模式：连点左上角标志 5 次切换（类似安卓的开发者模式） ---------- */
+// 进入后一直保持（存在本地），再连点 5 次恢复为普通玩家。第 3 次起提示还差几次；两次点击间隔超过 1.2 秒重新计数
+const certState = useCertState()
+const hostMode = computed(() => certState.value === 'verified')
+const TAPS_NEEDED = 5
+let taps = 0
+let lastTap = 0
+const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
+let popTimer = null
+function popMsg(text, icon, tone, ms) {
+  clearTimeout(popTimer)
+  Object.assign(pop, { show: true, text, icon, tone })
+  popTimer = setTimeout(() => { pop.show = false }, ms)
+}
+function onLogoTap() {
+  const now = Date.now()
+  taps = now - lastTap < 1200 ? taps + 1 : 1
+  lastTap = now
+  const left = TAPS_NEEDED - taps
+  if (left > 0) {
+    if (taps >= 3) popMsg(`再点 ${left} 次${hostMode.value ? '退出' : '进入'}认证后模式`, 'hand-click', 'gray', 1200)
+    return
+  }
+  taps = 0
+  const on = !hostMode.value
+  setHostMode(on)
+  popMsg(on ? '已进入平台认证后模式' : '已退出认证后模式，恢复为普通玩家', on ? 'rosette-discount-check' : 'user', on ? 'red' : 'gray', 2400)
+}
 const toPlaza = () => uni.navigateTo({ url: '/pages/plaza/index' })
 const openMatches = publicMatches.length
 const createMatch = () => uni.navigateTo({ url: '/pages/create/index' })
@@ -290,6 +327,10 @@ function joinByLink() {
   width: 130rpx; height: 130rpx; box-sizing: border-box; border-radius: 50%;
   background: #F1E4D3; border: 6rpx solid #121419;
   display: flex; align-items: center; justify-content: center; font-size: 44rpx; font-weight: 500; color: #8A1C1C;
+}
+.dock-v {
+  position: absolute; right: -6rpx; bottom: -6rpx; width: 34rpx; height: 34rpx; box-sizing: border-box; border-radius: 50%;
+  background: #DC0000; border: 5rpx solid #121419; display: flex; align-items: center; justify-content: center;
 }
 .dock-online { position: absolute; right: -6rpx; bottom: -6rpx; width: 32rpx; height: 32rpx; box-sizing: border-box; border-radius: 50%; background: #22C55E; border: 6rpx solid #121419; }
 </style>

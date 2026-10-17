@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="520" viewBox="0 0 520 520">
+  <!-- 周边勋章：六边形收藏徽章（呼应个人主页的六边形勋章墙）+ 五角星 + 闪光 -->
+  <polygon points="250.0,114.0 402.4,202.0 402.4,378.0 250.0,466.0 97.6,378.0 97.6,202.0" fill="#C84038" stroke="#000000" stroke-width="18" stroke-linejoin="round"/>
+  <polygon points="250.0,114.0 402.4,202.0 402.4,378.0 250.0,466.0 97.6,378.0 97.6,202.0" fill="none" stroke="#B02828" stroke-width="0"/>
+  <path d="M402.4 378.0 L250.0 466.0 L97.6 378.0 L139.1 354.0 L250.0 418.0 L360.9 354.0 Z" fill="#B02828"/>
+  <polygon points="250.0,114.0 402.4,202.0 402.4,378.0 250.0,466.0 97.6,378.0 97.6,202.0" fill="none" stroke="#000000" stroke-width="18" stroke-linejoin="round"/>
+  <polygon points="250.0,168.0 355.7,229.0 355.7,351.0 250.0,412.0 144.3,351.0 144.3,229.0" fill="#F8F8F8" stroke="#000000" stroke-width="14" stroke-linejoin="round"/>
+  <polygon points="250.0,226.0 267.6,269.7 314.7,273.0 278.5,303.3 290.0,349.0 250.0,324.0 210.0,349.0 221.5,303.3 185.3,273.0 232.4,269.7" fill="#C84038" stroke="#000000" stroke-width="12" stroke-linejoin="round"/>
+  <circle cx="146.0" cy="198.0" r="13" fill="#F8F8F8"/>
+  <polygon points="430,60 443.2,90.8 474,104 443.2,117.2 430,148 416.8,117.2 386,104 416.8,90.8" fill="#F8F8F8" stroke="#000000" stroke-width="10" stroke-linejoin="round"/>
+</svg>

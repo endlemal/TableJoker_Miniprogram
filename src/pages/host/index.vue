@@ -41,7 +41,7 @@
 
     <!-- 面板：从这里开始是认证的具体内容 -->
     <view class="sheet">
-      <view class="lead" @longpress="cycleState">
+      <view class="lead">
         <view class="lead-main">
           <view class="lead-row">
             <text class="lead-t">{{ stInfo.title }}</text>
@@ -216,6 +216,8 @@
 <script setup>
 import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import { onLoad, onReady, onUnload, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
+import { getCertState, useCertState } from '@/common/cert.js'
+import { tabItems, tapTab } from '@/common/tabs.js'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
@@ -223,7 +225,7 @@ import { svgUri } from '@/common/svg.js'
 import { lottiePlaceholder } from '@/common/host-art.js'
 import { CERTIFY_WEB, WEBVIEW_ENABLED } from '@/common/config.js'
 import { me } from '@/mock/data.js'
-import { certStatus, STATE_INFO, benefits, privileges, metrics, metricsNote, steps, faqs, rules } from '@/mock/host.js'
+import { STATE_INFO, benefits, privileges, metrics, metricsNote, steps, faqs, rules } from '@/mock/host.js'
 
 const instance = getCurrentInstance()
 const nav = getNavMetrics()
@@ -235,14 +237,11 @@ const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 /* ---------- 认证状态 ---------- */
 const STATES = ['none', 'pending', 'verified', 'rejected']
-const state = ref(certStatus.state)
+const state = ref(getCertState())
 const stInfo = computed(() => STATE_INFO[state.value])
 const locked = computed(() => state.value !== 'verified')
-// 开发预览：长按面板开头的标题依次切换四种状态（也可以用 ?state=pending 打开）。接后端后删除
-function cycleState() {
-  state.value = STATES[(STATES.indexOf(state.value) + 1) % STATES.length]
-  toast('预览：' + stInfo.value.label)
-}
+// 开发预览：用 ?state=pending 之类的参数打开，只在本页预览这个状态，不改变账号的模式。
+// 进入或退出「认证后模式」请在首页连点左上角标志 5 次
 
 // 认证流程：done 完成 / cur 当前 / fail 未通过 / todo 未开始
 const STEP_MAP = {
@@ -262,6 +261,7 @@ const stepTag = (i) => {
 
 // 跳到官网认证入口；个人主体的小程序不能用 web-view，改为复制链接
 function openCertify() {
+  if (stInfo.value.link === 'workbench') return uni.redirectTo({ url: '/pages/workbench/index' })
   const url = CERTIFY_WEB[stInfo.value.link]
   if (!WEBVIEW_ENABLED) {
     return uni.setClipboardData({ data: url, success: () => toast('链接已复制，请在浏览器打开') })
@@ -360,18 +360,12 @@ onUnload(() => observers.forEach((o) => o.disconnect()))
 onShareAppMessage(() => ({ title: '平台认证：点亮认证标识', path: '/pages/host/index', imageUrl: '/static/host/poster.jpg' }))
 
 /* ---------- 底部导航 ---------- */
-const navItems = [
-  { key: 'me', label: '我的', icon: 'user' },
-  { key: 'plaza', label: '广场', icon: 'compass' },
-  { key: 'rank', label: '排行', icon: 'chart-bar' },
-  { key: 'host', label: '成为主办方', icon: 'flag' }
-]
+// 底部导航：跟着账号的模式（认证后模式时第四个入口是「主办方工作台」）
+const certState = useCertState()
+const navItems = computed(() => tabItems(certState.value))
 const navActive = ref(3)
 function onNav(i) {
-  if (i === 0) return uni.redirectTo({ url: '/pages/profile/index' })
-  if (i === 1) return uni.redirectTo({ url: '/pages/plaza/index' })
-  navActive.value = i
-  if (i === 2) setTimeout(() => toast('排行页面待接入'), 420)
+  tapTab(navItems.value, i, 'host', (k) => { navActive.value = k })
 }
 </script>
 

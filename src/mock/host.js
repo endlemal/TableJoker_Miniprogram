@@ -7,7 +7,7 @@ export const certStatus = { state: 'none' }
 export const STATE_INFO = {
   none: { label: '未认证', title: '点亮认证标识', statusLine: '当前状态：未认证', cta: '立即认证', ctaIcon: 'rosette-discount-check', link: 'apply', step: 0 },
   pending: { label: '审核中', title: '认证审核中', statusLine: '10/13 14:20 提交，预计 1 个工作日内完成审核', cta: '查看进度', ctaIcon: 'hourglass', link: 'progress', step: 2 },
-  verified: { label: '已认证', title: '认证标识已点亮', statusLine: '个人主办方，认证有效期至 2027/10/14', cta: '管理认证', ctaIcon: 'settings', link: 'manage', step: 3 },
+  verified: { label: '已认证', title: '认证标识已点亮', statusLine: '个人主办方，认证有效期至 2027/10/14', cta: '进入工作台', ctaIcon: 'layout-dashboard', link: 'workbench', step: 3 },
   rejected: { label: '未通过', title: '认证未通过', statusLine: '原因：营业执照照片不清晰，请重新拍摄后上传', cta: '重新认证', ctaIcon: 'refresh', link: 'apply', step: 2 }
 }
 
