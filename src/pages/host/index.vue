@@ -213,14 +213,19 @@
   </view>
 </template>
 
+<script>
+import { getNavMetrics } from '@/common/nav.js'
+import { svgUri } from '@/common/svg.js'
+import { lottiePlaceholder } from '@/common/host-art.js'
+
+const LOTTIE_ART = `background-image:url("${svgUri(lottiePlaceholder())}")`
+</script>
+
 <script setup>
 import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import { onLoad, onReady, onUnload, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
-import { getNavMetrics } from '@/common/nav.js'
-import { svgUri } from '@/common/svg.js'
-import { lottiePlaceholder } from '@/common/host-art.js'
 import { CERTIFY_WEB, WEBVIEW_ENABLED } from '@/common/config.js'
 import { me } from '@/mock/data.js'
 import { certStatus, STATE_INFO, benefits, privileges, metrics, metricsNote, steps, faqs, rules } from '@/mock/host.js'
@@ -230,7 +235,7 @@ const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
-const lottieArt = `background-image:url("${svgUri(lottiePlaceholder())}")`
+const lottieArt = LOTTIE_ART
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 /* ---------- 认证状态 ---------- */
@@ -286,16 +291,20 @@ function pickPriv(gi, ii) {
 }
 const shownMetric = ref(metrics.map((x) => (0).toFixed(x.decimals)))
 let counted = false
+let countTimer = null
 function countUp() {
   if (counted) return
   counted = true
   const start = Date.now()
-  const dur = 900
+  const dur = 800
   const tick = () => {
     const t = Math.min(1, (Date.now() - start) / dur)
     const e = 1 - Math.pow(1 - t, 3)
-    shownMetric.value = metrics.map((x) => (x.value * e).toFixed(x.decimals))
-    if (t < 1) setTimeout(tick, 32)
+    const next = metrics.map((x) => (x.value * e).toFixed(x.decimals))
+    if (next.some((v, i) => v !== shownMetric.value[i])) {
+      shownMetric.value = next
+    }
+    if (t < 1) countTimer = setTimeout(tick, 40)
   }
   tick()
 }
@@ -306,13 +315,16 @@ const toggleFaq = (i) => { faqOpen[i] = !faqOpen[i] }
 /* ---------- 认证规则弹层 ---------- */
 const rulesShown = ref(false)
 const rulesOpen = ref(false)
+let rulesTimer = null
 function openRules() {
+  if (rulesTimer) clearTimeout(rulesTimer)
   rulesShown.value = true
-  setTimeout(() => { rulesOpen.value = true }, 30)
+  rulesTimer = setTimeout(() => { rulesOpen.value = true }, 24)
 }
 function closeRules() {
+  if (rulesTimer) clearTimeout(rulesTimer)
   rulesOpen.value = false
-  setTimeout(() => { rulesShown.value = false }, 320)
+  rulesTimer = setTimeout(() => { rulesShown.value = false }, 320)
 }
 
 /* ---------- 滚动：紧凑标题栏、到底切换按钮、指标入场 ---------- */
@@ -325,9 +337,15 @@ function observe() {
   try {
     const make = (margins) => uni.createIntersectionObserver(instance && instance.proxy).relativeToViewport(margins)
     const ioBar = make({ top: 0 })
-    ioBar.observe('.cbar-line', (res) => { compact.value = res.intersectionRatio === 0 && res.boundingClientRect.top < 0 })
+    ioBar.observe('.cbar-line', (res) => {
+      const on = res.intersectionRatio === 0 && res.boundingClientRect.top < 0
+      if (on !== compact.value) compact.value = on
+    })
     const ioEnd = make({ bottom: 0 })
-    ioEnd.observe('.end-line', (res) => { atBottom.value = res.intersectionRatio > 0 })
+    ioEnd.observe('.end-line', (res) => {
+      const on = res.intersectionRatio > 0
+      if (on !== atBottom.value) atBottom.value = on
+    })
     const ioMt = make({ bottom: -60 })
     ioMt.observe('.mt', (res) => { if (res.intersectionRatio > 0) countUp() })
     observers.push(ioBar, ioEnd, ioMt)
@@ -335,16 +353,38 @@ function observe() {
     countUp()
   }
   // #endif
+  // #ifdef H5
+  if (typeof IntersectionObserver !== 'undefined') {
+    const endEl = document.querySelector('.end-line')
+    const mtEl = document.querySelector('.mt')
+    if (endEl) {
+      const ioEnd = new IntersectionObserver((entries) => {
+        const on = entries[0].isIntersecting
+        if (on !== atBottom.value) atBottom.value = on
+      })
+      ioEnd.observe(endEl)
+      observers.push(ioEnd)
+    }
+    if (mtEl) {
+      const ioMt = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+          countUp()
+          ioMt.disconnect()
+        }
+      }, { rootMargin: '0px 0px -60px 0px' })
+      ioMt.observe(mtEl)
+      observers.push(ioMt)
+    }
+  } else {
+    countUp()
+  }
+  // #endif
 }
-// H5：uni 的相交监听以页面容器为参照，不可靠，改用滚动事件
+// H5：仅用轻量阈值判断紧凑标题栏，不再在 scroll 回调里读取 scrollHeight / getBoundingClientRect 触发同步回流
 // #ifdef H5
 onPageScroll(({ scrollTop }) => {
-  compact.value = scrollTop > 72
-  atBottom.value = scrollTop + window.innerHeight >= document.documentElement.scrollHeight - 140
-  if (!counted) {
-    const el = document.querySelector('.mt')
-    if (el && el.getBoundingClientRect().top < window.innerHeight - 60) countUp()
-  }
+  const on = scrollTop > 72
+  if (on !== compact.value) compact.value = on
 })
 // #endif
 
@@ -356,7 +396,11 @@ onLoad((q) => {
   canBack.value = getCurrentPages().length > 1
 })
 onReady(observe)
-onUnload(() => observers.forEach((o) => o.disconnect()))
+onUnload(() => {
+  if (countTimer) clearTimeout(countTimer)
+  if (rulesTimer) clearTimeout(rulesTimer)
+  observers.forEach((o) => o.disconnect())
+})
 onShareAppMessage(() => ({ title: '平台认证：点亮认证标识', path: '/pages/host/index', imageUrl: '/static/host/poster.jpg' }))
 
 /* ---------- 底部导航 ---------- */
@@ -386,9 +430,9 @@ function onNav(i) {
 /* 紧凑标题栏（同广场） */
 .cbar {
   position: fixed; z-index: 30; left: 0; right: 0; top: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  background: #181A20; opacity: 0; transform: translateY(-12rpx); transition: opacity .25s ease, transform .3s ease; pointer-events: none;
+  background: #181A20; opacity: 0; transform: translate3d(0, -12rpx, 0); will-change: transform, opacity; transition: opacity .25s ease, transform .3s ease; pointer-events: none;
 }
-.cbar-on { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.cbar-on { opacity: 1; transform: translate3d(0, 0, 0); pointer-events: auto; }
 .cbar-back { position: absolute; left: 24rpx; bottom: 12rpx; width: 64rpx; height: 64rpx; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
 .cbar-mid { display: flex; align-items: center; }
 .cbar-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 34rpx; color: #FFFFFF; }
@@ -427,8 +471,8 @@ function onNav(i) {
 .lead-main { flex: 1; min-width: 0; }
 .lead-row { display: flex; align-items: center; }
 .lead-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 52rpx; line-height: 1.2; letter-spacing: 2rpx; color: #FFFFFF; }
-.lead-arrow { margin-left: 12rpx; padding-top: 6rpx; animation: bob 1.8s ease-in-out infinite; }
-@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(8rpx); } }
+.lead-arrow { margin-left: 12rpx; padding-top: 6rpx; will-change: transform; animation: bob 1.8s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(0, 8rpx, 0); } }
 .lead-s { display: block; margin-top: 10rpx; font-size: 24rpx; line-height: 1.5; color: #9CA3AF; }
 .s-verified .lead-s { color: #F4B740; }
 .s-rejected .lead-s { color: #FF6B6B; }
@@ -458,11 +502,11 @@ function onNav(i) {
   display: flex; align-items: center; justify-content: center;
   transition: transform .35s cubic-bezier(.34, 1.56, .64, 1), background .25s ease, box-shadow .25s ease;
 }
-.bf-on .bf-ic { background: #DC0000; border-color: #DC0000; transform: translateY(-6rpx) scale(1.06); box-shadow: 0 12rpx 28rpx rgba(220, 0, 0, .3); }
+.bf-on .bf-ic { background: #DC0000; border-color: #DC0000; transform: translate3d(0, -6rpx, 0) scale(1.06); box-shadow: 0 12rpx 28rpx rgba(220, 0, 0, .3); }
 .bf-n { margin-top: 16rpx; font-size: 22rpx; color: #6B7280; transition: color .25s ease; }
 .bf-on .bf-n { color: #FFFFFF; font-weight: 500; }
 .bf-panel { margin-top: 36rpx; padding: 32rpx; border-radius: 32rpx; background: #262A34; animation: rise .35s ease; }
-@keyframes rise { from { opacity: 0; transform: translateY(14rpx); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rise { from { opacity: 0; transform: translate3d(0, 14rpx, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 .bf-title { display: block; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
 .bf-desc { display: block; margin-top: 10rpx; font-size: 26rpx; line-height: 1.7; color: #9CA3AF; }
 .ba { margin-top: 28rpx; display: flex; align-items: stretch; }
@@ -518,19 +562,23 @@ function onNav(i) {
 .mt-l { margin-top: 14rpx; padding: 0 16rpx; font-size: 22rpx; line-height: 1.5; color: #9CA3AF; text-align: center; }
 .mt-note { display: block; margin-top: 24rpx; font-size: 20rpx; color: #4B5060; text-align: center; }
 
-/* 认证流程：左侧轨道，右侧说明 */
+/* 认证流程：左侧轨道，右侧说明（用伪元素 scale + opacity 替代 box-shadow 动画，消除持续主线程重绘） */
 .ps-i { display: flex; }
 .ps-track { width: 52rpx; flex: none; display: flex; flex-direction: column; align-items: center; }
 .ps-dot { width: 48rpx; height: 48rpx; flex: none; border-radius: 50%; background: #30343E; display: flex; align-items: center; justify-content: center; }
 .ps-n { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 24rpx; color: #9CA3AF; }
 .ps-line { flex: 1; width: 4rpx; min-height: 48rpx; margin: 10rpx 0; border-radius: 2rpx; background: #30343E; }
 .ps-done .ps-dot, .ps-done .ps-line { background: #DC0000; }
-.ps-cur .ps-dot { background: #1F222A; box-shadow: 0 0 0 4rpx #DC0000; animation: pulse 1.8s ease-in-out infinite; }
+.ps-cur .ps-dot { position: relative; background: #1F222A; box-shadow: 0 0 0 4rpx #DC0000; }
+.ps-cur .ps-dot::after {
+  content: ''; position: absolute; inset: -4rpx; border-radius: 50%; border: 4rpx solid #DC0000;
+  opacity: 0; pointer-events: none; will-change: transform, opacity; animation: pulse 1.8s ease-out infinite;
+}
 .ps-cur .ps-n { color: #FFFFFF; }
 .ps-fail .ps-dot { background: #FF5646; }
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 4rpx #DC0000, 0 0 0 0 rgba(220, 0, 0, .45); }
-  50% { box-shadow: 0 0 0 4rpx #DC0000, 0 0 0 16rpx rgba(220, 0, 0, 0); }
+  0% { transform: scale(1); opacity: .55; }
+  75%, 100% { transform: scale(1.55); opacity: 0; }
 }
 .ps-desc { flex: 1; min-width: 0; margin-left: 24rpx; padding-bottom: 44rpx; }
 .ps-row { display: flex; align-items: center; min-height: 48rpx; }
@@ -541,7 +589,7 @@ function onNav(i) {
 .ps-d { display: block; margin-top: 8rpx; font-size: 26rpx; line-height: 1.7; color: #9CA3AF; }
 
 /* 折叠：grid 行高 0fr → 1fr，不用量内容高度 */
-.fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .34s ease; }
+.fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s ease; }
 .fold-on { grid-template-rows: 1fr; }
 .fold-in { min-height: 0; overflow: hidden; }
 
@@ -564,10 +612,10 @@ function onNav(i) {
 /* 底部按钮 */
 .cta {
   position: fixed; z-index: 45; left: 0; right: 0; bottom: 0; padding: 20rpx 40rpx calc(24rpx + env(safe-area-inset-bottom));
-  background: #1F222A; border-top: 1px solid #2A2D36; opacity: 0; transform: translateY(100%); pointer-events: none;
-  transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .35s ease;
+  background: #1F222A; border-top: 1px solid #2A2D36; opacity: 0; transform: translate3d(0, 100%, 0); pointer-events: none;
+  will-change: transform, opacity; transition: transform .42s cubic-bezier(.2, .8, .2, 1), opacity .32s ease;
 }
-.cta-on { opacity: 1; transform: translateY(0); pointer-events: auto; transition-delay: .12s; }
+.cta-on { opacity: 1; transform: translate3d(0, 0, 0); pointer-events: auto; transition-delay: .1s; }
 .cta-btn { height: 96rpx; border-radius: 999rpx; background: #DC0000; box-shadow: 0 12rpx 32rpx rgba(220, 0, 0, .32); display: flex; align-items: center; justify-content: center; }
 .cta-pending, .cta-verified { background: #35383F; box-shadow: none; }
 .cta-t { margin-left: 12rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
@@ -578,9 +626,9 @@ function onNav(i) {
 .rs-on .rs-mask { opacity: 1; }
 .rs-sheet {
   position: absolute; left: 0; right: 0; bottom: 0; padding-bottom: env(safe-area-inset-bottom); border-radius: 40rpx 40rpx 0 0;
-  background: #1F222A; transform: translateY(100%); transition: transform .38s cubic-bezier(.2, .8, .2, 1);
+  background: #1F222A; transform: translate3d(0, 100%, 0); will-change: transform; transition: transform .36s cubic-bezier(.2, .8, .2, 1);
 }
-.rs-on .rs-sheet { transform: translateY(0); }
+.rs-on .rs-sheet { transform: translate3d(0, 0, 0); }
 .rs-head { display: flex; align-items: center; justify-content: space-between; padding: 32rpx 32rpx 16rpx; }
 .rs-title { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 40rpx; color: #FFFFFF; }
 .rs-x { width: 56rpx; height: 56rpx; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
@@ -594,7 +642,7 @@ function onNav(i) {
 .rs-foot { display: block; padding: 24rpx 32rpx 48rpx; font-size: 22rpx; color: #6B7280; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lead-arrow, .ps-cur .ps-dot, .bf-panel, .ba-after, .vb { animation: none; }
+  .lead-arrow, .ps-cur .ps-dot::after, .bf-panel, .ba-after, .vb { animation: none; }
   .cta, .cbar, .fold, .fqx-ic, .fq-ic, .bf-ic, .pi-ic, .rs-sheet, .rs-mask { transition: none; }
 }
 </style>

@@ -1,5 +1,8 @@
 // 自定义导航栏的尺寸：状态栏高度、胶囊所在行的高度、右侧需要给胶囊让出的宽度（单位 px）
+let cachedMetrics = null
+
 export function getNavMetrics() {
+  if (cachedMetrics) return cachedMetrics
   let statusBar = 20
   let navH = 44
   let capsuleW = 0
@@ -20,7 +23,8 @@ export function getNavMetrics() {
     }
   } catch (e) {}
   // #endif
-  return { statusBar, navH, capsuleW, winW, winH }
+  cachedMetrics = { statusBar, navH, capsuleW, winW, winH }
+  return cachedMetrics
 }
 
 export function goBackOrHome() {

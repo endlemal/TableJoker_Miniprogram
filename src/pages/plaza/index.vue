@@ -19,20 +19,20 @@
     </view>
 
     <!-- 分类：吸顶，选中块跟随滑动 -->
-    <view class="chips-anchor" :style="chipsStyle">
-    <view class="chips" :class="{ 'chips-compact': compact }" :style="chipsInnerStyle">
-      <view class="chips-track">
-        <view class="chip-ind" :style="'transform:translateX(' + cat * (compact ? CHIP_STEP / 2 : CHIP_STEP) + 'rpx)'"></view>
-        <view v-for="(c, i) in cats" :key="c.key" class="chip" @tap="setCat(i)">
-          <view class="chip-t" :class="{ 'chip-t-on': cat === i }"><text class="chip-char">{{ c.label[0] }}</text><text class="chip-char chip-char-last">{{ c.label[1] }}</text></view>
+    <view class="chips-anchor" :style="chipsAnchorStyle">
+      <view class="chips" :class="{ 'chips-compact': compact }" :style="chipsInnerStyle">
+        <view class="chips-track">
+          <view class="chip-ind" :style="'transform:translate3d(' + cat * (compact ? CHIP_STEP / 2 : CHIP_STEP) + 'rpx,0,0)'"></view>
+          <view v-for="(c, i) in cats" :key="c.key" class="chip" @tap="setCat(i)">
+            <view class="chip-t" :class="{ 'chip-t-on': cat === i }"><text class="chip-char">{{ c.label[0] }}</text><text class="chip-char chip-char-last">{{ c.label[1] }}</text></view>
+          </view>
         </view>
+        <view class="chips-search" :style="chipsSearchStyle" hover-class="press" @tap="toast('搜索待接入')"><z-icon name="search" :size="18" color="#E5E7EB" /></view>
       </view>
-      <view class="chips-search" hover-class="press" @tap="toast('搜索待接入')"><z-icon name="search" :size="18" color="#E5E7EB" /></view>
-    </view>
     </view>
 
-    <!-- 正在报名的公开赛：横向卡片，当前卡片放大 -->
-    <block v-if="cat === 0">
+    <!-- 正在报名的公开赛：横向卡片，当前卡片放大（用 v-show 避免切分类时反复销毁重建 swiper） -->
+    <view v-show="cat === 0">
       <view class="sec-h"><text class="sec-t">正在报名</text><text class="sec-s">左右滑动</text></view>
       <swiper class="feat" previous-margin="32rpx" next-margin="104rpx" :current="featIdx" @change="onFeat">
         <swiper-item v-for="(mt, i) in featured" :key="mt.id">
@@ -57,7 +57,7 @@
       </swiper>
       <view class="dots"><view v-for="(mt, i) in featured" :key="mt.id" class="dot" :class="{ 'dot-on': i === featIdx }"></view></view>
       <view class="sec-h sec-h-feed"><text class="sec-t">大家在聊</text></view>
-    </block>
+    </view>
 
     <!-- 瀑布流：带封面的帖子、海报广告、文字型赛事卡片 -->
     <view class="feed" :class="{ 'feed-swap': swapping }">
@@ -68,13 +68,13 @@
           :key="it.key"
           class="card"
           :class="['card-' + it.kind, { 'card-in': shown[it.key] }]"
-          :style="'transition-delay:' + (shown[it.key] ? it.delay : 0) + 'ms'"
+          :style="it.delayStyle"
           hover-class="card-press"
           :hover-stay-time="60"
           @tap="openItem(it)"
         >
           <block v-if="it.kind === 'post'">
-            <view :id="'cv-' + it.key" class="pc-cover" :style="it.coverStyle + ';height:' + it.coverH + 'rpx'"></view>
+            <view :id="'cv-' + it.key" class="pc-cover" :style="it.coverBoxStyle"></view>
             <view class="pc-body">
               <text class="pc-title">{{ it.title }}</text>
               <view class="pc-meta">
@@ -166,45 +166,21 @@
   </view>
 </template>
 
-<script setup>
-import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
-import ZIcon from '@/components/z-icon/z-icon.vue'
-import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
+<script>
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle, nearestSize, postCover, isPostCover } from '@/common/svg.js'
-import { fitsDisplay } from '@/common/font-coverage.js'
-import { publicMatches, plazaPosts, plazaAds, morePosts, sceneLine, findPublicMatch } from '@/mock/plaza.js'
-
-const instance = getCurrentInstance()
-const nav = getNavMetrics()
-const winW = nav.winW
-const heroH = Math.round(winW * 0.82)
-const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
-const headStyle = `padding-top:${nav.statusBar}px`
-const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
-const closeStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
+import { publicMatches, plazaPosts, plazaAds, sceneLine, findPublicMatch } from '@/mock/plaza.js'
 
 const p2 = (n) => (n < 10 ? '0' : '') + n
-const toast = (title) => uni.showToast({ title, icon: 'none' })
-const noop = () => {}
 const WEEK = '日一二三四五六'
-const ago = (t) => {
-  const m = Math.max(1, Math.round((Date.now() - t) / 60000))
-  if (m < 60) return `${m} 分钟前`
-  if (m < 1440) return `${Math.round(m / 60)} 小时前`
-  return `${Math.round(m / 1440)} 天前`
-}
 
-/* ---------- 封面样式（环境场景按画面重心裁切） ---------- */
-// 比赛场景按容器比例取对应尺寸（每种尺寸单独构图）；帖子插画只有竖版一种
+/* ---------- 封面样式（环境场景按画面重心裁切，模块级缓存，跨页切换不重复生成） ---------- */
 const postCache = {}
 const coverStyleOf = (key, size = 'banner') => {
   if (!isPostCover(key)) return coverStyle(key, size)
   return postCache[key] || (postCache[key] = `background-image:url("${svgUri(postCover(key))}");background-size:cover;background-position:center`)
 }
 
-/* ---------- 赛事 ---------- */
 const decorate = (m) => {
   const d = new Date(m.startAt)
   const signed = (m.participants || []).length
@@ -219,10 +195,59 @@ const decorate = (m) => {
     time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
     date: `${p2(d.getMonth() + 1)}/${p2(d.getDate())} 周${WEEK[d.getDay()]}`,
     signed,
-    pct: Math.min(100, Math.round((signed / m.cap) * 100))
+    pct: Math.min(100, Math.round((signed / m.cap) * 100)),
+    delayStyle: ''
   }
 }
-const featured = publicMatches.map(decorate)
+
+const CARD_W = (750 - 64 - 20) / 2
+const decoratePost = (p) => {
+  const cs = coverStyleOf(p.cover, nearestSize(p.ratio))
+  const coverH = Math.round(CARD_W / p.ratio)
+  return {
+    ...p,
+    key: 'p-' + p.id,
+    coverStyle: cs,
+    coverH,
+    coverBoxStyle: `${cs};height:${coverH}rpx`,
+    match: p.matchId ? decorate(findPublicMatch(p.matchId)) : null,
+    delayStyle: ''
+  }
+}
+
+const initialFeatured = publicMatches.map(decorate)
+const initialPosts = plazaPosts.map(decoratePost)
+const initialAds = plazaAds.map((a) => ({ ...a, key: 'a-' + a.id, delayStyle: '' }))
+</script>
+
+<script setup>
+import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
+import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
+import ZIcon from '@/components/z-icon/z-icon.vue'
+import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
+import { fitsDisplay } from '@/common/font-coverage.js'
+import { publicMatches, plazaPosts, morePosts } from '@/mock/plaza.js'
+
+const p2 = (n) => (n < 10 ? '0' : '') + n
+const instance = getCurrentInstance()
+const nav = getNavMetrics()
+const winW = nav.winW
+const heroH = Math.round(winW * 0.82)
+const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
+const headStyle = `padding-top:${nav.statusBar}px`
+const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
+const closeStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
+
+const toast = (title) => uni.showToast({ title, icon: 'none' })
+const ago = (t) => {
+  const m = Math.max(1, Math.round((Date.now() - t) / 60000))
+  if (m < 60) return `${m} 分钟前`
+  if (m < 1440) return `${Math.round(m / 60)} 小时前`
+  return `${Math.round(m / 1440)} 天前`
+}
+
+/* ---------- 赛事 ---------- */
+const featured = initialFeatured
 const featIdx = ref(0)
 const onFeat = (e) => { featIdx.value = e.detail.current }
 function openMatch(m) {
@@ -230,16 +255,8 @@ function openMatch(m) {
 }
 
 /* ---------- 帖子与广告 ---------- */
-const CARD_W = (750 - 64 - 20) / 2
-const decoratePost = (p) => ({
-  ...p,
-  key: 'p-' + p.id,
-  coverStyle: coverStyleOf(p.cover, nearestSize(p.ratio)),
-  coverH: Math.round(CARD_W / p.ratio),
-  match: p.matchId ? decorate(findPublicMatch(p.matchId)) : null
-})
-const posts = ref(plazaPosts.map(decoratePost))
-const ads = plazaAds.map((a) => ({ ...a, key: 'a-' + a.id }))
+const posts = ref(initialPosts.slice())
+const ads = initialAds
 const liked = reactive({})
 const likeCount = (p) => p.likes + (liked[p.id] ? 1 : 0)
 
@@ -254,8 +271,8 @@ const loading = ref(false)
 const ended = ref(false)
 
 const feedItems = computed(() => {
-  if (cat.value === 1) return featured.slice()
-  if (cat.value === 2) return posts.value.slice()
+  if (cat.value === 1) return featured
+  if (cat.value === 2) return posts.value
   // 全部：帖子为主，穿插海报广告和带封面的赛事卡片
   const out = []
   const extraMatches = featured.slice(1)
@@ -270,41 +287,60 @@ const feedItems = computed(() => {
   return out
 })
 const estH = (it) => (it.kind === 'post' ? it.coverH + 150 : it.kind === 'ad' ? CARD_W * 1.36 : 300)
-// 按估算高度把卡片放进较矮的一列；首屏的卡片按列内顺序错开入场
+// 按估算高度把卡片放进较矮的一列；复用原对象引用，避免每次计算都浅拷贝触发整列重绘
 const columns = computed(() => {
   const cols = [[], []]
   const hs = [0, 0]
   feedItems.value.forEach((it) => {
     const c = hs[0] <= hs[1] ? 0 : 1
-    cols[c].push({ ...it, delay: Math.min(360, cols[c].length * 70 + c * 40) })
+    const delay = Math.min(320, cols[c].length * 55 + c * 30)
+    it.delayStyle = `transition-delay:${delay}ms`
+    cols[c].push(it)
     hs[c] += estH(it) + 20
   })
   return cols
 })
 
+// 首屏卡片直接批量标记可见，避免进页与切分类动画期间 IntersectionObserver 逐张回调造成多次 setData 卡顿
+function showInitialCards(count = 6) {
+  const list = feedItems.value
+  for (let i = 0; i < Math.min(count, list.length); i++) {
+    shown[list[i].key] = true
+  }
+}
+showInitialCards(6)
+
 let io = null
 function observeCards() {
-  if (io) io.disconnect()
+  if (io) {
+    io.disconnect()
+    io = null
+  }
+  const list = feedItems.value
+  if (list.every((it) => shown[it.key])) return
   try {
     io = uni.createIntersectionObserver(instance && instance.proxy, { observeAll: true })
-    io.relativeToViewport({ bottom: 40 }).observe('.card', (res) => {
+    io.relativeToViewport({ bottom: 80 }).observe('.card', (res) => {
       if (res.intersectionRatio > 0 && res.id) shown[res.id.slice(2)] = true
     })
   } catch (e) {
-    feedItems.value.forEach((it) => { shown[it.key] = true })
+    list.forEach((it) => { shown[it.key] = true })
   }
 }
 const resetShown = () => Object.keys(shown).forEach((k) => delete shown[k])
 
+let swapTimer = null
 function setCat(i) {
   if (i === cat.value) return
+  if (swapTimer) clearTimeout(swapTimer)
   swapping.value = true
-  setTimeout(() => {
+  swapTimer = setTimeout(() => {
     resetShown()
     cat.value = i
+    showInitialCards(6)
     swapping.value = false
-    nextTick(() => setTimeout(observeCards, 30))
-  }, 160)
+    nextTick(() => setTimeout(observeCards, 40))
+  }, 150)
 }
 
 /* ---------- 打开 ---------- */
@@ -402,22 +438,23 @@ function toggleLike(p) {
   likePop.value = true
 }
 
-/* ---------- 页面 ---------- */
+/* ---------- 页面与紧凑导航栏（纯 transform 合成动画，避免吸顶切换时触发整页高度重排） ---------- */
 const compact = ref(false)
-const chipsStyle = computed(() => {
-  let s = `top:${nav.statusBar + (compact.value ? 0 : nav.navH)}px`
-  if (compact.value) s += `;height:${nav.navH}px`
-  return s
-})
-const chipsInnerStyle = computed(() => compact.value
-  ? `height:${nav.navH}px;padding-right:${nav.capsuleW ? nav.capsuleW + 8 : 16}px`
-  : '')
+const chipsAnchorStyle = `top:${nav.statusBar + nav.navH}px`
+const chipsRestY = Math.round((uni.upx2px(112) - nav.navH) / 2)
+const searchShift = Math.max(0, (nav.capsuleW ? nav.capsuleW + 8 : 16) - uni.upx2px(32))
+const chipsInnerStyle = computed(() =>
+  `height:${nav.navH}px;transform:translate3d(0,${compact.value ? -nav.navH : chipsRestY}px,0)`)
+const chipsSearchStyle = computed(() =>
+  compact.value && searchShift ? `transform:translate3d(-${searchShift}px,0,0)` : '')
+
 let cbarIo = null
 // 小程序：用相交监听，滚动时不往逻辑层发事件。
 // H5：uni 的相交监听以页面容器为参照，标记线永远算「可见」，所以改用 onPageScroll（H5 没有逻辑层和视图层之分，没有额外开销）
 // #ifdef H5
+const compactThreshold = 144 / 750 * nav.winW
 onPageScroll(({ scrollTop }) => {
-  const on = scrollTop > 144 / 750 * nav.winW
+  const on = scrollTop > compactThreshold
   if (on !== compact.value) compact.value = on
 })
 // #endif
@@ -451,6 +488,7 @@ onReady(() => {
 onUnload(() => {
   clearTimeout(detailOpenTimer)
   clearTimeout(detailCloseTimer)
+  if (swapTimer) clearTimeout(swapTimer)
   if (io) io.disconnect()
   if (cbarIo) cbarIo.disconnect()
 })
@@ -461,6 +499,7 @@ onPullDownRefresh(() => {
     posts.value = plazaPosts.slice().sort(() => Math.random() - 0.5).map(decoratePost)
     page.value = 1
     ended.value = false
+    showInitialCards(6)
     uni.stopPullDownRefresh()
     nextTick(() => setTimeout(observeCards, 30))
   }, 600)
@@ -510,9 +549,9 @@ function onNav(i) {
 .cbar-line { position: absolute; left: 0; top: 144rpx; width: 1px; height: 1px; pointer-events: none; }
 .cbar {
   position: fixed; z-index: 30; left: 0; right: 0; top: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
-  background: #181A20; opacity: 0; transform: translateY(-12rpx); transition: opacity .25s ease, transform .3s ease; pointer-events: none;
+  background: #181A20; opacity: 0; transform: translate3d(0, -12rpx, 0); will-change: transform, opacity; transition: opacity .25s ease, transform .3s ease; pointer-events: none;
 }
-.cbar-on { opacity: 1; transform: translateY(0); }
+.cbar-on { opacity: 1; transform: translate3d(0, 0, 0); }
 
 /* 大标题与数字锚点 */
 .head { padding-left: 32rpx; padding-right: 32rpx; }
@@ -525,25 +564,24 @@ function onNav(i) {
 .h-stat-a { font-size: 30rpx; font-weight: 500; color: #FFFFFF; }
 .h-stat-b { margin-top: 6rpx; font-size: 24rpx; color: #6B7280; }
 
-/* 分类 */
-.chips-anchor { position: sticky; z-index: 40; height: 112rpx; transition: height .35s ease; }
-.chips { height: 112rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx; background: #181A20; transition: height .35s ease, padding .35s ease; }
+/* 分类：外层占位高度固定（不触发下方瀑布流重排），内层与文字通过 transform 合成动画收缩上移 */
+.chips-anchor { position: sticky; z-index: 40; height: 112rpx; pointer-events: none; }
+.chips { box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 0 32rpx; background: #181A20; pointer-events: auto; will-change: transform; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
 .chips-track { position: relative; display: flex; padding: 6rpx; border-radius: 999rpx; background: #1F222A; }
 .chip-ind {
   position: absolute; left: 6rpx; top: 6rpx; width: 132rpx; height: 60rpx; border-radius: 999rpx; background: #F2F2EE;
-  transition: transform .42s cubic-bezier(.34, 1.36, .64, 1), width .35s ease;
+  will-change: transform, width; transition: transform .38s cubic-bezier(.34, 1.36, .64, 1), width .3s cubic-bezier(.2, .8, .2, 1);
 }
-.chip { position: relative; width: 132rpx; height: 60rpx; margin-right: 4rpx; display: flex; align-items: center; justify-content: center; transition: width .35s ease, margin-right .35s ease; }
-.chip-t { position: relative; width: 52rpx; height: 28rpx; font-size: 26rpx; line-height: 28rpx; color: #9CA3AF; transition: color .25s ease, width .35s ease, height .35s ease, font-size .35s ease, line-height .35s ease; }
-.chip-char { position: absolute; left: 0; top: 0; transition: left .35s ease, top .35s ease; }
-.chip-char-last { left: 26rpx; }
+.chip { position: relative; width: 132rpx; height: 60rpx; margin-right: 4rpx; display: flex; align-items: center; justify-content: center; transition: width .3s cubic-bezier(.2, .8, .2, 1), margin-right .3s cubic-bezier(.2, .8, .2, 1); }
+.chip-t { position: relative; width: 52rpx; height: 48rpx; font-size: 26rpx; line-height: 24rpx; color: #9CA3AF; transition: color .22s ease; }
+.chip-char { position: absolute; left: 0; top: 0; will-change: transform; transform: translate3d(0, 12rpx, 0) scale(1); transform-origin: center center; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
+.chip-char-last { transform: translate3d(26rpx, 12rpx, 0) scale(1); }
 .chip-t-on { color: #181A20; font-weight: 500; }
-.chips-search { flex-shrink: 0; width: 72rpx; height: 72rpx; border-radius: 50%; background: #1F222A; display: flex; align-items: center; justify-content: center; }
-.chips-compact { padding-top: 0; padding-bottom: 0; }
+.chips-search { flex-shrink: 0; width: 72rpx; height: 72rpx; border-radius: 50%; background: #1F222A; display: flex; align-items: center; justify-content: center; will-change: transform; transition: transform .3s cubic-bezier(.2, .8, .2, 1); }
 .chips-compact .chip { width: 66rpx; margin-right: 2rpx; }
 .chips-compact .chip-ind { width: 66rpx; }
-.chips-compact .chip-t { width: 22rpx; height: 48rpx; font-size: 22rpx; line-height: 24rpx; }
-.chips-compact .chip-char-last { left: 0; top: 24rpx; }
+.chips-compact .chip-char { transform: translate3d(13rpx, 0, 0) scale(.85); }
+.chips-compact .chip-char-last { transform: translate3d(13rpx, 24rpx, 0) scale(.85); }
 
 /* 正在报名 */
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; padding: 16rpx 32rpx 0; }
@@ -553,7 +591,7 @@ function onNav(i) {
 .feat { height: 452rpx; margin-top: 20rpx; }
 .fm {
   height: 432rpx; margin-right: 20rpx; border-radius: 32rpx; overflow: hidden; background: #1F222A;
-  transform: scale(.92); opacity: .55; transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s ease;
+  transform: scale(.92); opacity: .55; will-change: transform, opacity; transition: transform .42s cubic-bezier(.2, .8, .2, 1), opacity .42s ease;
 }
 .fm-cur { transform: scale(1); opacity: 1; }
 .fm-press { transform: scale(.97); }
@@ -581,15 +619,15 @@ function onNav(i) {
 .dot-on { width: 32rpx; background: #F2F2EE; }
 
 /* 瀑布流 */
-.feed { display: flex; justify-content: space-between; padding: 20rpx 32rpx 0; transition: opacity .16s ease; }
+.feed { display: flex; justify-content: space-between; padding: 20rpx 32rpx 0; transition: opacity .15s ease; }
 .feed-swap { opacity: 0; }
 .col { width: 333rpx; }
 .card {
   margin-bottom: 20rpx; border-radius: 24rpx; overflow: hidden; background: #1F222A;
-  opacity: 0; transform: translateY(56rpx) scale(.98);
-  transition: opacity .5s ease, transform .65s cubic-bezier(.2, .8, .2, 1);
+  opacity: 0; transform: translate3d(0, 48rpx, 0) scale(.98);
+  transition: opacity .42s ease, transform .52s cubic-bezier(.2, .8, .2, 1);
 }
-.card-in { opacity: 1; transform: translateY(0) scale(1); }
+.card-in { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 .card.card-press { transform: scale(.965); transition-duration: .18s; transition-delay: 0ms; }
 
 .pc-cover { width: 100%; }
@@ -629,11 +667,11 @@ function onNav(i) {
 .ad-cta-t { margin-right: 6rpx; font-size: 22rpx; font-weight: 500; color: #181A20; }
 .ad-shop .ad-cta-t { color: #F3EEE6; }
 
-/* 原尺寸内上下分区：封面铺满信息区，日期与人数独立使用白底。 */
+/* 原尺寸内上下分区：封面铺满信息区，日期与人数独立使用白底（去掉 backdrop-filter 避免瀑布流滚动与卡片入场掉帧） */
 .card.card-match { background: transparent; border: 0; box-shadow: none; }
 .mc { height: 300rpx; display: flex; flex-direction: column; }
 .mc-hero { position: relative; flex: 1; min-height: 0; padding: 22rpx 22rpx 16rpx; box-sizing: border-box; display: flex; flex-direction: column; background-color: #252830; }
-.mc-hero::before { content: ''; position: absolute; inset: 0; background: rgba(18,20,26,.24); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); pointer-events: none; }
+.mc-hero::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(18, 20, 26, .2) 0%, rgba(18, 20, 26, .42) 100%); pointer-events: none; }
 .mc-top { display: flex; align-items: flex-start; justify-content: space-between; }
 .mc-srv { font-size: 20rpx; line-height: 1.3; color: #FFFFFF; text-shadow: 0 1rpx 6rpx rgba(0,0,0,.65); }
 .mc-title { margin-top: auto; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 44rpx; line-height: 1.15; color: #FFFFFF; text-shadow: 0 2rpx 8rpx rgba(0,0,0,.8); }
