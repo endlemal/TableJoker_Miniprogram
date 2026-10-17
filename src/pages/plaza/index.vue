@@ -1,8 +1,6 @@
 <template>
   <page-meta :page-style="detail ? 'overflow:hidden' : ''"></page-meta>
   <view class="page">
-    <!-- 滚过这条线就切换紧凑标题栏；用相交监听代替 onPageScroll，滚动时不再逐帧通知逻辑层 -->
-    <view class="cbar-line"></view>
     <!-- 吸顶后的状态栏底色，导航行由收缩后的分类栏占据 -->
     <view class="cbar" :class="{ 'cbar-on': compact }" :style="cbarStyle"></view>
 
@@ -19,7 +17,7 @@
     </view>
 
     <!-- 分类：吸顶，选中块跟随滑动 -->
-    <view class="chips-anchor" :style="chipsStyle">
+    <view class="chips-anchor" :style="chipsAnchorStyle">
     <view class="chips" :class="{ 'chips-compact': compact }" :style="chipsInnerStyle">
       <view class="chips-track">
         <view class="chip-ind" :style="'transform:translateX(' + cat * (compact ? CHIP_STEP / 2 : CHIP_STEP) + 'rpx)'"></view>
@@ -404,35 +402,17 @@ function toggleLike(p) {
 
 /* ---------- 页面 ---------- */
 const compact = ref(false)
-const chipsStyle = computed(() => {
-  let s = `top:${nav.statusBar + (compact.value ? 0 : nav.navH)}px`
-  if (compact.value) s += `;height:${nav.navH}px`
-  return s
-})
+// 外层锚点固定吸附在胶囊行下方，高度恒定（不引起页面重排）；紧凑态由内层 chips 用 transform 上滑进胶囊行
+const chipsAnchorStyle = `top:${nav.statusBar + nav.navH}px`
 const chipsInnerStyle = computed(() => compact.value
-  ? `height:${nav.navH}px;padding-right:${nav.capsuleW ? nav.capsuleW + 8 : 16}px`
+  ? `height:${nav.navH}px;transform:translate3d(0,-${nav.navH}px,0);padding-right:${nav.capsuleW ? nav.capsuleW + 8 : 16}px`
   : '')
-let cbarIo = null
-// 小程序：用相交监听，滚动时不往逻辑层发事件。
-// H5：uni 的相交监听以页面容器为参照，标记线永远算「可见」，所以改用 onPageScroll（H5 没有逻辑层和视图层之分，没有额外开销）
-// #ifdef H5
+// 紧凑态触发：统一用 onPageScroll（相交监听在部分模拟器上不回调，见 Trace 分析）
+const compactThreshold = 144 / 750 * nav.winW
 onPageScroll(({ scrollTop }) => {
-  const on = scrollTop > 144 / 750 * nav.winW
+  const on = scrollTop > compactThreshold
   if (on !== compact.value) compact.value = on
 })
-// #endif
-function observeCompact() {
-  // #ifdef H5
-  return
-  // #endif
-  try {
-    cbarIo = uni.createIntersectionObserver(instance && instance.proxy)
-    cbarIo.relativeToViewport({ top: 0 }).observe('.cbar-line', (res) => {
-      const on = res.intersectionRatio === 0 && res.boundingClientRect.top < 0
-      if (on !== compact.value) compact.value = on
-    })
-  } catch (e) {}
-}
 let deepPost = ''
 const canBack = ref(false)
 const goBack = () => uni.navigateBack()
@@ -441,7 +421,6 @@ onLoad((q) => {
   canBack.value = getCurrentPages().length > 1
 })
 onReady(() => {
-  observeCompact()
   observeCards()
   if (deepPost) {
     const it = posts.value.find((p) => p.id === deepPost)
@@ -452,7 +431,6 @@ onUnload(() => {
   clearTimeout(detailOpenTimer)
   clearTimeout(detailCloseTimer)
   if (io) io.disconnect()
-  if (cbarIo) cbarIo.disconnect()
 })
 
 onPullDownRefresh(() => {
@@ -507,7 +485,6 @@ function onNav(i) {
 .av-56 { width: 72rpx; height: 72rpx; font-size: 28rpx; }
 
 /* 紧凑标题栏 */
-.cbar-line { position: absolute; left: 0; top: 144rpx; width: 1px; height: 1px; pointer-events: none; }
 .cbar {
   position: fixed; z-index: 30; left: 0; right: 0; top: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center;
   background: #181A20; opacity: 0; transform: translateY(-12rpx); transition: opacity .25s ease, transform .3s ease; pointer-events: none;
@@ -525,9 +502,9 @@ function onNav(i) {
 .h-stat-a { font-size: 30rpx; font-weight: 500; color: #FFFFFF; }
 .h-stat-b { margin-top: 6rpx; font-size: 24rpx; color: #6B7280; }
 
-/* 分类 */
-.chips-anchor { position: sticky; z-index: 40; height: 112rpx; transition: height .35s ease; }
-.chips { height: 112rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx; background: #181A20; transition: height .35s ease, padding .35s ease; }
+/* 分类：外层占位高度固定，内层用 transform 上滑吸顶，避免触发页面重排 */
+.chips-anchor { position: sticky; z-index: 40; height: 112rpx; pointer-events: none; }
+.chips { height: 112rpx; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 20rpx 32rpx; background: #181A20; pointer-events: auto; transition: height .35s ease, padding .35s ease, transform .35s cubic-bezier(.2, .8, .2, 1); }
 .chips-track { position: relative; display: flex; padding: 6rpx; border-radius: 999rpx; background: #1F222A; }
 .chip-ind {
   position: absolute; left: 6rpx; top: 6rpx; width: 132rpx; height: 60rpx; border-radius: 999rpx; background: #F2F2EE;
