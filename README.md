@@ -2,6 +2,8 @@
 
 基于官方模板 `dcloudio/uni-preset-vue#vite`（uni-app 3.0.0-5020620260917001，编译器 5.26），实现对话里确认过的五个页面：
 
+> AI 协作者：Claude、Codex、Gemini、DeepSeek（提交历史与 Contributors 列表可见）。
+
 | 页面 | 文件 | 进入方式 |
 | --- | --- | --- |
 | 首页 | `src/pages/home/index.vue` | 启动页；底部用户栏的「广场」可以直达广场 |
