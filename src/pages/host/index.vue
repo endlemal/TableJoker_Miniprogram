@@ -214,6 +214,7 @@
 </template>
 
 <script setup>
+import { requireLogin } from '@/common/auth.js'
 import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import { onLoad, onReady, onUnload, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import { getCertState, useCertState } from '@/common/cert.js'
@@ -352,6 +353,7 @@ onPageScroll(({ scrollTop }) => {
 const canBack = ref(false)
 const goBack = () => uni.navigateBack()
 onLoad((q) => {
+  if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
   if (q && STATES.includes(q.state)) state.value = q.state
   canBack.value = getCurrentPages().length > 1
 })

@@ -176,6 +176,7 @@
 </template>
 
 <script setup>
+import { requireLogin } from '@/common/auth.js'
 import { ref, computed } from 'vue'
 import { onLoad, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
@@ -208,6 +209,7 @@ const now = ref(Date.now())
 const clock = ref(['0', '0', '0', '0'])
 
 onLoad((q) => {
+  if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
   const query = q || {}
   const found = query.id ? getMatch(query.id) || findPublicMatch(query.id) : null
   if (found) m.value = { participants: [], hosts: [], ...found }

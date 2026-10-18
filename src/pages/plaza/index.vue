@@ -165,6 +165,7 @@
 </template>
 
 <script setup>
+import { requireLogin } from '@/common/auth.js'
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
 import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
 import { tabItems, tapTab } from '@/common/tabs.js'
@@ -419,6 +420,7 @@ let deepPost = ''
 const canBack = ref(false)
 const goBack = () => uni.navigateBack()
 onLoad((q) => {
+  if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
   deepPost = (q && q.post) || ''
   canBack.value = getCurrentPages().length > 1
 })

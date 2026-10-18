@@ -101,7 +101,7 @@
           <z-icon name="diamond" :size="14" color="#F4B740" />
           <text class="dock-rank-text">{{ me.rank }}</text>
         </view>
-        <text class="dock-name">{{ me.nickname }}</text>
+        <text class="dock-name">{{ who.nickname }}</text>
       </view>
       <view class="dock-right">
         <!-- 直达广场：不用先进个人主页再切换 -->
@@ -116,7 +116,8 @@
       </view>
     </view>
     <view class="dock-avatar" @tap="toProfile">
-      <text>{{ me.char }}</text>
+      <image v-if="who.avatarUrl" class="dock-av-img" :src="who.avatarUrl" mode="aspectFill" />
+      <text v-else>{{ who.char }}</text>
       <!-- 主办方模式：右下角是认证 V 标识；普通玩家是在线绿点 -->
       <z-host-only>
         <view class="dock-v"><z-icon name="letter-v" :size="9" :stroke="3.4" color="#FFFFFF" /></view>
@@ -133,6 +134,8 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import ZHostOnly from '@/components/z-host-only/z-host-only.vue'
 import { useCertState, setHostMode } from '@/common/cert.js'
+import { onLoad } from '@dcloudio/uni-app'
+import { requireLogin, useProfile } from '@/common/auth.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
 import { me, servers, featuredEvent as event } from '@/mock/data.js'
@@ -149,6 +152,14 @@ const bannerStyle = `background-image:url("${svgUri(bloodMoonBanner())}")`
 
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 const toProfile = () => uni.navigateTo({ url: '/pages/profile/index' })
+
+/* ---------- 我：登录时填的头像和昵称；必须登录才能进首页 ---------- */
+const who = useProfile()
+onLoad((q) => {
+  if (!requireLogin()) return
+  // 刚登录进来：弹一条欢迎提示
+  if (q && q.welcome === '1') setTimeout(() => popMsg('欢迎来到桌趣，' + who.nickname, 'check', 'red', 2400), 700)
+})
 
 /* ---------- 认证后模式：连点左上角标志 5 次切换（类似安卓的开发者模式） ---------- */
 // 进入后一直保持（存在本地），再连点 5 次恢复为普通玩家。第 3 次起提示还差几次；两次点击间隔超过 1.2 秒重新计数
@@ -328,6 +339,7 @@ function joinByLink() {
   background: #F1E4D3; border: 6rpx solid #121419;
   display: flex; align-items: center; justify-content: center; font-size: 44rpx; font-weight: 500; color: #8A1C1C;
 }
+.dock-av-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
 .dock-v {
   position: absolute; right: -6rpx; bottom: -6rpx; width: 34rpx; height: 34rpx; box-sizing: border-box; border-radius: 50%;
   background: #DC0000; border: 5rpx solid #121419; display: flex; align-items: center; justify-content: center;

@@ -17,11 +17,12 @@
     <view class="idc">
       <view class="idc-top" hover-class="press-soft" @tap="toCert">
         <view class="ava">
-          <text class="ava-c">{{ me.char }}</text>
+          <image v-if="who.avatarUrl" class="ava-img" :src="who.avatarUrl" mode="aspectFill" />
+          <text v-else class="ava-c">{{ who.char }}</text>
           <view class="vb"><z-icon name="letter-v" :size="10" :stroke="3.4" color="#FFFFFF" /></view>
         </view>
         <view class="idc-main">
-          <view class="idc-row"><text class="idc-name">{{ me.nickname }}</text><text class="idc-tag">认证主办方</text></view>
+          <view class="idc-row"><text class="idc-name" :class="{ 'font-sys': !fitsDisplay(who.nickname) }">{{ who.nickname }}</text><text class="idc-tag">认证主办方</text></view>
           <text class="idc-sub">{{ hostProfile.server }}，有效期至 {{ hostProfile.expires }}</text>
         </view>
         <z-icon name="chevron-right" :size="16" color="#6B7280" />
@@ -111,6 +112,7 @@ import { getNavMetrics } from '@/common/nav.js'
 import { coverStyle } from '@/common/svg.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { requireHost, useCertState } from '@/common/cert.js'
+import { useProfile } from '@/common/auth.js'
 import { tabItems, tapTab } from '@/common/tabs.js'
 import { CERTIFY_WEB, WEBVIEW_ENABLED } from '@/common/config.js'
 import { me } from '@/mock/data.js'
@@ -122,6 +124,7 @@ const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.status
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const toast = (title) => uni.showToast({ title, icon: 'none' })
+const who = useProfile()
 const go = (url) => uni.navigateTo({ url })
 const TONE = { red: '#FF6B6B', amber: '#FFC53A', blue: '#7896DA', gray: '#9CA3AF' }
 
@@ -229,6 +232,7 @@ function onNav(i) {
   position: relative; width: 96rpx; height: 96rpx; flex: none; border-radius: 50%; background: #F3EEE6; box-shadow: 0 0 0 4rpx #F4B740;
   display: flex; align-items: center; justify-content: center;
 }
+.ava-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
 .ava-c { font-size: 42rpx; font-weight: 600; color: #181A20; }
 .vb {
   position: absolute; right: -8rpx; bottom: -8rpx; width: 38rpx; height: 38rpx; box-sizing: border-box; border-radius: 50%;

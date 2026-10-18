@@ -84,11 +84,12 @@
 
     <!-- 头像和昵称压在封面与内容面板的交界处 -->
     <view class="avatar">
-      <text>{{ me.char }}</text>
+      <image v-if="who.avatarUrl" class="avatar-img" :src="who.avatarUrl" mode="aspectFill" />
+      <text v-else>{{ who.char }}</text>
       <view v-if="me.online" class="avatar-online"></view>
     </view>
     <view class="name-row">
-      <text class="nickname">{{ me.nickname }}</text>
+      <text class="nickname">{{ who.nickname }}</text>
       <view class="rank"><z-icon name="diamond" :size="13" color="#F4B740" /><text class="rank-t">{{ me.rank }}</text></view>
     </view>
 
@@ -99,6 +100,7 @@
 
 <script setup>
 import { tabItems, tapTab } from '@/common/tabs.js'
+import { useProfile } from '@/common/auth.js'
 import { useCertState } from '@/common/cert.js'
 import { ref, computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
@@ -135,6 +137,7 @@ badgeRows.forEach((row, r) => {
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 // 底部导航：第四个入口随认证状态变化（认证后模式切换时自动更新）
+const who = useProfile()
 const certState = useCertState()
 const navItems = computed(() => tabItems(certState.value))
 const navActive = ref(0)
@@ -229,4 +232,5 @@ function onNav(i) {
 .rank { margin-left: 16rpx; padding: 6rpx 16rpx; border-radius: 999rpx; background: #3A2C10; display: flex; align-items: center; }
 .rank-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 500; color: #F4B740; }
 
+.avatar-img { width: 100%; height: 100%; border-radius: 50%; display: block; }
 </style>

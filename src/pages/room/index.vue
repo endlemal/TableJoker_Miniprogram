@@ -217,7 +217,10 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
-import { onShow, onHide, onUnload, onReady, onShareAppMessage } from '@dcloudio/uni-app'
+import { onLoad, onShow, onHide, onUnload, onReady, onShareAppMessage } from '@dcloudio/uni-app'
+import { requireLogin } from '@/common/auth.js'
+// 必须登录：未登录（比如扫码直接打开房间）转到登录页，登录后回到这里
+onLoad(() => { requireLogin() })
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'

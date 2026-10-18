@@ -45,7 +45,7 @@ face('BoardNum', 'Big Shoulders Display', 200, '0123456789/:.%', 200)
 face('BoardNum', 'Big Shoulders Display', 700, ASCII, 700)
 face('BoardNum', 'Big Shoulders Display', 800, ASCII, 800)
 face('BoardHei', 'Noto Sans SC', 900, ''.join(sorted(set(hei_text))), 900)
-ZZ_TEXT = '比赛骰子先生创建周五德扑锦标赛' + '广场城市桌游节新手训练营周边小店' + '血月深夜赛体验局雾港深筹丛林猎手挑战' + '狼人杀点亮认证标识平台审核中已未通过' + '核心权益功能特权价值清晰可见流程常见问题赛事配置设备个性化' + '主办方工作台待我的服务' + '0123456789'
+ZZ_TEXT = '比赛骰子先生创建周五德扑锦标赛' + '广场城市桌游节新手训练营周边小店' + '血月深夜赛体验局雾港深筹丛林猎手挑战' + '狼人杀点亮认证标识平台审核中已未通过' + '核心权益功能特权价值清晰可见流程常见问题赛事配置设备个性化' + '主办方工作台待我的服务' + '欢迎来到桌趣确认登录关于用户协议隐私保护指引' + '0123456789'
 face('ZZDisplay', 'ZCOOL QingKe HuangYou', None, ZZ_TEXT, 400)
 # 记录子集覆盖的字，页面可以据此判断动态文字能不能用标题字体，避免一行里混用两种字体
 (ROOT / 'src/common/font-coverage.js').write_text(
