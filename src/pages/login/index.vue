@@ -14,17 +14,13 @@
               <view class="tk-head">
                 <view class="tk-logo">
                   <z-icon name="stack-2" :size="20" :stroke="2.4" color="#FF4D4D" />
-                  <text class="tk-logo-t">TABLEJOKER</text>
+                  <text class="tk-logo-t">Sign-In Ticket</text>
                 </view>
-                <view class="tk-head-r">
-                  <text class="tk-type">PLAYER PASS</text>
-                  <!-- 平台介绍 -->
-                  <view class="tk-book" hover-class="press" @tap="openIntro"><z-icon name="book" :size="15" color="#F8FAFC" /></view>
-                </view>
+                <!-- 平台介绍 -->
+                <view class="tk-book" hover-class="press" aria-label="关于桌趣" @tap="openIntro"><z-icon name="help-circle" :size="20" :stroke="1.8" color="#CBD5E1" /></view>
               </view>
 
-              <text class="tk-title">欢迎来到</text>
-              <text class="tk-title">桌趣</text>
+              <text class="tk-title">欢迎来到<text class="tk-title-brand">桌趣</text></text>
               <text class="tk-title-en">TABLEJOKER</text>
               <text class="tk-sub">聚会、玩桌游，或者参与比赛，点击下方开始吧！</text>
 
@@ -36,7 +32,7 @@
                   <button class="tk-av-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
                     <view class="tk-av" :class="{ 'tk-av-on': form.avatarUrl }">
                       <image v-if="form.avatarUrl" class="tk-av-img" :src="form.avatarUrl" mode="aspectFill" />
-                      <z-icon v-else name="camera" :size="16" color="#94A3B8" />
+                      <z-icon v-else name="camera" :size="21" color="#CBD5E1" />
                     </view>
                     <text class="tk-av-t">{{ form.avatarUrl ? '换一张' : '点击获取' }}</text>
                   </button>
@@ -45,7 +41,7 @@
                   <view class="tk-av-btn" @tap="pickDemoAvatar">
                     <view class="tk-av" :class="{ 'tk-av-on': form.avatarUrl }">
                       <image v-if="form.avatarUrl" class="tk-av-img" :src="form.avatarUrl" mode="aspectFill" />
-                      <z-icon v-else name="camera" :size="16" color="#94A3B8" />
+                      <z-icon v-else name="camera" :size="21" color="#CBD5E1" />
                     </view>
                     <text class="tk-av-t">{{ form.avatarUrl ? '换一张' : '点击获取' }}</text>
                   </view>
@@ -97,29 +93,26 @@
             <view class="tk-perf"><view class="tk-perf-line"></view></view>
           </view>
 
-          <!-- 存根：登录按钮、券号、座位号（占位，以后是城市里的第几位玩家） -->
+          <!-- 存根：左侧座位号（占位，以后是城市里的第几位玩家），右侧登录 -->
           <view class="tk-stub">
-            <view class="tk-stub-l">
-              <view class="tk-login" :class="{ 'tk-login-on': canLogin, 'tk-login-busy': busy }" hover-class="tk-login-press" @tap="onLoginTap">
-                <view v-if="busy" class="tk-spin"><z-icon name="loader-2" :size="16" :stroke="2.5" color="#FFFFFF" /></view>
-                <text class="tk-login-t">{{ busy ? '登录中' : '登录' }}</text>
-              </view>
-              <text class="tk-code" :class="{ 'tk-code-hint': !!hint }">{{ hint || pass.code }}</text>
-            </view>
             <view class="tk-admit">
               <text class="tk-admit-t">SEAT</text>
               <text class="tk-admit-n">{{ pass.seat }}</text>
             </view>
+            <view class="tk-login" :class="{ 'tk-login-on': canLogin, 'tk-login-busy': busy }" hover-class="tk-login-press" @tap="onLoginTap">
+              <view v-if="busy" class="tk-spin"><z-icon name="loader-2" :size="16" :stroke="2.5" color="#FFFFFF" /></view>
+              <text class="tk-login-t">{{ busy ? '登录中' : '登录' }}</text>
+            </view>
           </view>
         </view>
-      </view>
 
-      <!-- 入场券下方：协议小字 -->
-      <view class="lg-legal">
-        <text class="lg-legal-t">登录即表示你已阅读并同意</text>
-        <text class="lg-link" @tap="openDoc('terms')">《用户协议》</text>
-        <text class="lg-legal-t">和</text>
-        <text class="lg-link" @tap="openPrivacy">《隐私保护指引》</text>
+        <!-- 协议附在券下方，不参与券体的垂直居中计算 -->
+        <view class="lg-legal">
+          <text class="lg-legal-t">登录即表示你已阅读并同意</text>
+          <text class="lg-link" @tap="openDoc('terms')">《用户协议》</text>
+          <text class="lg-legal-t">和</text>
+          <text class="lg-link" @tap="openPrivacy">《隐私保护指引》</text>
+        </view>
       </view>
     </view>
 
@@ -161,15 +154,22 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onResize } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics } from '@/common/nav.js'
 import { coverStyle, svgUri } from '@/common/svg.js'
 import { isLoggedIn, login, getPass, persistAvatar } from '@/common/auth.js'
 import { intro, terms, privacySummary, demoCities } from '@/mock/login.js'
 
-const nav = getNavMetrics()
-const stageStyle = `padding-top:${nav.statusBar + nav.navH + 8}px`
+// 上下留出相同空间：避开胶囊并容纳协议，让券体中心对齐屏幕中心；短屏可自然滚动。
+const stageInset = ref(0)
+const stageStyle = computed(() => `padding-top:${stageInset.value}px;padding-bottom:${stageInset.value}px`)
+function updateStageInset() {
+  const nav = getNavMetrics()
+  stageInset.value = Math.max(nav.statusBar + nav.navH + 12, nav.winW * 144 / 750)
+}
+updateStageInset()
+onResize(updateStageInset)
 // 背景图：竖版的「钟楼」插画（星空和亮灯的屋顶刚好框住入场券；想要暖色可以换成 'wild' 荒野）。
 // 换成照片时，把 .lg-bg 换成 <image mode="aspectFill">（小程序的样式里不能引用本地图片）
 const bgStyle = coverStyle('clocktower', 'story')
@@ -182,7 +182,6 @@ const entered = ref(false)
 const leaving = ref(false)
 const busy = ref(false)
 const shaking = ref(false)
-const hint = ref('')
 const form = reactive({ avatarUrl: '', nickname: '', city: '' })
 const miss = reactive({ avatar: false, nickname: false, city: false })
 const region = ref([])
@@ -235,19 +234,16 @@ function pickDemoCity() {
 }
 
 /* ---------- 登录 ---------- */
-let hintTimer = null
 function onLoginTap() {
   if (busy.value) return
   if (!canLogin.value) {
     miss.avatar = !form.avatarUrl
     miss.nickname = !form.nickname
     miss.city = !form.city
-    hint.value = '还差：' + [miss.avatar && '头像', miss.nickname && '昵称', miss.city && '城市'].filter(Boolean).join('、')
+    toast('还差：' + [miss.avatar && '头像', miss.nickname && '昵称', miss.city && '城市'].filter(Boolean).join('、'))
     shaking.value = false
     setTimeout(() => { shaking.value = true }, 20)
     setTimeout(() => { shaking.value = false }, 560)
-    clearTimeout(hintTimer)
-    hintTimer = setTimeout(() => { hint.value = '' }, 2400)
     return
   }
   openModal('confirm')
@@ -319,10 +315,10 @@ onLoad((q) => {
 .lg-bg { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background-size: cover; background-position: center; filter: saturate(1.2) brightness(1.12); animation: kenburns 26s ease-in-out infinite alternate; }
 @keyframes kenburns { from { transform: scale(1.02) translate(0, 0); } to { transform: scale(1.14) translate(-2%, -2%); } }
 .lg-shade { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(10, 10, 14, .22) 0%, rgba(10, 10, 14, 0) 34%, rgba(10, 10, 14, .2) 62%, rgba(10, 10, 14, .78) 100%); }
-.lg-stage { position: relative; z-index: 1; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; perspective: 1600rpx; padding-bottom: calc(40rpx + env(safe-area-inset-bottom)); }
+.lg-stage { position: relative; z-index: 1; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; perspective: 1600rpx; }
 
 /* 入场：从下方翻起来；没填完点登录时左右晃 */
-.tk-wrap { width: 640rpx; opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
+.tk-wrap { position: relative; width: 640rpx; flex: none; opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
 .tk-in { opacity: 1; transform: translateY(0) rotateX(0); }
 .tk-shake { animation: tk-shake .5s ease; }
 @keyframes tk-shake { 15%, 55% { transform: translateX(-14rpx); } 35%, 75% { transform: translateX(14rpx); } }
@@ -340,7 +336,7 @@ onLoad((q) => {
 
 /* 主券：底部两个缺口 */
 .tk-main {
-  position: relative; overflow: hidden; padding: 44rpx 44rpx 60rpx; border-radius: 32rpx 32rpx 0 0;
+  position: relative; overflow: hidden; padding: 40rpx 40rpx 32rpx; border-radius: 32rpx 32rpx 0 0;
   background:
     radial-gradient(circle at bottom left, transparent 20rpx, #1E1F26 21rpx) bottom left / 51% 100% no-repeat,
     radial-gradient(circle at bottom right, transparent 20rpx, #1E1F26 21rpx) bottom right / 51% 100% no-repeat;
@@ -353,49 +349,48 @@ onLoad((q) => {
 }
 @keyframes tk-grid { from { background-position: 0 0; } to { background-position: 0 80rpx; } }
 .tk-content { position: relative; z-index: 1; display: flex; flex-direction: column; }
-.tk-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40rpx; }
+.tk-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32rpx; }
 .tk-logo { display: flex; align-items: center; animation: tk-logo 3s ease-in-out infinite alternate; }
 @keyframes tk-logo { from { filter: drop-shadow(0 0 2px rgba(220, 0, 0, .6)); } to { filter: drop-shadow(0 0 10px rgba(220, 0, 0, .9)) brightness(1.15); } }
-.tk-logo-t { margin-left: 10rpx; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 34rpx; letter-spacing: 1rpx; color: #FFFFFF; }
-.tk-head-r { display: flex; align-items: center; }
-.tk-type { padding: 6rpx 16rpx; border: 2rpx solid #DC0000; border-radius: 999rpx; font-size: 18rpx; font-weight: 700; letter-spacing: 4rpx; color: #FF4D4D; }
+.tk-logo-t { margin-left: 12rpx; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 700; font-size: 36rpx; letter-spacing: -.5rpx; color: #FFFFFF; }
 .tk-book {
-  margin-left: 14rpx; width: 56rpx; height: 56rpx; box-sizing: border-box; border-radius: 50%;
-  background: rgba(255, 255, 255, .06); border: 1rpx solid rgba(255, 255, 255, .14); display: flex; align-items: center; justify-content: center;
+  margin-left: 16rpx; width: 64rpx; height: 64rpx; flex: none; box-sizing: border-box; border-radius: 20rpx;
+  background: rgba(255, 255, 255, .04); border: 1rpx solid rgba(255, 255, 255, .1); display: flex; align-items: center; justify-content: center;
 }
-.tk-title { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 64rpx; line-height: 1.12; letter-spacing: 4rpx; color: #FFFFFF; }
-.tk-title-en { margin-top: 4rpx; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 88rpx; line-height: 1; letter-spacing: 2rpx; color: #FFD1D1; text-shadow: 0 0 24rpx rgba(220, 0, 0, .35); }
-.tk-sub { margin-top: 16rpx; font-size: 24rpx; line-height: 1.6; color: #94A3B8; }
+.tk-title { font-family: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif; font-weight: 800; font-size: 58rpx; line-height: 1.25; letter-spacing: 1rpx; white-space: nowrap; color: #FFFFFF; }
+.tk-title-brand { margin-left: 16rpx; }
+.tk-title-en { margin-top: 12rpx; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; font-weight: 900; font-size: 62rpx; line-height: 1.1; letter-spacing: 1rpx; color: #FFD1D1; text-shadow: 0 0 24rpx rgba(220, 0, 0, .25); }
+.tk-sub { margin-top: 18rpx; font-size: 24rpx; font-weight: 500; line-height: 1.7; color: #A7B0BF; }
 
 /* 四项信息 */
-.tk-details { margin-top: 44rpx; display: flex; flex-wrap: wrap; justify-content: space-between; }
-.tk-item { width: 48%; margin-bottom: 32rpx; display: flex; flex-direction: column; }
+.tk-details { margin-top: 36rpx; display: flex; flex-wrap: wrap; justify-content: space-between; }
+.tk-item { width: 48%; min-width: 0; margin-bottom: 28rpx; display: flex; flex-direction: column; }
 .tk-label { display: flex; align-items: center; height: 30rpx; }
-.tk-label-t { margin-right: 6rpx; font-size: 20rpx; letter-spacing: 1rpx; color: #94A3B8; transition: color .25s ease; }
+.tk-label-t { margin-right: 6rpx; font-size: 22rpx; font-weight: 700; letter-spacing: .5rpx; color: #A7B0BF; transition: color .25s ease; }
 .tk-ok .tk-label-t { color: #CBD5E1; }
 .tk-miss .tk-label-t { color: #FF6B6B; animation: tk-blink .9s ease 2; }
 @keyframes tk-blink { 50% { opacity: .35; } }
-.tk-value { margin-top: 10rpx; font-size: 30rpx; font-weight: 700; color: #F8FAFC; }
+.tk-value { margin-top: 12rpx; font-size: 30rpx; font-weight: 800; color: #F8FAFC; }
 .tk-av-btn {
-  margin: 10rpx 0 0; padding: 0; background: transparent; border: none; border-radius: 0; line-height: normal;
+  min-height: 96rpx; margin: 12rpx 0 0; padding: 0; background: transparent; border: none; border-radius: 0; line-height: normal;
   display: flex; align-items: center; text-align: left; overflow: visible;
 }
 .tk-av-btn::after { border: none; }
 .tk-av {
-  width: 72rpx; height: 72rpx; flex: none; box-sizing: border-box; border-radius: 50%; overflow: hidden;
+  width: 96rpx; height: 96rpx; flex: none; box-sizing: border-box; border-radius: 50%; overflow: hidden;
   background: rgba(255, 255, 255, .06); border: 3rpx dashed rgba(148, 163, 184, .7); display: flex; align-items: center; justify-content: center;
 }
 .tk-av-on { border: 4rpx solid #DC0000; box-shadow: 0 0 20rpx rgba(220, 0, 0, .45); animation: tk-pop .45s cubic-bezier(.34, 1.56, .64, 1); }
 @keyframes tk-pop { from { transform: scale(.6); } to { transform: scale(1); } }
 .tk-av-img { width: 100%; height: 100%; display: block; }
-.tk-av-t { margin-left: 14rpx; font-size: 24rpx; color: #CBD5E1; }
-.tk-input { margin-top: 10rpx; height: 52rpx; font-size: 30rpx; font-weight: 700; color: #F8FAFC; border-bottom: 1rpx solid rgba(255, 255, 255, .16); }
+.tk-av-t { margin-left: 16rpx; font-size: 26rpx; font-weight: 700; white-space: nowrap; color: #E2E8F0; }
+.tk-input { margin-top: 10rpx; height: 52rpx; font-size: 30rpx; font-weight: 800; color: #F8FAFC; border-bottom: 1rpx solid rgba(255, 255, 255, .16); }
 .tk-ok .tk-input { border-bottom-color: transparent; }
-.tk-ph { font-size: 26rpx; font-weight: 400; color: #64748B; }
+.tk-ph { font-size: 26rpx; font-weight: 600; color: #7E899C; }
 .tk-pick { margin-top: 10rpx; height: 52rpx; display: flex; align-items: center; justify-content: space-between; border-bottom: 1rpx solid rgba(255, 255, 255, .16); }
 .tk-ok .tk-pick { border-bottom-color: transparent; }
 .tk-pick .tk-value { margin-top: 0; }
-.tk-ph-t { font-size: 26rpx; color: #64748B; }
+.tk-ph-t { font-size: 26rpx; font-weight: 600; color: #7E899C; }
 
 /* 打孔线 */
 .tk-perf { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; height: 2rpx; transform: translateY(50%); display: flex; }
@@ -403,18 +398,17 @@ onLoad((q) => {
 
 /* 存根：顶部两个缺口 */
 .tk-stub {
-  position: relative; padding: 40rpx 44rpx 44rpx; border-radius: 0 0 32rpx 32rpx; display: flex; align-items: center; justify-content: space-between;
+  position: relative; padding: 32rpx 40rpx 36rpx; border-radius: 0 0 32rpx 32rpx; display: flex; align-items: center; justify-content: space-between;
   background:
     radial-gradient(circle at top left, transparent 20rpx, #2A2B35 21rpx) top left / 51% 100% no-repeat,
     radial-gradient(circle at top right, transparent 20rpx, #2A2B35 21rpx) top right / 51% 100% no-repeat;
   transition: transform .45s cubic-bezier(.34, 1.3, .64, 1), opacity .45s ease;
 }
-.tk-stub-l { display: flex; flex-direction: column; }
 .tk-login {
-  position: relative; width: 300rpx; height: 88rpx; border-radius: 18rpx; overflow: hidden; background: #3A3B46;
+  position: relative; width: 300rpx; height: 96rpx; margin-left: 24rpx; flex: none; border-radius: 20rpx; overflow: hidden; background: #3A3B46;
   display: flex; align-items: center; justify-content: center; transition: background .35s ease, box-shadow .35s ease;
 }
-.tk-login-t { font-size: 32rpx; font-weight: 600; letter-spacing: 6rpx; color: #8B90A0; transition: color .35s ease; }
+.tk-login-t { font-size: 34rpx; font-weight: 800; letter-spacing: 6rpx; color: #8B90A0; transition: color .35s ease; }
 /* 三项都填好：按钮亮起来 */
 .tk-login-on { background: #DC0000; animation: tk-light .6s ease-out, tk-glow 2.4s ease-in-out .6s infinite; }
 .tk-login-on .tk-login-t { color: #FFFFFF; }
@@ -429,11 +423,9 @@ onLoad((q) => {
 .tk-login-busy { opacity: .85; }
 .tk-spin { margin-right: 10rpx; display: flex; animation: spin .9s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.tk-code { margin-top: 18rpx; font-family: Menlo, monospace; font-size: 20rpx; letter-spacing: 4rpx; color: #94A3B8; }
-.tk-code-hint { font-family: inherit; letter-spacing: 1rpx; color: #FF6B6B; }
-.tk-admit { display: flex; flex-direction: column; align-items: flex-end; }
-.tk-admit-t { font-size: 20rpx; letter-spacing: 6rpx; color: #94A3B8; }
-.tk-admit-n { font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 112rpx; line-height: 1; color: #FF3B30; text-shadow: 0 0 30rpx rgba(220, 0, 0, .55); }
+.tk-admit { display: flex; flex-direction: column; align-items: flex-start; }
+.tk-admit-t { font-size: 20rpx; font-weight: 800; letter-spacing: 5rpx; color: #A7B0BF; }
+.tk-admit-n { font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 100rpx; line-height: 1; color: #FF3B30; text-shadow: 0 0 30rpx rgba(220, 0, 0, .4); }
 
 /* 检票：存根撕下，主券淡出 */
 .tk-main { transition: transform .5s ease .18s, opacity .5s ease .18s; }
@@ -441,7 +433,7 @@ onLoad((q) => {
 .tk-leave .tk-main { transform: translateY(-24rpx) scale(1.02); opacity: 0; }
 
 /* 协议小字 */
-.lg-legal { margin-top: 36rpx; width: 620rpx; display: flex; flex-wrap: wrap; justify-content: center; }
+.lg-legal { position: absolute; left: 0; right: 0; top: 100%; margin-top: 32rpx; padding: 0 8rpx; display: flex; flex-wrap: wrap; justify-content: center; }
 .lg-legal-t { font-size: 22rpx; line-height: 1.8; color: rgba(229, 231, 235, .72); }
 .lg-link { font-size: 22rpx; line-height: 1.8; color: #FF8A8A; }
 
