@@ -25,7 +25,7 @@
       <!-- 通用 -->
       <text class="sec-title">通用</text>
       <view class="card group">
-        <view v-for="r in general" :key="r.key" class="row" @tap="r.action && onRow(r.action)">
+        <view v-for="(r, i) in general" :key="r.key" class="row" :class="{ 'row--sep': i > 0 }" @tap="r.action && onRow(r.action)">
           <view class="row-ic" :style="`background:${r.tint}`"><z-icon :name="r.icon" :size="18" :color="r.color" /></view>
           <view class="row-main">
             <text class="row-t">{{ r.title }}</text>
@@ -42,7 +42,7 @@
       <!-- 关于 -->
       <text class="sec-title">关于</text>
       <view class="card group">
-        <view v-for="r in about" :key="r.key" class="row" @tap="onRow(r.action)">
+        <view v-for="(r, i) in about" :key="r.key" class="row" :class="{ 'row--sep': i > 0 }" @tap="onRow(r.action)">
           <view class="row-ic" :style="`background:${r.tint}`"><z-icon :name="r.icon" :size="18" :color="r.color" /></view>
           <view class="row-main">
             <text class="row-t">{{ r.title }}</text>
@@ -190,7 +190,7 @@ onLoad(() => {
 /* 分组 */
 .sec-title { display: block; margin: 32rpx 8rpx 16rpx; font-size: 26rpx; font-weight: 500; color: #9CA3AF; }
 .row { display: flex; align-items: center; padding: 26rpx 28rpx; }
-.row + .row { border-top: 1rpx solid #2A2D36; }
+.row--sep { border-top: 1rpx solid #2A2D36; }
 .row-ic {
   width: 64rpx; height: 64rpx; flex: none; border-radius: 20rpx;
   display: flex; align-items: center; justify-content: center;
