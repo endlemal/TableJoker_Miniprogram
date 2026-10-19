@@ -80,8 +80,11 @@
     <view v-for="g in featureGroups" :key="g.key" class="sec">
       <view class="sec-h"><text class="sec-t">{{ g.title }}</text><text class="sec-n">{{ g.items.length }} 项</text></view>
       <view class="fg">
-        <view v-for="it in g.items" :key="it.key" class="fg-i" hover-class="fg-press" :hover-stay-time="80" @tap="toast(it.name + '即将上线')">
-          <view class="fg-tile"><image class="fg-img" :src="it.img" mode="aspectFit" /></view>
+        <view v-for="it in g.items" :key="it.key" class="fg-i" hover-class="fg-press" :hover-stay-time="80" @tap="openFeature(it)">
+          <view class="fg-tile">
+            <image class="fg-img" :src="it.img" mode="aspectFit" />
+            <view v-if="FEATURE_LINKS[it.key]" class="fg-live"></view>
+          </view>
           <text class="fg-n">{{ it.name }}</text>
         </view>
       </view>
@@ -166,6 +169,12 @@ const toCert = () => go('/pages/host/index')
 function openWeb(url, title) {
   if (!WEBVIEW_ENABLED) return uni.setClipboardData({ data: url, success: () => toast('链接已复制，请在浏览器打开') })
   go(`/pages/webview/index?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`)
+}
+// 已经做好的功能直接打开（右上角有绿点），其余提示即将上线
+const FEATURE_LINKS = { blinds: '/pages/create/index?open=blinds', schemes: '/pages/create/index?open=schemes' }
+function openFeature(it) {
+  if (FEATURE_LINKS[it.key]) return go(FEATURE_LINKS[it.key])
+  toast(it.name + '即将上线')
 }
 const TODO_TIPS = { review: '报名审核即将上线', dealers: '荷官列表即将上线', devices: '设备绑定即将上线' }
 function doTodo(t) {
@@ -304,6 +313,8 @@ function onNav(i) {
 }
 .fg-press .fg-tile { transform: scale(.92); transition-duration: .12s; }
 .fg-img { width: 84rpx; height: 84rpx; }
+.fg-tile { position: relative; }
+.fg-live { position: absolute; right: 12rpx; top: 12rpx; width: 16rpx; height: 16rpx; border-radius: 50%; background: #3FCF84; box-shadow: 0 0 0 4rpx #EFE9DF; }
 .fg-n { margin-top: 16rpx; font-size: 24rpx; color: #E5E7EB; }
 
 /* 服务 */

@@ -9,9 +9,10 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / 'design/icons/workbench'
 OUT = ROOT / 'src/static/workbench'
 # 原图文件名 → 页面里用的 key。key 和平台认证页「功能特权」的条目一致（src/mock/host.js 的 privileges），工作台直接按 key 取图
-# 11、12 是按素材包风格补画的；04 盲注结构、07 方案管理不在功能特权里，暂不生成，原图保留在 design/icons/workbench
+# 11、12 是按素材包风格补画的
 MAP = {
     '05-台桌管理.png': 'tables', '06-荷官列表.png': 'dealers', '11-结算管理.png': 'settle',
+    '04-盲注结构.png': 'blinds', '07-方案管理.png': 'schemes',
     '01-遥控切屏.png': 'remote', '03-设备绑定.png': 'bind', '02-海报广告.png': 'poster',
     '12-周边勋章.png': 'medal', '08-大屏主题.png': 'theme', '10-颁奖动画.png': 'award', '09-筹码图例.png': 'legend',
 }

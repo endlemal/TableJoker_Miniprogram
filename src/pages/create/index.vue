@@ -298,7 +298,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick } from 'vue'
-import { onShareAppMessage } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
@@ -347,6 +347,11 @@ const editor = ref(false)
 const dateOpen = ref(false)
 const capOpen = ref(false)
 const tplOpen = ref(false)
+// 从主办方工作台直达：?open=blinds 打开盲注结构，?open=schemes 打开比赛方案（等页面进场动画结束再打开）
+onLoad((q) => {
+  if (q && q.open === 'blinds') setTimeout(() => { picker.value = true }, 350)
+  if (q && q.open === 'schemes') setTimeout(() => { tplOpen.value = true }, 350)
+})
 const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value)
 
 const coverInfo = computed(() => coverScenes.find((c) => c.key === form.cover) || coverScenes[0])
