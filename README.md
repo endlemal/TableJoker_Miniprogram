@@ -9,6 +9,7 @@
 | 登录（入口） | `src/pages/login/index.vue` | 小程序的第一个页面；已登录会直接进入首页 |
 | 首页 | `src/pages/home/index.vue` | 启动页；底部用户栏的「广场」可以直达广场 |
 | 个人主页 | `src/pages/profile/index.vue` | 首页点底部用户栏 |
+| 设置 | `src/pages/settings/index.vue` | 首页底部用户栏点齿轮；页面底部可退出登录 |
 | 创建比赛 | `src/pages/create/index.vue` | 首页点「创建比赛」 |
 | 比赛邀请（分享落地页） | `src/pages/invite/index.vue` | 点开分享卡片，路径 `/pages/invite/index?id=比赛ID` |
 | 广场 | `src/pages/plaza/index.vue` | 个人主页底部导航点「广场」 |

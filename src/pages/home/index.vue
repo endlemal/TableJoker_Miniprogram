@@ -110,7 +110,7 @@
           <text class="dock-plaza-t">广场</text>
           <view class="dock-plaza-n"><text>{{ openMatches }}</text></view>
         </view>
-        <view class="dock-set" hover-class="press" @tap.stop="toast('设置')">
+        <view class="dock-set" hover-class="press" @tap.stop="toSettings">
           <z-icon name="settings" :size="18" color="#9CA3AF" />
         </view>
       </view>
@@ -190,6 +190,7 @@ function onLogoTap() {
   popMsg(on ? '已进入平台认证后模式' : '已退出认证后模式，恢复为普通玩家', on ? 'rosette-discount-check' : 'user', on ? 'red' : 'gray', 2400)
 }
 const toPlaza = () => uni.navigateTo({ url: '/pages/plaza/index' })
+const toSettings = () => uni.navigateTo({ url: '/pages/settings/index' })
 const openMatches = publicMatches.length
 const createMatch = () => uni.navigateTo({ url: '/pages/create/index' })
 

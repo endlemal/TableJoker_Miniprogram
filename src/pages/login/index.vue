@@ -5,106 +5,23 @@
     <view class="lg-shade"></view>
 
     <view class="lg-stage" :style="stageStyle">
-      <view class="tk-wrap" :class="{ 'tk-in': entered, 'tk-leave': leaving, 'tk-shake': shaking }">
-        <view class="tk" :class="{ 'tk-ready': canLogin }">
-          <!-- 主券：标题、四项信息 -->
-          <view class="tk-main">
-            <view class="tk-grid"></view>
-            <view class="tk-content">
-              <view class="tk-head">
-                <view class="tk-logo">
-                  <z-icon name="stack-2" :size="20" :stroke="2.4" color="#FF4D4D" />
-                  <text class="tk-logo-t">Sign-In Ticket</text>
-                </view>
-                <!-- 平台介绍 -->
-                <view class="tk-book" hover-class="press" aria-label="关于桌趣" @tap="openIntro"><z-icon name="help-circle" :size="20" :stroke="1.8" color="#CBD5E1" /></view>
-              </view>
-
-              <text class="tk-title">欢迎来到<text class="tk-title-brand">桌趣</text></text>
-              <text class="tk-title-en">TABLEJOKER</text>
-              <text class="tk-sub">聚会、玩桌游，或者参与比赛，点击下方开始吧！</text>
-
-              <view class="tk-details">
-                <!-- 头像：只能由用户点按钮选择 -->
-                <view class="tk-item" :class="{ 'tk-ok': !!form.avatarUrl, 'tk-miss': miss.avatar }">
-                  <view class="tk-label"><text class="tk-label-t">获取你的微信头像</text><z-icon v-if="form.avatarUrl" name="check" :size="11" :stroke="3" color="#FF6B6B" /></view>
-                  <!-- #ifdef MP-WEIXIN -->
-                  <button class="tk-av-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
-                    <view class="tk-av" :class="{ 'tk-av-on': form.avatarUrl }">
-                      <image v-if="form.avatarUrl" class="tk-av-img" :src="form.avatarUrl" mode="aspectFill" />
-                      <z-icon v-else name="camera" :size="21" color="#CBD5E1" />
-                    </view>
-                    <text class="tk-av-t">{{ form.avatarUrl ? '换一张' : '点击获取' }}</text>
-                  </button>
-                  <!-- #endif -->
-                  <!-- #ifndef MP-WEIXIN -->
-                  <view class="tk-av-btn" @tap="pickDemoAvatar">
-                    <view class="tk-av" :class="{ 'tk-av-on': form.avatarUrl }">
-                      <image v-if="form.avatarUrl" class="tk-av-img" :src="form.avatarUrl" mode="aspectFill" />
-                      <z-icon v-else name="camera" :size="21" color="#CBD5E1" />
-                    </view>
-                    <text class="tk-av-t">{{ form.avatarUrl ? '换一张' : '点击获取' }}</text>
-                  </view>
-                  <!-- #endif -->
-                </view>
-
-                <!-- 加入时间：自动填 -->
-                <view class="tk-item tk-ok">
-                  <view class="tk-label"><text class="tk-label-t">加入时间</text></view>
-                  <text class="tk-value">{{ joinDate }}</text>
-                </view>
-
-                <!-- 昵称：聚焦时键盘上方会出现微信昵称，点一下就填好 -->
-                <view class="tk-item" :class="{ 'tk-ok': !!form.nickname, 'tk-miss': miss.nickname }">
-                  <view class="tk-label"><text class="tk-label-t">微信昵称</text><z-icon v-if="form.nickname" name="check" :size="11" :stroke="3" color="#FF6B6B" /></view>
-                  <input
-                    class="tk-input"
-                    type="nickname"
-                    :value="form.nickname"
-                    placeholder="点击填写"
-                    placeholder-class="tk-ph"
-                    maxlength="16"
-                    @input="onNick"
-                    @blur="onNick"
-                    @nicknamereview="onReview"
-                  />
-                </view>
-
-                <!-- 城市：微信自带的地区选择器，选到城市一级，不需要定位权限 -->
-                <view class="tk-item" :class="{ 'tk-ok': !!form.city, 'tk-miss': miss.city }">
-                  <view class="tk-label"><text class="tk-label-t">所在城市</text><z-icon v-if="form.city" name="check" :size="11" :stroke="3" color="#FF6B6B" /></view>
-                  <!-- #ifdef MP-WEIXIN -->
-                  <picker mode="region" level="city" :value="region" @change="onRegion">
-                    <view class="tk-pick">
-                      <text :class="form.city ? 'tk-value' : 'tk-ph-t'">{{ form.city ? shortCity(form.city) : '点击选择' }}</text>
-                      <z-icon name="map-pin" :size="13" color="#94A3B8" />
-                    </view>
-                  </picker>
-                  <!-- #endif -->
-                  <!-- #ifndef MP-WEIXIN -->
-                  <view class="tk-pick" @tap="pickDemoCity">
-                    <text :class="form.city ? 'tk-value' : 'tk-ph-t'">{{ form.city ? shortCity(form.city) : '点击选择' }}</text>
-                    <z-icon name="map-pin" :size="13" color="#94A3B8" />
-                  </view>
-                  <!-- #endif -->
-                </view>
-              </view>
-            </view>
-            <view class="tk-perf"><view class="tk-perf-line"></view></view>
-          </view>
-
-          <!-- 存根：左侧座位号（占位，以后是城市里的第几位玩家），右侧登录 -->
-          <view class="tk-stub">
-            <view class="tk-admit">
-              <text class="tk-admit-t">SEAT</text>
-              <text class="tk-admit-n">{{ pass.seat }}</text>
-            </view>
-            <view class="tk-login" :class="{ 'tk-login-on': canLogin, 'tk-login-busy': busy }" hover-class="tk-login-press" @tap="onLoginTap">
-              <view v-if="busy" class="tk-spin"><z-icon name="loader-2" :size="16" :stroke="2.5" color="#FFFFFF" /></view>
-              <text class="tk-login-t">{{ busy ? '登录中' : '登录' }}</text>
-            </view>
-          </view>
-        </view>
+      <view class="lg-ticket" :class="{ 'lg-ticket--entered': entered, 'lg-ticket--shaking': shaking }">
+        <login-ticket
+          :profile="form"
+          :missing="miss"
+          :join-date="joinDate"
+          :seat="pass.seat"
+          :busy="busy"
+          :leaving="leaving"
+          :locating="locating"
+          @choose-avatar="onChooseAvatar"
+          @demo-avatar="pickDemoAvatar"
+          @nickname-input="onNick"
+          @nickname-review="onReview"
+          @city-tap="onCityTap"
+          @login="onLoginTap"
+          @intro="openIntro"
+        />
 
         <!-- 协议附在券下方，不参与券体的垂直居中计算 -->
         <view class="lg-legal">
@@ -149,6 +66,15 @@
         </block>
       </view>
     </view>
+
+    <!-- 定位失败兜底：单列省份选择器 -->
+    <z-province-picker
+      v-model="pickerShow"
+      :value="form.city"
+      :can-retry="pickerRetry"
+      @change="onProvinceChange"
+      @retry-locate="onRetryLocate"
+    />
   </view>
 </template>
 
@@ -156,10 +82,13 @@
 import { ref, reactive, computed } from 'vue'
 import { onLoad, onResize } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
+import LoginTicket from '@/components/login-ticket/login-ticket.vue'
+import ZProvincePicker from '@/components/z-province-picker/z-province-picker.vue'
 import { getNavMetrics } from '@/common/nav.js'
 import { coverStyle, svgUri } from '@/common/svg.js'
-import { isLoggedIn, login, getPass, persistAvatar } from '@/common/auth.js'
-import { intro, terms, privacySummary, demoCities } from '@/mock/login.js'
+import { isLoggedIn, login, getPass, persistAvatar, getProfile } from '@/common/auth.js'
+import { fuzzyLocation, fuzzyToLabel } from '@/common/location.js'
+import { intro, terms, privacySummary } from '@/mock/login.js'
 
 // 上下留出相同空间：避开胶囊并容纳协议，让券体中心对齐屏幕中心；短屏可自然滚动。
 const stageInset = ref(0)
@@ -184,7 +113,9 @@ const busy = ref(false)
 const shaking = ref(false)
 const form = reactive({ avatarUrl: '', nickname: '', city: '' })
 const miss = reactive({ avatar: false, nickname: false, city: false })
-const region = ref([])
+const locating = ref(false)
+const pickerShow = ref(false)
+const pickerRetry = ref(false)
 const pass = getPass()
 const canLogin = computed(() => !!(form.avatarUrl && form.nickname && form.city))
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -192,7 +123,6 @@ const joinDate = (() => {
   const d = new Date()
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
 })()
-const shortCity = (c) => String(c).replace(/市$/, '')
 
 function onChooseAvatar(e) {
   const url = e && e.detail && e.detail.avatarUrl
@@ -223,14 +153,49 @@ function onReview(e) {
     toast('这个昵称没通过检查，换一个吧')
   }
 }
-function onRegion(e) {
-  const v = (e && e.detail && e.detail.value) || []
-  region.value = v
-  form.city = v[1] || v[0] || ''
-  if (form.city) miss.city = false
+
+/* ---------- 城市定位 ---------- */
+// 点击城市字段：直接定位；成功回填（现阶段是经纬度，TODO 逆编码换城市名），失败弹省份选择器
+function onCityTap() {
+  if (locating.value) return
+  locateCity()
 }
-function pickDemoCity() {
-  uni.showActionSheet({ itemList: demoCities.map(shortCity), success: ({ tapIndex }) => { form.city = demoCities[tapIndex]; miss.city = false } })
+
+function locateCity() {
+  locating.value = true
+  fuzzyLocation().then((res) => {
+    form.city = fuzzyToLabel(res)
+    miss.city = false
+    toast('定位成功：' + form.city)
+    locating.value = false
+  }).catch(() => {
+    locating.value = false
+    openProvincePicker(true)
+  })
+}
+
+// 老用户进页面静默定位：成功刷新城市，失败保留原值不打扰
+function silentLocate() {
+  // #ifdef MP-WEIXIN
+  fuzzyLocation().then((res) => {
+    form.city = fuzzyToLabel(res)
+    miss.city = false
+  }).catch(() => {})
+  // #endif
+}
+
+function openProvincePicker(retry) {
+  pickerRetry.value = !!retry
+  pickerShow.value = true
+}
+function onProvinceChange(name) {
+  form.city = name
+  miss.city = false
+  pickerShow.value = false
+}
+function onRetryLocate() {
+  pickerShow.value = false
+  locateCity()
 }
 
 /* ---------- 登录 ---------- */
@@ -301,13 +266,18 @@ onLoad((q) => {
   redirect = q && q.redirect ? decodeURIComponent(q.redirect) : ''
   // 已经登录：直接进入（不渲染入场券，避免闪一下）
   if (isLoggedIn()) return uni.reLaunch({ url: redirect || '/pages/home/index' })
+  // 登录过（本地有城市）：先回填缓存，再静默定位刷新；失败保留原值不打扰
+  const saved = getProfile()
+  if (saved && saved.city) {
+    form.city = saved.city
+    silentLocate()
+  }
   ready.value = true
   setTimeout(() => { entered.value = true }, 60)
 })
 </script>
 
 <style>
-/* 强调色和全站一致用品牌红；想换回参考稿的紫色，把 #DC0000 / #FF4D4D / #FF6B6B 换成 #7C3AED / #A78BFA 即可 */
 .lg { position: relative; min-height: 100vh; background: #0E0F14; overflow: hidden; }
 .press { opacity: .8; transform: scale(.96); }
 
@@ -318,119 +288,10 @@ onLoad((q) => {
 .lg-stage { position: relative; z-index: 1; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; perspective: 1600rpx; }
 
 /* 入场：从下方翻起来；没填完点登录时左右晃 */
-.tk-wrap { position: relative; width: 640rpx; flex: none; opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
-.tk-in { opacity: 1; transform: translateY(0) rotateX(0); }
-.tk-shake { animation: tk-shake .5s ease; }
-@keyframes tk-shake { 15%, 55% { transform: translateX(-14rpx); } 35%, 75% { transform: translateX(14rpx); } }
-
-/* 券体：缓慢浮动的 3D 倾斜，阴影跟着缺口走 */
-.tk { position: relative; transform-style: preserve-3d; animation: tk-float 7s ease-in-out infinite; filter: drop-shadow(0 30rpx 50rpx rgba(0, 0, 0, .65)); color: #F8FAFC; }
-@keyframes tk-float { 0%, 100% { transform: rotateX(4deg) rotateY(-6deg); } 50% { transform: rotateX(-2deg) rotateY(5deg) translateY(-8rpx); } }
-/* 定时扫过的一道光 */
-.tk::after {
-  content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: 10; border-radius: 32rpx; pointer-events: none;
-  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .1) 45%, rgba(255, 255, 255, .26) 50%, rgba(255, 255, 255, .1) 55%, transparent 60%);
-  background-size: 250% 250%; background-position: 100% 100%; animation: tk-shine 6s ease-in-out infinite;
-}
-@keyframes tk-shine { 0%, 72% { background-position: 100% 100%; } 100% { background-position: 0% 0%; } }
-
-/* 主券：底部两个缺口 */
-.tk-main {
-  position: relative; overflow: hidden; padding: 40rpx 40rpx 32rpx; border-radius: 32rpx 32rpx 0 0;
-  background:
-    radial-gradient(circle at bottom left, transparent 20rpx, #1E1F26 21rpx) bottom left / 51% 100% no-repeat,
-    radial-gradient(circle at bottom right, transparent 20rpx, #1E1F26 21rpx) bottom right / 51% 100% no-repeat;
-}
-/* 透视网格，缓慢向下滚动 */
-.tk-grid {
-  position: absolute; left: 0; top: 0; right: 0; bottom: 0; pointer-events: none; opacity: .6;
-  background-image: linear-gradient(rgba(220, 0, 0, .14) 1px, transparent 1px), linear-gradient(90deg, rgba(220, 0, 0, .14) 1px, transparent 1px);
-  background-size: 40rpx 40rpx; transform: perspective(500px) rotateX(20deg) scale(1.5); animation: tk-grid 20s linear infinite;
-}
-@keyframes tk-grid { from { background-position: 0 0; } to { background-position: 0 80rpx; } }
-.tk-content { position: relative; z-index: 1; display: flex; flex-direction: column; }
-.tk-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32rpx; }
-.tk-logo { display: flex; align-items: center; animation: tk-logo 3s ease-in-out infinite alternate; }
-@keyframes tk-logo { from { filter: drop-shadow(0 0 2px rgba(220, 0, 0, .6)); } to { filter: drop-shadow(0 0 10px rgba(220, 0, 0, .9)) brightness(1.15); } }
-.tk-logo-t { margin-left: 12rpx; font-family: Georgia, "Times New Roman", serif; font-style: italic; font-weight: 700; font-size: 36rpx; letter-spacing: -.5rpx; color: #FFFFFF; }
-.tk-book {
-  margin-left: 16rpx; width: 64rpx; height: 64rpx; flex: none; box-sizing: border-box; border-radius: 20rpx;
-  background: rgba(255, 255, 255, .04); border: 1rpx solid rgba(255, 255, 255, .1); display: flex; align-items: center; justify-content: center;
-}
-.tk-title { font-family: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Microsoft YaHei", sans-serif; font-weight: 800; font-size: 58rpx; line-height: 1.25; letter-spacing: 1rpx; white-space: nowrap; color: #FFFFFF; }
-.tk-title-brand { margin-left: 16rpx; }
-.tk-title-en { margin-top: 12rpx; font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif; font-weight: 900; font-size: 62rpx; line-height: 1.1; letter-spacing: 1rpx; color: #FFD1D1; text-shadow: 0 0 24rpx rgba(220, 0, 0, .25); }
-.tk-sub { margin-top: 18rpx; font-size: 24rpx; font-weight: 500; line-height: 1.7; color: #A7B0BF; }
-
-/* 四项信息 */
-.tk-details { margin-top: 36rpx; display: flex; flex-wrap: wrap; justify-content: space-between; }
-.tk-item { width: 48%; min-width: 0; margin-bottom: 28rpx; display: flex; flex-direction: column; }
-.tk-label { display: flex; align-items: center; height: 30rpx; }
-.tk-label-t { margin-right: 6rpx; font-size: 22rpx; font-weight: 700; letter-spacing: .5rpx; color: #A7B0BF; transition: color .25s ease; }
-.tk-ok .tk-label-t { color: #CBD5E1; }
-.tk-miss .tk-label-t { color: #FF6B6B; animation: tk-blink .9s ease 2; }
-@keyframes tk-blink { 50% { opacity: .35; } }
-.tk-value { margin-top: 12rpx; font-size: 30rpx; font-weight: 800; color: #F8FAFC; }
-.tk-av-btn {
-  min-height: 96rpx; margin: 12rpx 0 0; padding: 0; background: transparent; border: none; border-radius: 0; line-height: normal;
-  display: flex; align-items: center; text-align: left; overflow: visible;
-}
-.tk-av-btn::after { border: none; }
-.tk-av {
-  width: 96rpx; height: 96rpx; flex: none; box-sizing: border-box; border-radius: 50%; overflow: hidden;
-  background: rgba(255, 255, 255, .06); border: 3rpx dashed rgba(148, 163, 184, .7); display: flex; align-items: center; justify-content: center;
-}
-.tk-av-on { border: 4rpx solid #DC0000; box-shadow: 0 0 20rpx rgba(220, 0, 0, .45); animation: tk-pop .45s cubic-bezier(.34, 1.56, .64, 1); }
-@keyframes tk-pop { from { transform: scale(.6); } to { transform: scale(1); } }
-.tk-av-img { width: 100%; height: 100%; display: block; }
-.tk-av-t { margin-left: 16rpx; font-size: 26rpx; font-weight: 700; white-space: nowrap; color: #E2E8F0; }
-.tk-input { margin-top: 10rpx; height: 52rpx; font-size: 30rpx; font-weight: 800; color: #F8FAFC; border-bottom: 1rpx solid rgba(255, 255, 255, .16); }
-.tk-ok .tk-input { border-bottom-color: transparent; }
-.tk-ph { font-size: 26rpx; font-weight: 600; color: #7E899C; }
-.tk-pick { margin-top: 10rpx; height: 52rpx; display: flex; align-items: center; justify-content: space-between; border-bottom: 1rpx solid rgba(255, 255, 255, .16); }
-.tk-ok .tk-pick { border-bottom-color: transparent; }
-.tk-pick .tk-value { margin-top: 0; }
-.tk-ph-t { font-size: 26rpx; font-weight: 600; color: #7E899C; }
-
-/* 打孔线 */
-.tk-perf { position: absolute; z-index: 2; left: 0; right: 0; bottom: 0; height: 2rpx; transform: translateY(50%); display: flex; }
-.tk-perf-line { flex: 1; margin: 0 40rpx; border-top: 2rpx dashed rgba(255, 255, 255, .22); }
-
-/* 存根：顶部两个缺口 */
-.tk-stub {
-  position: relative; padding: 32rpx 40rpx 36rpx; border-radius: 0 0 32rpx 32rpx; display: flex; align-items: center; justify-content: space-between;
-  background:
-    radial-gradient(circle at top left, transparent 20rpx, #2A2B35 21rpx) top left / 51% 100% no-repeat,
-    radial-gradient(circle at top right, transparent 20rpx, #2A2B35 21rpx) top right / 51% 100% no-repeat;
-  transition: transform .45s cubic-bezier(.34, 1.3, .64, 1), opacity .45s ease;
-}
-.tk-login {
-  position: relative; width: 300rpx; height: 96rpx; margin-left: 24rpx; flex: none; border-radius: 20rpx; overflow: hidden; background: #3A3B46;
-  display: flex; align-items: center; justify-content: center; transition: background .35s ease, box-shadow .35s ease;
-}
-.tk-login-t { font-size: 34rpx; font-weight: 800; letter-spacing: 6rpx; color: #8B90A0; transition: color .35s ease; }
-/* 三项都填好：按钮亮起来 */
-.tk-login-on { background: #DC0000; animation: tk-light .6s ease-out, tk-glow 2.4s ease-in-out .6s infinite; }
-.tk-login-on .tk-login-t { color: #FFFFFF; }
-.tk-login-on::after {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 60%;
-  background: linear-gradient(100deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .35), rgba(255, 255, 255, 0)); animation: tk-sweep 2.4s ease-in-out infinite;
-}
-@keyframes tk-light { 0% { box-shadow: 0 0 0 0 rgba(220, 0, 0, .8); transform: scale(.96); } 60% { box-shadow: 0 0 0 18rpx rgba(220, 0, 0, 0); transform: scale(1.03); } 100% { transform: scale(1); } }
-@keyframes tk-glow { 0%, 100% { box-shadow: 0 10rpx 28rpx rgba(220, 0, 0, .35); } 50% { box-shadow: 0 10rpx 44rpx rgba(220, 0, 0, .7); } }
-@keyframes tk-sweep { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
-.tk-login-press { transform: scale(.97); }
-.tk-login-busy { opacity: .85; }
-.tk-spin { margin-right: 10rpx; display: flex; animation: spin .9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.tk-admit { display: flex; flex-direction: column; align-items: flex-start; }
-.tk-admit-t { font-size: 20rpx; font-weight: 800; letter-spacing: 5rpx; color: #A7B0BF; }
-.tk-admit-n { font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 100rpx; line-height: 1; color: #FF3B30; text-shadow: 0 0 30rpx rgba(220, 0, 0, .4); }
-
-/* 检票：存根撕下，主券淡出 */
-.tk-main { transition: transform .5s ease .18s, opacity .5s ease .18s; }
-.tk-leave .tk-stub { transform: translateY(70rpx) rotate(7deg); opacity: 0; }
-.tk-leave .tk-main { transform: translateY(-24rpx) scale(1.02); opacity: 0; }
+.lg-ticket { position: relative; width: 640rpx; flex: none; opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
+.lg-ticket--entered { opacity: 1; transform: translateY(0) rotateX(0); }
+.lg-ticket--shaking { animation: login-ticket-shake .5s ease; }
+@keyframes login-ticket-shake { 15%, 55% { transform: translateX(-14rpx); } 35%, 75% { transform: translateX(14rpx); } }
 
 /* 协议小字 */
 .lg-legal { position: absolute; left: 0; right: 0; top: 100%; margin-top: 32rpx; padding: 0 8rpx; display: flex; flex-wrap: wrap; justify-content: center; }
@@ -473,7 +334,7 @@ onLoad((q) => {
 .md-promise-t { flex: 1; margin-left: 12rpx; font-size: 22rpx; line-height: 1.7; color: #FCA5A5; }
 
 @media (prefers-reduced-motion: reduce) {
-  .lg-bg, .tk, .tk::after, .tk-grid, .tk-logo, .tk-login-on, .tk-login-on::after, .tk-shake, .tk-av-on, .tk-miss .tk-label-t { animation: none; }
-  .tk-wrap, .tk-stub, .tk-main, .md-card, .md-mask { transition: none; }
+  .lg-bg, .lg-ticket--shaking { animation: none; }
+  .lg-ticket, .md-card, .md-mask { transition: none; }
 }
 </style>
