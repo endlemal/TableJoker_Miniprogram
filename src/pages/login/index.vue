@@ -13,6 +13,7 @@
           :seat="pass.seat"
           :busy="busy"
           :leaving="leaving"
+          :locating="locating"
           @choose-avatar="onChooseAvatar"
           @demo-avatar="pickDemoAvatar"
           @nickname-input="onNick"
@@ -70,7 +71,9 @@
     <z-province-picker
       v-model="pickerShow"
       :value="form.city"
+      :can-retry="pickerRetry"
       @change="onProvinceChange"
+      @retry-locate="onRetryLocate"
     />
   </view>
 </template>
@@ -84,6 +87,7 @@ import ZProvincePicker from '@/components/z-province-picker/z-province-picker.vu
 import { getNavMetrics } from '@/common/nav.js'
 import { coverStyle, svgUri } from '@/common/svg.js'
 import { isLoggedIn, login, getPass, persistAvatar, getProfile } from '@/common/auth.js'
+import { fuzzyLocation, fuzzyToLabel } from '@/common/location.js'
 import { intro, terms, privacySummary } from '@/mock/login.js'
 
 // 上下留出相同空间：避开胶囊并容纳协议，让券体中心对齐屏幕中心；短屏可自然滚动。
@@ -109,7 +113,9 @@ const busy = ref(false)
 const shaking = ref(false)
 const form = reactive({ avatarUrl: '', nickname: '', city: '' })
 const miss = reactive({ avatar: false, nickname: false, city: false })
+const locating = ref(false)
 const pickerShow = ref(false)
+const pickerRetry = ref(false)
 const pass = getPass()
 const canLogin = computed(() => !!(form.avatarUrl && form.nickname && form.city))
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -148,20 +154,48 @@ function onReview(e) {
   }
 }
 
-/* ---------- 城市选择 ---------- */
-// getFuzzyLocation 接口已暂禁：点击城市字段直接打开省份选择器。
-// 恢复接口时，可把 onCityTap 改回「先定位，失败再弹选择器」。
+/* ---------- 城市定位 ---------- */
+// 点击城市字段：直接定位；成功回填（现阶段是经纬度，TODO 逆编码换城市名），失败弹省份选择器
 function onCityTap() {
-  openProvincePicker()
+  if (locating.value) return
+  locateCity()
 }
 
-function openProvincePicker() {
+function locateCity() {
+  locating.value = true
+  fuzzyLocation().then((res) => {
+    form.city = fuzzyToLabel(res)
+    miss.city = false
+    toast('定位成功：' + form.city)
+    locating.value = false
+  }).catch(() => {
+    locating.value = false
+    openProvincePicker(true)
+  })
+}
+
+// 老用户进页面静默定位：成功刷新城市，失败保留原值不打扰
+function silentLocate() {
+  // #ifdef MP-WEIXIN
+  fuzzyLocation().then((res) => {
+    form.city = fuzzyToLabel(res)
+    miss.city = false
+  }).catch(() => {})
+  // #endif
+}
+
+function openProvincePicker(retry) {
+  pickerRetry.value = !!retry
   pickerShow.value = true
 }
 function onProvinceChange(name) {
   form.city = name
   miss.city = false
   pickerShow.value = false
+}
+function onRetryLocate() {
+  pickerShow.value = false
+  locateCity()
 }
 
 /* ---------- 登录 ---------- */
@@ -236,6 +270,7 @@ onLoad((q) => {
   const saved = getProfile()
   if (saved && saved.city) {
     form.city = saved.city
+    silentLocate()
   }
   ready.value = true
   setTimeout(() => { entered.value = true }, 60)
