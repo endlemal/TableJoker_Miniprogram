@@ -80,9 +80,8 @@
               </view>
               <view class="ticket__city-picker" aria-label="所在城市" @tap="emit('city-tap')">
                 <view class="ticket__control ticket__city" :class="{ 'ticket__control--complete': profile.city }">
-                  <text class="ticket__city-value" :class="{ 'ticket__placeholder': !profile.city && !locating }">{{ cityLabel }}</text>
-                  <view v-if="locating" class="ticket__city-loading" aria-hidden="true"></view>
-                  <view v-else class="ticket__location" aria-hidden="true"></view>
+                  <text class="ticket__city-value" :class="{ 'ticket__placeholder': !profile.city }">{{ cityLabel }}</text>
+                  <view class="ticket__location" aria-hidden="true"></view>
                 </view>
               </view>
             </view>
@@ -126,7 +125,6 @@ const props = defineProps({
   seat: { type: [String, Number], required: true },
   busy: { type: Boolean, default: false },
   leaving: { type: Boolean, default: false },
-  locating: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -135,10 +133,7 @@ const emit = defineEmits([
 ])
 
 const canLogin = computed(() => !!(props.profile.avatarUrl && props.profile.nickname && props.profile.city))
-const cityLabel = computed(() => {
-  if (props.locating) return '定位中…'
-  return props.profile.city ? shortRegion(props.profile.city) : '点击定位'
-})
+const cityLabel = computed(() => props.profile.city ? shortRegion(props.profile.city) : '点击选择')
 
 let avatarOpenType = ''
 // #ifdef MP-WEIXIN
@@ -254,7 +249,6 @@ function onAvatarTap() {
 .ticket__city { display: flex; align-items: center; padding-left: 20rpx; }
 .ticket__city-value { flex: 1; min-width: 0; overflow: hidden; font-size: 26rpx; line-height: 51rpx; text-overflow: ellipsis; white-space: nowrap; }
 .ticket__location { flex: none; width: 26rpx; height: 26rpx; background: url('../../static/login/ticket-location.svg') center / 26rpx 26rpx no-repeat; }
-.ticket__city-loading { flex: none; width: 24rpx; height: 24rpx; box-sizing: border-box; border: 3rpx solid rgba(255, 255, 255, .25); border-top-color: #FF6B6B; border-radius: 50%; animation: ticket-spin .9s linear infinite; }
 
 .ticket__stub { position: relative; display: flex; height: 196rpx; padding: 32rpx 40rpx 36rpx; align-items: center; justify-content: space-between; box-sizing: border-box; transition: transform .45s cubic-bezier(.34, 1.3, .64, 1), opacity .45s ease; }
 .ticket__paper--stub { left: 0; top: 0; width: 640rpx; height: 196rpx; background: url('../../static/login/ticket-stub.svg') center / 640rpx 196rpx no-repeat; }
@@ -276,6 +270,6 @@ function onAvatarTap() {
 @keyframes ticket-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .ticket__main, .ticket__stub { transition: none; }
-  .ticket__spinner, .ticket__city-loading, .ticket__field--missing .ticket__field-label { animation: none; }
+  .ticket__spinner, .ticket__field--missing .ticket__field-label { animation: none; }
 }
 </style>

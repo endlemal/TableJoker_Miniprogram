@@ -60,13 +60,10 @@
         "usingComponents" : true,
         "lazyCodeLoading" : "requiredComponents",
         "darkmode" : false,
-        "requiredPrivateInfos" : [ "chooseLocation", "getFuzzyLocation" ],
+        "requiredPrivateInfos" : [ "chooseLocation" ],
         "permission" : {
             "scope.userLocation" : {
                 "desc" : "用于在地图上选择比赛地点"
-            },
-            "scope.userFuzzyLocation" : {
-                "desc" : "用于自动填写你所在的城市"
             }
         }
     },
