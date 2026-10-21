@@ -93,6 +93,8 @@
     </view>
 
     <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
+    <!-- 页内扫码弹窗（openScanner 打开） -->
+    <SciFiScannerModal />
 
     <!-- 添加大屏：第 1 步配对（配对码 / 扫码），第 2 步起名 -->
     <view v-if="sheet" class="sh" :class="{ 'sh-on': sheetOn }">
@@ -140,7 +142,7 @@
             <text class="tip">扫描电视首页上的二维码，自动完成配对</text>
             <view class="btn" :class="{ 'btn-dis': busy }" hover-class="press" @tap="scan">
               <view v-if="busy" class="spin-ic"><z-icon name="loader-2" :size="16" color="#FFFFFF" /></view>
-              <z-icon v-else name="scan" :size="18" color="#FFFFFF" /><text class="btn-t">{{ busy ? '正在连接大屏…' : '打开扫一扫' }}</text>
+              <z-icon v-else name="scan" :size="18" color="#FFFFFF" /><text class="btn-t">{{ busy ? '正在连接大屏…' : '开始扫码' }}</text>
             </view>
           </view>
         </block>
@@ -167,6 +169,8 @@ import { ref, reactive, computed } from 'vue'
 import { onLoad, onShow, onHide, onUnload, onPageScroll } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
+import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
+import { openScanner } from '@/common/scanner.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { coverStyle, svgUri } from '@/common/svg.js'
 import { requireLogin } from '@/common/auth.js'
@@ -350,23 +354,19 @@ async function connect(code) {
   }
   busy.value = false
 }
-function scan() {
+// 页内扫码弹窗（不跳转全屏）：只收下大屏计时器的二维码；「输入配对码」切回配对码输入
+async function scan() {
   if (busy.value) return
-  // #ifdef MP-WEIXIN
-  uni.scanCode({
-    onlyFromCamera: true,
-    scanType: ['qrCode'],
-    success: (r) => {
-      const code = parsePairPayload(r.result || r.path || '')
-      if (!code) return toast('这不是大屏计时器的二维码')
-      connect(code)
-    }
+  const res = await openScanner({
+    title: '扫码连接大屏',
+    hint: '对准电视首页上的二维码',
+    validate: (t) => (parsePairPayload(t) ? true : '这不是大屏计时器的二维码'),
+    manualText: '输入配对码',
+    demo: 'tjtv://pair?code=' + (100000 + Math.floor(Math.random() * 899999))
   })
-  // #endif
-  // #ifndef MP-WEIXIN
-  toast('预览环境：模拟扫到一台大屏')
-  connect(String(100000 + Math.floor(Math.random() * 899999)))
-  // #endif
+  if (!res) return
+  if (res.manual) return setMode(0)
+  connect(parsePairPayload(res.result))
 }
 function onNewName(e) { newName.value = String((e && e.detail && e.detail.value) || '') }
 async function finishAdd() {

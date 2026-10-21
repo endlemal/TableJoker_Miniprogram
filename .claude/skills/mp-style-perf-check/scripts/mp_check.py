@@ -2,6 +2,7 @@
 用法：python3 mp_check.py <dist/dev/mp-weixin> [--forbid 文本 ...] [--pages pages/a/index ...]
   --forbid：页面 JS 里不应该出现的文本（比如已经换成相交监听的 onPageScroll）。
   --pages：只对这些页面检查 --forbid（有的页面合理地保留了 onPageScroll）。
+另外会检查组件和页面里同名、但样式不同的类（页面样式会作用到组件上，容易把组件样式盖掉）。
 发现问题时退出码为 1。"""
 import argparse
 import glob
@@ -64,4 +65,34 @@ for page in pages:
             leaks.append((page, needle))
 print('页面 JS 里的 H5 专用代码 / 禁用文本：', leaks or '无')
 problems += len(leaks)
+
+# 5) 组件和页面同名的样式类：uni-app 编译的小程序组件默认 apply-shared（H5 更是全局样式），页面里的同名类会盖掉组件的样式。
+#    两边单独写成 .name { ... } 且内容完全一样的（比如共用的 .press）不算问题
+def class_map(path):
+    css = open(path, encoding='utf-8').read()
+    css = re.sub(r'url\("data:[^"]+"\)', 'url(DATA)', css)
+    css = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
+    css = re.sub(r'@keyframes[^{]+\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}', '', css)
+    css = re.sub(r'@media[^{]+\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}', lambda m: m.group(1), css)
+    used, simple = set(), {}
+    for sel, decl in re.findall(r'([^{}]+)\{([^{}]*)\}', css):
+        for part in sel.split(','):
+            part = part.strip()
+            used.update(re.findall(r'\.([A-Za-z_][\w-]*)', part))
+            m = re.fullmatch(r'\.([A-Za-z_][\w-]*)', part)
+            if m:
+                simple.setdefault(m.group(1), set()).add(re.sub(r'\s+', '', decl))
+    return used, simple
+comp_files = sorted(glob.glob(os.path.join(root, 'components/**/*.wxss'), recursive=True))
+page_files = [os.path.join(root, pg + '.wxss') for pg in pages if os.path.exists(os.path.join(root, pg + '.wxss'))]
+page_maps = {os.path.relpath(f, root): class_map(f) for f in page_files}
+clashes = []
+for cf in comp_files:
+    cu, cs = class_map(cf)
+    for pname, (pu, ps) in page_maps.items():
+        names = sorted(n for n in cu & pu if not (cs.get(n) and cs.get(n) == ps.get(n)))
+        if names:
+            clashes.append((os.path.relpath(cf, root), pname, names[:8]))
+print('组件和页面同名的样式类：', clashes or '无')
+problems += len(clashes)
 sys.exit(1 if problems else 0)

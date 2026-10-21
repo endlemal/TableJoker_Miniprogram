@@ -17,7 +17,8 @@ const OUTLINE = ['dice', 'chess-knight', 'moon-stars', 'cards', 'plus', 'scan', 
   'book', 'arrow-down', 'layout-grid', 'id-badge-2', 'receipt', 'device-remote', 'devices', 'photo', 'medal', 'palette', 'confetti', 'poker-chip', 'device-desktop', 'letter-v',
   'layout-dashboard', 'player-play', 'clipboard-check', 'clock', 'wifi-off', 'hand-click',
   'camera', 'loader-2', 'stopwatch', 'files',
-  'device-tv', 'device-tv-off', 'qrcode', 'link-off', 'focus-2', 'pencil', 'wifi', 'info-circle', 'keyboard']
+  'device-tv', 'device-tv-off', 'qrcode', 'link-off', 'focus-2', 'pencil', 'wifi', 'info-circle', 'keyboard',
+  'bulb', 'bulb-off', 'camera-off', 'photo-scan']
 const FILLED = { 'suit-spade': 'spade', 'suit-heart': 'heart', 'suit-diamond': 'diamonds', 'suit-club': 'clubs' }
 
 const inner = (file) => fs.readFileSync(file, 'utf8')

@@ -125,6 +125,8 @@
       </z-host-only>
     </view>
     <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
+    <!-- 页内扫码弹窗（openScanner 打开） -->
+    <SciFiScannerModal />
   </view>
 </template>
 
@@ -132,6 +134,8 @@
 import { ref, reactive, computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
+import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
+import { openScanner, parseJoinTarget } from '@/common/scanner.js'
 import ZHostOnly from '@/components/z-host-only/z-host-only.vue'
 import { useCertState, setHostMode } from '@/common/cert.js'
 import { onLoad } from '@dcloudio/uni-app'
@@ -194,13 +198,15 @@ const toSettings = () => uni.navigateTo({ url: '/pages/settings/index' })
 const openMatches = publicMatches.length
 const createMatch = () => uni.navigateTo({ url: '/pages/create/index' })
 
-function scanJoin() {
-  uni.scanCode({
-    success: () => uni.navigateTo({ url: '/pages/room/index' }),
-    fail: (err) => {
-      if (!/cancel/.test(err && err.errMsg)) toast('当前环境不支持扫码')
-    }
+// 页内扫码弹窗（不跳转全屏）：认出比赛二维码后打开对应的页面，其他码在弹窗里提示，继续扫
+async function scanJoin() {
+  const res = await openScanner({
+    title: '扫码加入比赛',
+    hint: '对准比赛海报或好友分享的二维码',
+    validate: (t) => (parseJoinTarget(t) ? true : '这不是桌趣的比赛二维码'),
+    demo: '/pages/invite/index?id=hm-deep'
   })
+  if (res && res.result) uni.navigateTo({ url: parseJoinTarget(res.result) })
 }
 
 function joinByLink() {
@@ -212,7 +218,8 @@ function joinByLink() {
     success: (res) => {
       if (!res.confirm) return
       if (!res.content) return toast('先粘贴邀请链接')
-      uni.navigateTo({ url: '/pages/room/index' })
+      // 和扫码用同一套解析：认得出就打开对应的比赛，认不出还是进房间
+      uni.navigateTo({ url: parseJoinTarget(res.content) || '/pages/room/index' })
     }
   })
 }
