@@ -13,5 +13,8 @@ export function seedDevices(now = Date.now()) {
 // 配对成功后识别出的电视型号（正式环境由电视上的计时器软件上报）
 export const TV_MODELS = ['小米电视 ES55', '海信 E5K 65', 'TCL T7H 55', '创维 A5D 65', '华为智慧屏 SE 55']
 
+// 演示环境唯一能配对成功的配对码；其余 6 位数字都模拟「找不到这台大屏」
+export const PAIR_CODE = '123456'
+
 // 起名时的快捷选项，选中后会补成「xx大屏」
 export const NAME_CHIPS = ['1 号桌', '2 号桌', '3 号桌', '决赛桌', '前台']

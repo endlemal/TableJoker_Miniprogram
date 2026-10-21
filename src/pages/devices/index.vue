@@ -115,7 +115,7 @@
             <!-- 示意：配对码在电视首页的位置 -->
             <view class="tvm">
               <view class="tvm-scr">
-                <view class="tvm-l"><text class="tvm-k">配对码</text><text class="tvm-pin">482 913</text><text class="tvm-app">桌趣大屏计时器</text></view>
+                <view class="tvm-l"><text class="tvm-k">配对码</text><text class="tvm-pin">{{ pairCodeText }}</text><text class="tvm-app">桌趣大屏计时器</text></view>
                 <view class="tvm-qr" :style="qrStyle"></view>
               </view>
               <view class="tvm-stand"></view>
@@ -129,7 +129,7 @@
             </view>
             <view class="msg" :class="{ 'msg-err': !!pinErr }">
               <view v-if="busy" class="spin-ic"><z-icon name="loader-2" :size="14" color="#9CA3AF" /></view>
-              <text class="msg-t">{{ pinErr || (busy ? '正在连接大屏…' : '输满 6 位自动连接') }}</text>
+              <text class="msg-t">{{ pinErr || (busy ? '正在连接大屏…' : (pinFocus || pin ? '输满 6 位自动连接' : '点击格子输入配对码')) }}</text>
             </view>
           </view>
 
@@ -176,7 +176,7 @@ import { coverStyle, svgUri } from '@/common/svg.js'
 import { requireLogin } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline, parsePairPayload, findByCode, addDevice, renameDevice, unbindDevice, identifyDevice, suggestName, nameTaken } from '@/common/devices.js'
-import { NAME_CHIPS } from '@/mock/devices.js'
+import { NAME_CHIPS, PAIR_CODE } from '@/mock/devices.js'
 
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
@@ -185,6 +185,8 @@ const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 const goBack = () => goBackOrHome()
 const posterStyle = coverStyle('clocktower', 'wide')
+// 示意电视上显示的配对码（和演示环境的有效配对码保持一致）
+const pairCodeText = PAIR_CODE.slice(0, 3) + ' ' + PAIR_CODE.slice(3)
 
 /* ---------- 提示条 ---------- */
 const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
@@ -316,7 +318,7 @@ function openSheet(code) {
     if (code) {
       pin.value = code
       connect(code)
-    } else pinFocus.value = true
+    }
   }, 40)
 }
 function closeSheet() {
@@ -328,7 +330,7 @@ function setMode(i) {
   if (busy.value) return
   mode.value = i
   pinErr.value = ''
-  pinFocus.value = i === 0
+  pinFocus.value = false
 }
 function onPin(e) {
   const v = String((e && e.detail && e.detail.value) || '').replace(/\D/g, '').slice(0, 6)
@@ -350,7 +352,6 @@ async function connect(code) {
     shake.value = false
     setTimeout(() => { shake.value = true }, 20)
     setTimeout(() => { shake.value = false }, 540)
-    if (mode.value === 0) setTimeout(() => { pinFocus.value = true }, 560)
   }
   busy.value = false
 }
@@ -362,7 +363,7 @@ async function scan() {
     hint: '对准电视首页上的二维码',
     validate: (t) => (parsePairPayload(t) ? true : '这不是大屏计时器的二维码'),
     manualText: '输入配对码',
-    demo: 'tjtv://pair?code=' + (100000 + Math.floor(Math.random() * 899999))
+    demo: 'tjtv://pair?code=' + PAIR_CODE
   })
   if (!res) return
   if (res.manual) return setMode(0)

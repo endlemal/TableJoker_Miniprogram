@@ -49,6 +49,11 @@
           <view class="sfs-ok-ring"><z-icon name="check" :size="30" :stroke="3" color="#FFFFFF" /></view>
           <text class="sfs-vf-t">已识别</text>
         </view>
+        <view v-if="state === 'privacy'" class="sfs-vf-layer sfs-vf-layer-solid">
+          <z-icon name="alert-circle" :size="30" color="#9CA3AF" />
+          <text class="sfs-vf-t">扫码功能还没配置好</text>
+          <text class="sfs-vf-d">小程序隐私保护指引里还没声明「摄像头」</text>
+        </view>
         <view v-if="state === 'denied' || state === 'error'" class="sfs-vf-layer sfs-vf-layer-solid">
           <z-icon name="camera-off" :size="30" color="#9CA3AF" />
           <text class="sfs-vf-t">{{ state === 'denied' ? '没有摄像头权限' : '摄像头打不开' }}</text>
@@ -109,7 +114,7 @@ onUnmounted(() => {
 const opts = computed(() => scanner.opts || {})
 const shown = ref(false)
 const on = ref(false)
-// init 打开摄像头中 / scan 扫码中 / ok 已识别 / denied 没有权限 / error 摄像头出错
+// init 打开摄像头中 / scan 扫码中 / ok 已识别 / denied 没有权限 / error 摄像头出错 / privacy 隐私指引没声明摄像头
 const state = ref('init')
 const useCamera = ref(false)
 const torch = ref(false)
@@ -168,6 +173,13 @@ function onInit() {
 function onCamError(e) {
   const msg = String((e && e.detail && e.detail.errMsg) || '')
   useCamera.value = false
+  // errno 112：隐私保护指引里没有声明「摄像头」，这是公众平台后台的事，代码里改不了
+  if (/privacy/i.test(msg)) {
+    console.warn('[SciFiScannerModal] 摄像头被微信拦截：' + msg)
+    console.warn('去微信公众平台「设置 → 服务内容声明 → 用户隐私保护指引」声明「摄像头」，用途填「扫描比赛和大屏的二维码」，审核通过后即可使用。')
+    state.value = 'privacy'
+    return
+  }
   state.value = /auth|deny|authorize/i.test(msg) ? 'denied' : 'error'
 }
 function onCamStop() {
@@ -257,11 +269,11 @@ const simQr = (() => {
    风格同全站：暗底 #181A20 / 卡片 #1F222A，品牌红 #DC0000；HUD 网格参考登录券的透视网格 */
 .sfs-sc { position: fixed; z-index: 900; left: 0; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
 .sfs-press { opacity: .8; transform: scale(.96); }
-.sfs-sc-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(6, 6, 10, .74); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .26s ease; }
+.sfs-sc-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(6, 6, 10, .0); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); opacity: 0; transition: opacity .56s cubic-bezier(0.31, 1.14, 0.37, 1.01); }
 .sfs-sc-on .sfs-sc-mask { opacity: 1; }
 .sfs-sc-card {
-  position: relative; width: 640rpx; box-sizing: border-box; padding: 32rpx 32rpx 28rpx; border-radius: 40rpx; background: #1F222A;
-  border: 1rpx solid rgba(255, 255, 255, .08); box-shadow: 0 30rpx 80rpx rgba(0, 0, 0, .6);
+  position: relative; width: 640rpx; box-sizing: border-box; padding: 32rpx 32rpx 28rpx; border-radius: 40rpx; background: #1F222A00;
+  border: 1rpx solid rgba(255, 255, 255, .02); box-shadow: 0 30rpx 80rpx rgba(0, 0, 0, .6);
   opacity: 0; transform: translateY(24rpx) scale(.92); transition: opacity .26s ease, transform .36s cubic-bezier(.34, 1.4, .64, 1);
 }
 .sfs-sc-on .sfs-sc-card { opacity: 1; transform: translateY(0) scale(1); }

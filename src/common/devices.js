@@ -5,8 +5,8 @@
 // - 解绑：后端通知电视清除绑定，电视回到计时器的初始页（重新显示配对码）
 // - 识别：后端给电视下发指令，电视在屏幕上浮现设备名称几秒，方便认出是哪一台
 // - 在线状态：电视定时发心跳，超过 ONLINE_WINDOW 没有心跳算离线
-// 演示版把设备列表存在本地；配对码 000000 会模拟「找不到这台大屏」，其余 6 位数字都能配对成功
-import { seedDevices, TV_MODELS } from '../mock/devices.js'
+// 演示版把设备列表存在本地；配对码 123456（mock/devices.js 的 PAIR_CODE）能配对成功，其余 6 位数字都会模拟「找不到这台大屏」
+import { seedDevices, TV_MODELS, PAIR_CODE } from '../mock/devices.js'
 
 const KEY = 'zz_devices'
 export const ONLINE_WINDOW = 60 * 1000
@@ -45,10 +45,10 @@ export function parsePairPayload(text) {
   return m ? m[1] : ''
 }
 
-// 用配对码找到等待配对的电视（还没加入列表）
+// 用配对码找到等待配对的电视（还没加入列表）；演示环境只有 PAIR_CODE 有效
 export async function findByCode(code) {
   await wait(800)
-  if (!/^\d{6}$/.test(code) || code === '000000') throw new Error('not-found')
+  if (!/^\d{6}$/.test(code) || code !== PAIR_CODE) throw new Error('not-found')
   const tvId = 'TV-' + parseInt(code, 10).toString(16).toUpperCase().slice(-4).padStart(4, '0')
   if (load().some((d) => d.tvId === tvId)) throw new Error('exists')
   return { tvId, model: TV_MODELS[Number(code[5]) % TV_MODELS.length], app: '大屏计时器 v1.2.0' }
