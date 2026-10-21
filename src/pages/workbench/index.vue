@@ -302,6 +302,7 @@ const TODO_TIPS = { review: '报名审核即将上线', dealers: '荷官管理�
 function doTodo(t) {
   if (t.action === 'room') return go('/pages/room/index')
   if (t.action === 'blinds') return go('/pages/create/index?open=blinds')
+  if (t.action === 'devices') return go('/pages/devices/index')
   toast(TODO_TIPS[t.action] || '即将上线')
 }
 
@@ -377,7 +378,7 @@ const myMatches = hostMatches.map((m) => {
 /* ---------- 赛事配置（金刚区） ---------- */
 const featureCount = featureGroups.reduce((s, g) => s + g.items.length, 0)
 // 已经做好的功能直接打开（右上角有绿点），其余提示即将上线
-const FEATURE_LINKS = { blinds: '/pages/create/index?open=blinds', schemes: '/pages/create/index?open=schemes' }
+const FEATURE_LINKS = { blinds: '/pages/create/index?open=blinds', schemes: '/pages/create/index?open=schemes', bind: '/pages/devices/index' }
 function openFeature(it) {
   if (FEATURE_LINKS[it.key]) return go(FEATURE_LINKS[it.key])
   toast(it.name + '即将上线')
