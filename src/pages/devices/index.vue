@@ -86,7 +86,7 @@
             <view class="rn-save" :class="{ 'rn-save-on': canSave(d) }" hover-class="press" @tap="saveName(d)"><text class="rn-save-t">保存</text></view>
           </view>
           <text v-if="renameClash(d)" class="dv-err">已经有一台大屏叫「{{ String(draftOf(d)).trim() }}」了，换个名字吧</text>
-          <text class="dv-info">{{ d.model }} · {{ d.app }} · {{ d.tvId }} · 绑定于 {{ dateText(d.pairedAt) }}</text>
+          <text class="dv-info">{{ d.model }}{{ d.resolution ? ' · ' + d.resolution.w + '×' + d.resolution.h : '' }} · {{ d.app }} · {{ d.tvId }} · 绑定于 {{ dateText(d.pairedAt) }}</text>
           <text v-if="!online(d)" class="dv-hint">大屏离线时不能识别；解绑会在它下次联网时生效</text>
         </view>
       </view></view>

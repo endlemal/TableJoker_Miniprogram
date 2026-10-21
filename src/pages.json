@@ -44,6 +44,10 @@
       "style": { "navigationStyle": "custom", "navigationBarTitleText": "设备管理", "backgroundColor": "#181A20" }
     },
     {
+      "path": "pages/posters/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "海报广告", "backgroundColor": "#181A20" }
+    },
+    {
       "path": "pages/webview/index",
       "style": { "navigationStyle": "default", "navigationBarTitleText": "活动", "navigationBarBackgroundColor": "#181A20", "navigationBarTextStyle": "white" }
     },

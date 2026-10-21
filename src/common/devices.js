@@ -51,7 +51,7 @@ export async function findByCode(code) {
   if (!/^\d{6}$/.test(code) || code !== PAIR_CODE) throw new Error('not-found')
   const tvId = 'TV-' + parseInt(code, 10).toString(16).toUpperCase().slice(-4).padStart(4, '0')
   if (load().some((d) => d.tvId === tvId)) throw new Error('exists')
-  return { tvId, model: TV_MODELS[Number(code[5]) % TV_MODELS.length], app: '大屏计时器 v1.2.0' }
+  return { tvId, model: TV_MODELS[Number(code[5]) % TV_MODELS.length], resolution: { w: 3840, h: 2160 }, app: '大屏计时器 v1.2.0' }
 }
 
 // 起名后加入设备列表（加在最前面）
@@ -63,7 +63,7 @@ export async function addDevice(found, name) {
   const list = load()
   if (nameTaken(list, name)) throw new Error('duplicate')
   const now = Date.now()
-  const d = { id: 'd' + now, tvId: found.tvId, name, model: found.model, app: found.app, pairedAt: now, lastSeen: now, alive: true, showing: 'home', showingText: '计时器首页' }
+  const d = { id: 'd' + now, tvId: found.tvId, name, model: found.model, resolution: found.resolution, app: found.app, pairedAt: now, lastSeen: now, alive: true, showing: 'home', showingText: '计时器首页' }
   list.unshift(d)
   save(list)
   return d
