@@ -2,7 +2,8 @@
 用法：python3 mp_check.py <dist/dev/mp-weixin> [--forbid 文本 ...] [--pages pages/a/index ...]
   --forbid：页面 JS 里不应该出现的文本（比如已经换成相交监听的 onPageScroll）。
   --pages：只对这些页面检查 --forbid（有的页面合理地保留了 onPageScroll）。
-另外会检查组件和页面里同名、但样式不同的类（页面样式会作用到组件上，容易把组件样式盖掉）。
+另外会检查组件和页面里同名、但样式不同的类（页面样式会作用到组件上，容易把组件样式盖掉），
+以及拦住 touchstart、里面又有点击的元素（小程序里这些点击会失效）。
 发现问题时退出码为 1。"""
 import argparse
 import glob
@@ -95,4 +96,43 @@ for cf in comp_files:
             clashes.append((os.path.relpath(cf, root), pname, names[:8]))
 print('组件和页面同名的样式类：', clashes or '无')
 problems += len(clashes)
+
+# 6) catchtouchstart 会让里面的点击失效：小程序的 tap 由触摸事件合成，某个元素拦住了 touchstart（模板里写 @touchstart.stop），
+#    它和它里面所有元素的 bindtap / catchtap 都收不到。H5 的点击合成方式不同，在浏览器里测不出来
+from html.parser import HTMLParser
+class TapInCatch(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=False)
+        self.stack, self.hits = [], []
+    def handle_starttag(self, tag, attrs):
+        names = {k for k, _ in attrs}
+        has_tap = bool(names & {'bindtap', 'catchtap', 'bind:tap', 'catch:tap'})
+        if has_tap:
+            for el in self.stack:
+                if el['catch'] and not el['reported']:
+                    el['reported'] = True
+                    self.hits.append(el['desc'])
+        cls = dict(attrs).get('class', '') or ''
+        catch = bool(names & {'catchtouchstart', 'catch:touchstart'})
+        el = {'tag': tag, 'catch': catch, 'reported': False, 'desc': f'<{tag} class="{cls[:40]}">'}
+        if catch and has_tap:  # 同一个元素既拦住 touchstart 又要响应点击
+            el['reported'] = True
+            self.hits.append(el['desc'])
+        self.stack.append(el)
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        self.stack.pop()
+    def handle_endtag(self, tag):
+        for i in range(len(self.stack) - 1, -1, -1):
+            if self.stack[i]['tag'] == tag:
+                del self.stack[i:]
+                break
+tap_traps = []
+for f in sorted(glob.glob(os.path.join(root, '**/*.wxml'), recursive=True)):
+    parser = TapInCatch()
+    parser.feed(open(f, encoding='utf-8').read())
+    for desc in parser.hits:
+        tap_traps.append((os.path.relpath(f, root), desc))
+print('拦住 touchstart、里面又有点击的元素（点击会失效）：', tap_traps or '无')
+problems += len(tap_traps)
 sys.exit(1 if problems else 0)
