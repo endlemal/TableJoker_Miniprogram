@@ -14,7 +14,7 @@
 
     <!-- 概览：绑定了几台、几台在线 -->
     <view class="sum">
-      <view class="sum-tile"><image class="sum-img" src="/static/workbench/bind.png" mode="aspectFit" /></view>
+      <image class="sum-img" src="/static/workbench/bind.png" mode="aspectFit" />
       <view class="sum-main">
         <text class="sum-t">大屏计时器</text>
         <view class="sum-s">
@@ -25,71 +25,70 @@
       </view>
       <view class="sum-refresh" :class="{ 'spin': refreshing }" hover-class="press" @tap="refresh"><z-icon name="refresh" :size="16" color="#9CA3AF" /></view>
     </view>
-    <view class="add" hover-class="press" @tap="openSheet()">
-      <z-icon name="plus" :size="18" :stroke="2.5" color="#FFFFFF" /><text class="add-t">添加大屏</text>
-    </view>
 
-    <!-- 设备列表：点开是屏幕设置（识别、解绑、改名） -->
+    <!-- 设备列表：条形卡片，封面是电视此刻的画面；点开是屏幕设置（改名、识别、解绑） -->
     <view class="sec-h"><text class="sec-t">我的大屏</text><text class="sec-n">{{ checkedText }}</text></view>
     <view v-if="loaded && !devices.length" class="empty">
-      <view class="empty-tile"><image class="sum-img" src="/static/workbench/bind.png" mode="aspectFit" /></view>
+      <image class="empty-img" src="/static/workbench/bind.png" mode="aspectFit" />
       <text class="empty-t">还没有绑定大屏</text>
       <text class="empty-d">在电视上安装「桌趣大屏计时器」，用配对码或扫码连接</text>
     </view>
-    <view v-for="d in devices" :key="d.id" class="dv" :class="{ 'dv-open': open === d.id, 'dv-new': flash === d.id }">
-      <view class="dv-h" hover-class="press-soft" @tap="toggle(d.id)">
-        <view class="dv-ic" :class="online(d) ? 'dv-ic-on' : 'dv-ic-off'">
-          <z-icon :name="online(d) ? 'device-tv' : 'device-tv-off'" :size="20" :color="online(d) ? '#4CB582' : '#6B7280'" />
+    <view v-for="d in devices" :key="d.id" class="dv" :class="{ 'dv-open': open === d.id }">
+      <view class="dv-row">
+        <view class="bar" :class="{ 'bar-off': !online(d), 'bar-new': flash === d.id, 'bar-id': idf.id === d.id, 'bar-edit': editing === d.id }" hover-class="bar-press" :hover-stay-time="60" @tap="toggle(d)">
+          <!-- 封面：电视此刻的画面，裁切铺满（离线是最后的画面，变灰） -->
+          <view class="bar-cv"><z-fit-img :src="covers[d.id].src" mode="aspectFill" :w="covers[d.id].w" :h="covers[d.id].h" :bg="covers[d.id].tint" /></view>
+          <!-- 从左往右渐隐的遮罩，让标题和正在显示的内容更清楚 -->
+          <view class="bar-mask" :style="maskStyle(d)"></view>
+          <view class="bar-ic" :class="online(d) ? 'bar-ic-on' : 'bar-ic-off'">
+            <z-icon :name="online(d) ? 'device-tv' : 'device-tv-off'" :size="22" :color="online(d) ? '#4CB582' : '#FF8A8A'" />
+          </view>
+          <view class="bar-main">
+            <!-- 改名：直接在标题处编辑，进入时全选 -->
+            <input
+              v-if="editing === d.id"
+              class="dv-n dv-n-in"
+              :value="draft"
+              maxlength="12"
+              :focus="editFocus"
+              :selection-start="sel.s"
+              :selection-end="sel.e"
+              confirm-type="done"
+              :cursor-spacing="120"
+              @input="onDraft"
+              @confirm="saveName(d)"
+              @blur="onEditBlur(d)"
+              @tap.stop="noop"
+            />
+            <text v-else class="dv-n">{{ d.name }}</text>
+            <text class="dv-s" :class="{ 'dv-s-edit': editing === d.id, 'dv-s-max': editing === d.id && draft.length >= 12 }">{{ subText(d) }}</text>
+          </view>
         </view>
-        <view class="dv-main">
-          <text class="dv-n">{{ d.name }}</text>
-          <view class="dv-s"><view class="dot" :class="online(d) ? 'dot-on' : 'dot-off'"></view><text class="dv-st">{{ statusText(d) }}</text></view>
+        <view class="edit" :class="{ 'edit-on': editing === d.id }" hover-class="press" @tap="toggleEdit(d)">
+          <z-icon :name="editing === d.id ? 'check' : 'pencil'" :size="20" :stroke="2.2" color="#FFFFFF" />
         </view>
-        <view class="chev" :class="{ 'chev-up': open === d.id }"><z-icon name="chevron-down" :size="16" color="#9CA3AF" /></view>
       </view>
       <view class="fold" :class="{ 'fold-on': open === d.id }"><view class="fold-in">
         <view class="dv-body">
-          <text class="dv-sec">屏幕设置</text>
-          <view class="dv-top">
-            <!-- 电视此刻的画面；识别时浮现设备名称 -->
-            <view class="scr" :class="'scr-' + screenOf(d)" :style="screenOf(d) === 'poster' ? posterStyle : ''">
-              <block v-if="screenOf(d) === 'timer'">
-                <text class="scr-lv">LV.3 · 100/200</text>
-                <text class="scr-time">18:42</text>
-              </block>
-              <block v-else-if="screenOf(d) === 'poster'"><text class="scr-tag">海报轮播</text></block>
-              <block v-else-if="screenOf(d) === 'home'">
-                <text class="scr-app">桌趣大屏计时器</text>
-                <text class="scr-sub">已连接 · 等待开赛</text>
-              </block>
-              <block v-else>
-                <z-icon name="device-tv-off" :size="22" color="#4B5060" />
-                <text class="scr-sub">离线</text>
-              </block>
-              <view v-if="idf.id === d.id" class="scr-id">
-                <text class="scr-id-t">{{ d.name }}</text>
-                <text class="scr-id-c">{{ idf.left }}s</text>
-              </view>
+          <view class="acts">
+            <view class="act" :class="{ 'act-dis': !online(d) || idf.id === d.id }" hover-class="press" @tap="identify(d)">
+              <z-icon name="focus-2" :size="18" color="#FFFFFF" /><text class="act-t">{{ idf.id === d.id ? '识别中 ' + idf.left + 's' : '识别' }}</text>
             </view>
-            <view class="acts">
-              <view class="act" :class="{ 'act-dis': !online(d) || idf.id === d.id }" hover-class="press" @tap="identify(d)">
-                <z-icon name="focus-2" :size="16" color="#FFFFFF" /><text class="act-t">{{ idf.id === d.id ? '识别中' : '识别' }}</text>
-              </view>
-              <view class="act act-danger" hover-class="press" @tap="unbind(d)">
-                <z-icon name="link-off" :size="16" color="#FF6B6B" /><text class="act-t act-t-danger">解绑</text>
-              </view>
+            <view class="act act-danger" hover-class="press" @tap="unbind(d)">
+              <z-icon name="link-off" :size="18" color="#FF6B6B" /><text class="act-t act-t-danger">解绑</text>
             </view>
           </view>
-          <view class="rn">
-            <text class="rn-k">设备名称</text>
-            <input class="rn-in" :value="draftOf(d)" maxlength="12" placeholder="最多 12 个字" placeholder-class="ph" @input="onDraft(d, $event)" />
-            <view class="rn-save" :class="{ 'rn-save-on': canSave(d) }" hover-class="press" @tap="saveName(d)"><text class="rn-save-t">保存</text></view>
-          </view>
-          <text v-if="renameClash(d)" class="dv-err">已经有一台大屏叫「{{ String(draftOf(d)).trim() }}」了，换个名字吧</text>
           <text class="dv-info">{{ d.model }}{{ d.resolution ? ' · ' + d.resolution.w + '×' + d.resolution.h : '' }} · {{ d.app }} · {{ d.tvId }} · 绑定于 {{ dateText(d.pairedAt) }}</text>
           <text v-if="!online(d)" class="dv-hint">大屏离线时不能识别；解绑会在它下次联网时生效</text>
         </view>
       </view></view>
+    </view>
+
+    <!-- 添加大屏：固定在底部 -->
+    <view class="add-dock">
+      <view class="add" hover-class="press" @tap="openSheet()">
+        <z-icon name="plus" :size="20" :stroke="2.5" color="#FFFFFF" /><text class="add-t">添加大屏</text>
+      </view>
     </view>
 
     <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
@@ -172,7 +171,10 @@ import ZPop from '@/components/z-pop/z-pop.vue'
 import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
 import { openScanner } from '@/common/scanner.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
-import { coverStyle, svgUri } from '@/common/svg.js'
+import { svgUri } from '@/common/svg.js'
+import { coverArt, SCENE_TINT } from '@/common/cover-art.js'
+import { listGroups } from '@/common/posters.js'
+import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { requireLogin } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline, parsePairPayload, findByCode, addDevice, renameDevice, unbindDevice, identifyDevice, suggestName, nameTaken } from '@/common/devices.js'
@@ -184,7 +186,6 @@ const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const toast = (title) => uni.showToast({ title, icon: 'none' })
 const goBack = () => goBackOrHome()
-const posterStyle = coverStyle('clocktower', 'wide')
 // 示意电视上显示的配对码（和演示环境的有效配对码保持一致）
 const pairCodeText = PAIR_CODE.slice(0, 3) + ' ' + PAIR_CODE.slice(3)
 
@@ -199,27 +200,31 @@ function popMsg(text, icon = 'check', tone = 'red') {
 
 /* ---------- 设备列表 ---------- */
 const devices = ref([])
+const posterGroups = ref([])
 const loaded = ref(false)
 const open = ref('')
 const flash = ref('')
 const tick = ref(0) // 每 15 秒刷新一次「几分钟前」之类的文字
 const refreshing = ref(false)
 const checkedAt = ref(0)
+const noop = () => {}
 const online = (d) => (tick.value, isOnline(d))
 const onlineCount = computed(() => devices.value.filter(online).length)
-const screenOf = (d) => (online(d) ? d.showing || 'home' : 'off')
 function ago(t) {
   const m = Math.round((Date.now() - t) / 60000)
   if (m < 1) return '刚刚'
   if (m < 60) return m + ' 分钟前'
-  if (m < 60 * 24) return Math.round(m / 60) + ' 小时前'
-  return Math.round(m / 1440) + ' 天前'
+  if (m < 1440) return Math.round(m / 60) + ' 小时前'
+  const days = Math.round(m / 1440)
+  if (days < 7) return days + ' 天前'
+  return '大约 ' + Math.round(days / 7) + ' 周前'
 }
-const statusText = (d) => (online(d) ? '在线 · ' + (d.showingText || '空闲') : '离线 · ' + ago(d.lastSeen) + '在线')
 const checkedText = computed(() => (tick.value, checkedAt.value ? ago(checkedAt.value) + '检查' : ''))
 const dateText = (t) => { const d = new Date(t); return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}` }
 async function load() {
-  devices.value = await listDevices()
+  const [list, posters] = await Promise.all([listDevices(), listGroups()])
+  devices.value = list
+  posterGroups.value = posters.list
   checkedAt.value = Date.now()
   loaded.value = true
 }
@@ -229,7 +234,58 @@ async function refresh() {
   await load()
   setTimeout(() => { refreshing.value = false }, 400)
 }
-const toggle = (id) => { open.value = open.value === id ? '' : id }
+function toggle(d) {
+  if (editing.value) return
+  open.value = open.value === d.id ? '' : d.id
+}
+
+/* ---------- 封面：电视此刻的画面 ---------- */
+// 计时器显示比赛封面；海报轮播显示这台大屏正在播放的海报；计时器首页用深蓝底图；离线显示最后的画面（变灰）
+const liveGroupOf = (d) => posterGroups.value.find((g) => g.status === 'live' && (g.liveOn || []).includes(d.id)) || null
+const srcCache = {}
+function sceneSrc(scene, size) {
+  const k = scene + '/' + size
+  if (!srcCache[k]) srcCache[k] = svgUri(coverArt(scene, size))
+  return srcCache[k]
+}
+// 海报轮播时用哪一张：按设备 id 固定下来，不跟列表顺序走（新加一台大屏时，别的卡片封面不会变）
+const idHash = (id) => String(id).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
+const covers = computed(() => {
+  const map = {}
+  devices.value.forEach((d) => {
+    const on = online(d)
+    let img = null
+    if (on && d.showing === 'poster') {
+      const g = liveGroupOf(d)
+      if (g && g.images.length) img = g.images[idHash(d.id) % g.images.length]
+    }
+    if (!img) img = { scene: on && d.showing === 'home' ? 'abyss' : d.coverScene || (d.showing === 'timer' ? 'fog' : 'storm'), size: 'wide' }
+    const src = img.src || sceneSrc(img.scene, img.size || 'wide')
+    const tint = on ? (img.scene && SCENE_TINT[img.scene]) || '#1F222A' : '#24272F'
+    map[d.id] = { src, w: img.w || 1920, h: img.h || 1080, tint }
+  })
+  return map
+})
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+const maskStyle = (d) => {
+  const t = covers.value[d.id].tint
+  return `background:linear-gradient(90deg, ${t} 0%, ${t} 30%, ${hexA(t, 0.82)} 50%, ${hexA(t, 0.25)} 76%, ${hexA(t, 0)} 94%)`
+}
+// 标题下面那一行：在线显示正在播放的内容，离线显示最后在线时间；改名、识别时显示提示
+function subText(d) {
+  if (editing.value === d.id) return `最多 12 个字 · ${draft.value.length}/12`
+  if (idf.id === d.id) return `电视上正在显示名称 · ${idf.left}s`
+  if (!online(d)) return ago(d.lastSeen) + '在线'
+  if (d.showing === 'poster') {
+    const g = liveGroupOf(d)
+    return g ? '海报轮播 · ' + g.name : '海报轮播'
+  }
+  if (d.showing === 'home') return '计时器首页 · 等待开赛'
+  return String(d.showingText || '空闲').replace(/ · 计时器$/, '')
+}
 
 /* ---------- 识别：电视浮现名称几秒 ---------- */
 const idf = reactive({ id: '', left: 0 })
@@ -264,31 +320,77 @@ function unbind(d) {
       if (!confirm) return
       await unbindDevice(d.id)
       if (open.value === d.id) open.value = ''
+      if (editing.value === d.id) editing.value = ''
       await load()
       popMsg('已解绑，电视已回到计时器初始页', 'link-off', 'gray')
     }
   })
 }
 
-/* ---------- 改名 ---------- */
-const draft = reactive({})
-const draftOf = (d) => (draft[d.id] !== undefined ? draft[d.id] : d.name)
-function onDraft(d, e) { draft[d.id] = String((e && e.detail && e.detail.value) || '') }
-const renameClash = (d) => {
-  const v = String(draftOf(d)).trim()
-  return v && v !== d.name && nameTaken(devices.value, v, d.id)
+/* ---------- 改名：直接在条形卡片的标题处编辑 ---------- */
+const editing = ref('')
+const draft = ref('')
+const editFocus = ref(false)
+// 进入编辑时全选标题；只在开始时设一次，不跟着输入变化，否则每打一个字都会重新全选
+const sel = reactive({ s: -1, e: -1 })
+let saving = false
+let retry = false // 点 ✓ 时名字不合格：留在编辑状态让用户改，失去焦点时不要恢复原名
+function toggleEdit(d) {
+  if (editing.value === d.id) return saveName(d)
+  editing.value = d.id
+  draft.value = d.name
+  sel.s = 0
+  sel.e = d.name.length
+  editFocus.value = false
+  setTimeout(() => { editFocus.value = true }, 60)
+  // 全选只在第一次聚焦时生效；之后重新聚焦保留用户已经输入的内容
+  setTimeout(() => { sel.s = -1; sel.e = -1 }, 400)
 }
-const canSave = (d) => {
-  const v = String(draftOf(d)).trim()
-  return !!v && v !== d.name && v.length <= 12 && !renameClash(d)
+function refocus() {
+  editFocus.value = false
+  setTimeout(() => { editFocus.value = true }, 60)
+}
+function onDraft(e) { draft.value = String((e && e.detail && e.detail.value) || '').slice(0, 12) }
+function checkName(d) {
+  const name = draft.value.trim()
+  if (!name) return '名称不能为空'
+  if (name !== d.name && nameTaken(devices.value, name, d.id)) return `已经有一台大屏叫「${name}」了`
+  return ''
 }
 async function saveName(d) {
-  if (!canSave(d)) return
-  const name = String(draftOf(d)).trim()
-  await renameDevice(d.id, name)
-  delete draft[d.id]
-  await load()
-  popMsg('已改名，电视上会同步显示')
+  if (saving || editing.value !== d.id) return
+  const err = checkName(d)
+  if (err) {
+    retry = true
+    toast(err)
+    return refocus()
+  }
+  saving = true
+  editFocus.value = false
+  const name = draft.value.trim()
+  if (name !== d.name) {
+    await renameDevice(d.id, name)
+    await load()
+    popMsg('已改名，电视上会同步显示')
+  }
+  editing.value = ''
+  sel.s = -1
+  sel.e = -1
+  saving = false
+}
+// 键盘收起：名字有效就保存，否则恢复原来的名字（稍等一下，让点 ✓ 按钮的保存先执行）
+function onEditBlur(d) {
+  setTimeout(() => {
+    if (editing.value !== d.id || saving) return
+    if (retry) { retry = false; return }
+    const err = checkName(d)
+    if (err) {
+      editing.value = ''
+      editFocus.value = false
+      return toast(err + '，已恢复原名')
+    }
+    saveName(d)
+  }, 160)
 }
 
 /* ---------- 添加大屏 ---------- */
@@ -424,7 +526,7 @@ onUnload(() => { clearInterval(tickTimer); clearInterval(idfTimer) })
 </script>
 
 <style>
-.page { position: relative; min-height: 100vh; background: #181A20; padding-bottom: calc(80rpx + env(safe-area-inset-bottom)); }
+.page { position: relative; min-height: 100vh; background: #181A20; padding-bottom: calc(220rpx + env(safe-area-inset-bottom)); }
 .press { opacity: .8; transform: scale(.96); }
 .press-soft { opacity: .85; }
 .ph { font-size: 26rpx; color: #4B5060; }
@@ -447,79 +549,84 @@ onUnload(() => { clearInterval(tickTimer); clearInterval(idfTimer) })
 .h-title { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 56rpx; line-height: 1; letter-spacing: 4rpx; color: #FFFFFF; }
 
 /* 概览 */
-.sum { margin: 28rpx 40rpx 0; padding: 28rpx; border-radius: 32rpx; background: #1F222A; display: flex; align-items: center; }
-.sum-tile, .empty-tile { width: 112rpx; height: 112rpx; flex: none; border-radius: 30rpx; background: #EFE9DF; display: flex; align-items: center; justify-content: center; box-shadow: 0 10rpx 24rpx rgba(0, 0, 0, .3); }
-.sum-img { width: 76rpx; height: 76rpx; }
-.sum-main { flex: 1; min-width: 0; margin-left: 24rpx; }
-.sum-t { display: block; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
+.sum { margin: 28rpx 40rpx 0; padding: 28rpx 28rpx 28rpx 20rpx; border-radius: 32rpx; background: #1F222A; display: flex; align-items: center; }
+.sum-img { width: 120rpx; height: 104rpx; flex: none; }
+.sum-main { flex: 1; min-width: 0; margin-left: 20rpx; }
+.sum-t { display: block; font-size: 32rpx; font-weight: 700; color: #FFFFFF; }
 .sum-s { margin-top: 10rpx; display: flex; align-items: center; }
 .sum-n { font-size: 24rpx; color: #CBD5E1; }
-.sum-s .dot { margin: 0 10rpx 0 18rpx; }
+.sum-s .dot { margin: 0 10rpx 0 22rpx; }
 .sum-on { color: #4CB582; }
-.sum-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #6B7280; }
-.sum-refresh { width: 64rpx; height: 64rpx; flex: none; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
+.sum-hint { display: block; margin-top: 8rpx; font-size: 20rpx; color: #6B7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sum-refresh { width: 72rpx; height: 72rpx; flex: none; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
 .spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.add { margin: 24rpx 40rpx 0; height: 92rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; box-shadow: 0 12rpx 28rpx rgba(220, 0, 0, .3); }
-.add-t { margin-left: 10rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
 
 /* 列表 */
-.sec-h { margin: 56rpx 40rpx 20rpx; display: flex; align-items: baseline; justify-content: space-between; }
+.sec-h { margin: 56rpx 40rpx 24rpx; display: flex; align-items: baseline; justify-content: space-between; }
 .sec-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 38rpx; letter-spacing: 2rpx; color: #FFFFFF; }
 .sec-n { font-size: 22rpx; color: #6B7280; }
-.empty { margin: 0 40rpx; padding: 56rpx 40rpx; border-radius: 32rpx; background: #1F222A; display: flex; flex-direction: column; align-items: center; }
-.empty-t { margin-top: 24rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
+.empty { margin: 0 40rpx; padding: 48rpx 40rpx; border-radius: 32rpx; background: #1F222A; display: flex; flex-direction: column; align-items: center; }
+.empty-img { width: 120rpx; height: 104rpx; }
+.empty-t { margin-top: 20rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
 .empty-d { margin-top: 10rpx; font-size: 24rpx; line-height: 1.6; color: #9CA3AF; text-align: center; }
-.dv { margin: 0 40rpx 20rpx; border-radius: 28rpx; background: #1F222A; border: 2rpx solid transparent; transition: border-color .3s ease; }
-.dv-open { border-color: #2A2D36; }
-.dv-new { animation: dv-new 1.6s ease; }
-@keyframes dv-new { 0%, 40% { border-color: #4CB582; box-shadow: 0 0 0 6rpx rgba(76, 181, 130, .18); } 100% { border-color: transparent; box-shadow: none; } }
-.dv-h { display: flex; align-items: center; padding: 26rpx 24rpx; }
-.dv-ic { width: 72rpx; height: 72rpx; flex: none; border-radius: 22rpx; display: flex; align-items: center; justify-content: center; }
-.dv-ic-on { background: rgba(76, 181, 130, .14); }
-.dv-ic-off { background: #262A34; }
-.dv-main { flex: 1; min-width: 0; margin: 0 16rpx 0 22rpx; }
-.dv-n { display: block; font-size: 30rpx; font-weight: 600; color: #FFFFFF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dv-s { margin-top: 8rpx; display: flex; align-items: center; }
-.dv-st { margin-left: 10rpx; font-size: 22rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv { margin: 0 32rpx 24rpx; }
+.dv-row { display: flex; align-items: center; }
+
+/* 条形卡片：封面在右侧裁切铺满，左侧渐隐遮罩托住文字 */
+.bar {
+  position: relative; flex: 1; min-width: 0; height: 120rpx; box-sizing: border-box; padding-left: 16rpx; border-radius: 999rpx; overflow: hidden;
+  display: flex; align-items: center; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .1), 0 12rpx 28rpx rgba(0, 0, 0, .35);
+  transition: box-shadow .3s ease, transform .2s ease;
+}
+.bar-press { transform: scale(.985); }
+.bar-cv { position: absolute; left: 28%; top: 0; right: 0; bottom: 0; }
+.bar-off .bar-cv { filter: grayscale(1) brightness(.6); opacity: .75; }
+.bar-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.bar-ic { position: relative; width: 88rpx; height: 88rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.bar-ic-on { background: rgba(12, 32, 22, .7); box-shadow: inset 0 0 0 3rpx #4CB582; }
+.bar-ic-off { background: rgba(36, 14, 16, .7); box-shadow: inset 0 0 0 3rpx rgba(255, 107, 107, .6); }
+.bar-main { position: relative; flex: 1; min-width: 0; margin: 0 28rpx 0 22rpx; }
+.dv-n { display: block; height: 44rpx; line-height: 44rpx; font-size: 32rpx; font-weight: 700; color: #FFFFFF; text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, .45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-n-in { min-height: 44rpx; padding: 0; border-bottom: 2rpx dashed rgba(255, 255, 255, .55); }
+.dv-s { display: block; margin-top: 6rpx; font-size: 22rpx; color: rgba(242, 242, 238, .78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dv-s-edit { color: #FFC53A; }
+.dv-s-max { color: #FF6B6B; }
+.bar-off .dv-s { color: rgba(203, 213, 225, .62); }
+/* 识别中：红色呼吸光；刚添加：绿色高亮；改名中：白色描边 */
+.bar-id { animation: id-glow 1s ease-in-out infinite; }
+@keyframes id-glow { 0%, 100% { box-shadow: inset 0 0 0 3rpx #DC0000, 0 0 0 0 rgba(220, 0, 0, 0); } 50% { box-shadow: inset 0 0 0 3rpx #FF4D4D, 0 0 36rpx rgba(220, 0, 0, .6); } }
+.bar-new { animation: new-glow 1.6s ease; }
+@keyframes new-glow { 0%, 40% { box-shadow: inset 0 0 0 3rpx #4CB582, 0 0 30rpx rgba(76, 181, 130, .5); } }
+.bar-edit { box-shadow: inset 0 0 0 3rpx rgba(255, 255, 255, .55), 0 12rpx 28rpx rgba(0, 0, 0, .35); }
+
+/* 改名按钮：展开时从右侧出现，条形卡片同时变短 */
+.edit {
+  width: 0; height: 120rpx; margin-left: 0; flex: none; border-radius: 60rpx; overflow: hidden; background: #262A34;
+  box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(.6); transition: width .32s cubic-bezier(.2, .8, .2, 1), margin-left .32s cubic-bezier(.2, .8, .2, 1), opacity .25s ease, transform .32s cubic-bezier(.34, 1.4, .64, 1);
+}
+.dv-open .edit { width: 120rpx; margin-left: 20rpx; opacity: 1; transform: scale(1); }
+.edit-on { background: #DC0000; box-shadow: 0 10rpx 24rpx rgba(220, 0, 0, .35); }
+
 .chev { display: flex; transition: transform .3s ease; }
-.chev-up { transform: rotate(180deg); }
 .fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .34s ease; }
 .fold-on { grid-template-rows: 1fr; }
 .fold-in { min-height: 0; overflow: hidden; }
-.dv-body { padding: 0 24rpx 26rpx; }
-.dv-sec { display: block; padding-top: 22rpx; border-top: 1rpx solid #2A2D36; font-size: 22rpx; color: #6B7280; }
-.dv-top { margin-top: 16rpx; display: flex; }
-
-/* 电视画面预览（16:9） */
-.scr { position: relative; width: 352rpx; height: 198rpx; flex: none; border-radius: 18rpx; overflow: hidden; background: #0E0F14; border: 4rpx solid #2A2D36; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; background-size: cover; background-position: center; }
-.scr-lv { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 20rpx; letter-spacing: 2rpx; color: #FF6B6B; }
-.scr-time { margin-top: 4rpx; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 76rpx; line-height: 1; color: #F2F2EE; text-shadow: 0 0 20rpx rgba(242, 242, 238, .25); }
-.scr-tag { position: absolute; left: 12rpx; bottom: 10rpx; padding: 4rpx 12rpx; border-radius: 999rpx; background: rgba(10, 10, 12, .6); font-size: 18rpx; color: #E5E7EB; }
-.scr-app { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 26rpx; letter-spacing: 2rpx; color: #F2F2EE; }
-.scr-sub { margin-top: 8rpx; font-size: 18rpx; color: #6B7280; }
-.scr-off { background: #15161B; }
-/* 识别：名称浮现在画面上 */
-.scr-id { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8, 8, 12, .72); display: flex; flex-direction: column; align-items: center; justify-content: center; animation: id-in .35s ease; }
-.scr-id-t { padding: 10rpx 22rpx; border-radius: 14rpx; border: 3rpx solid #DC0000; background: rgba(220, 0, 0, .18); font-size: 28rpx; font-weight: 700; color: #FFFFFF; box-shadow: 0 0 24rpx rgba(220, 0, 0, .55); animation: id-pulse 1s ease-in-out infinite; }
-.scr-id-c { margin-top: 10rpx; font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 20rpx; color: #9CA3AF; }
-@keyframes id-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes id-pulse { 50% { box-shadow: 0 0 40rpx rgba(220, 0, 0, .85); } }
-.acts { flex: 1; min-width: 0; margin-left: 20rpx; display: flex; flex-direction: column; justify-content: space-between; }
-.act { height: 90rpx; border-radius: 20rpx; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
+.dv-body { padding: 24rpx 24rpx 12rpx; }
+.acts { display: flex; }
+.act { flex: 1; height: 96rpx; margin: 0 12rpx; border-radius: 999rpx; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .06); display: flex; align-items: center; justify-content: center; }
 .act-dis { opacity: .4; }
-.act-danger { background: rgba(220, 0, 0, .12); }
-.act-t { margin-left: 10rpx; font-size: 26rpx; font-weight: 600; color: #FFFFFF; }
+.act-danger { background: #3A1418; box-shadow: none; }
+.act-t { margin-left: 12rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
 .act-t-danger { color: #FF6B6B; }
-.rn { margin-top: 20rpx; height: 84rpx; padding: 0 8rpx 0 22rpx; border-radius: 20rpx; background: #181A20; display: flex; align-items: center; }
-.rn-k { font-size: 22rpx; color: #6B7280; }
-.rn-in { flex: 1; min-width: 0; margin: 0 16rpx; height: 84rpx; font-size: 28rpx; color: #FFFFFF; }
-.rn-save { height: 64rpx; padding: 0 26rpx; border-radius: 16rpx; background: #262A34; display: flex; align-items: center; }
-.rn-save-on { background: #DC0000; }
-.rn-save-t { font-size: 24rpx; font-weight: 600; color: #6B7280; }
-.rn-save-on .rn-save-t { color: #FFFFFF; }
-.dv-info { display: block; margin-top: 16rpx; font-size: 20rpx; line-height: 1.6; color: #4B5060; }
-.dv-hint { display: block; margin-top: 6rpx; font-size: 20rpx; color: #FFC53A; }
+.dv-info { display: block; margin-top: 22rpx; padding: 0 16rpx; font-size: 20rpx; line-height: 1.6; color: #4B5060; }
+.dv-hint { display: block; margin-top: 6rpx; padding: 0 16rpx; font-size: 20rpx; color: #FFC53A; }
+
+/* 添加大屏：固定在底部 */
+.add-dock { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; padding: 28rpx 40rpx calc(28rpx + env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(24, 26, 32, 0), #181A20 38%); }
+.add { height: 100rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; box-shadow: 0 14rpx 32rpx rgba(220, 0, 0, .35); }
+.add-t { margin-left: 12rpx; font-size: 32rpx; font-weight: 700; color: #FFFFFF; }
 
 /* 添加大屏弹层 */
 .sh { position: fixed; z-index: 100; left: 0; top: 0; right: 0; bottom: 0; }
@@ -601,7 +708,7 @@ onUnload(() => { clearInterval(tickTimer); clearInterval(idfTimer) })
 .dv-err { display: block; margin-top: 12rpx; font-size: 22rpx; color: #FF6B6B; }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot-on, .spin, .spin-ic, .scan-line, .scr-id-t, .pin-b-on::after, .dv-new { animation: none; }
-  .fold, .chev, .sh-panel, .sh-mask, .seg-ind, .cbar { transition: none; }
+  .dot-on, .spin, .spin-ic, .scan-line, .pin-b-on::after, .bar-id, .bar-new { animation: none; }
+  .fold, .chev, .sh-panel, .sh-mask, .seg-ind, .cbar, .bar, .edit { transition: none; }
 }
 </style>

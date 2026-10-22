@@ -418,3 +418,9 @@ export function coverArt(key, size = 'banner') {
   if (!CACHE[id]) CACHE[id] = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz.w}" height="${sz.h}" viewBox="0 0 ${sz.w} ${sz.h}">${fn(sz.w, sz.h)}</svg>`
   return CACHE[id]
 }
+
+// 每个场景的主色：拿封面当底图时，用它做从左往右渐隐的遮罩，让上面的文字更清楚（比如设备管理的条形卡片）
+export const SCENE_TINT = {
+  blood: '#7A1416', wild: '#6A2C12', jungle: '#173F2A', snow: '#2C4058', fog: '#1E3550',
+  moonwood: '#4A1219', iceberg: '#164260', abyss: '#122150', clocktower: '#3D2C66', storm: '#262E44'
+}
