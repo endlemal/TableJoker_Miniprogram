@@ -54,6 +54,19 @@ export async function findByCode(code) {
   return { tvId, model: TV_MODELS[Number(code[5]) % TV_MODELS.length], resolution: { w: 3840, h: 2160 }, app: '大屏计时器 v1.2.0' }
 }
 
+// 遥控切屏：给大屏下发切换画面的指令。fields 来自 screens.js 的 castFields（showing、showingText、coverScene）
+// 正式环境由后端通过长连接下发，电视切换完成后回报；离线的大屏收不到
+export async function castToDevice(id, fields) {
+  await wait(450)
+  const list = load()
+  const d = list.find((x) => x.id === id)
+  if (!d) throw new Error('missing')
+  if (!isOnline(d)) throw new Error('offline')
+  Object.assign(d, fields, { lastSeen: Date.now() })
+  save(list)
+  return d
+}
+
 // 起名后加入设备列表（加在最前面）
 // 名字不能和别的大屏重复，否则识别时分不清是哪一台
 export const nameTaken = (list, name, exceptId = '') => list.some((d) => d.id !== exceptId && d.name === String(name).trim())

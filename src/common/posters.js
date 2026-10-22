@@ -132,6 +132,35 @@ export async function deployGroup(id, deviceIds) {
   return g
 }
 
+// 遥控切屏：某台大屏改播这一组；一台大屏同时只播一组，会先从别的组里移出
+export async function playOn(groupId, deviceId) {
+  await wait(120)
+  const list = load()
+  const g = list.find((x) => x.id === groupId)
+  if (!g || (g.status !== 'approved' && g.status !== 'live')) throw new Error('not-approved')
+  detach(list, deviceId, groupId)
+  g.liveOn = Array.from(new Set([...(g.liveOn || []), deviceId]))
+  g.status = 'live'
+  save(list)
+  return g
+}
+// 遥控切屏：这台大屏不再播放海报（切到了别的画面）
+export async function stopOn(deviceId) {
+  await wait(80)
+  const list = load()
+  if (detach(list, deviceId, '')) save(list)
+}
+function detach(list, deviceId, keepId) {
+  let changed = false
+  list.forEach((g) => {
+    if (g.id === keepId || !(g.liveOn || []).includes(deviceId)) return
+    g.liveOn = g.liveOn.filter((x) => x !== deviceId)
+    if (!g.liveOn.length && g.status === 'live') g.status = 'approved'
+    changed = true
+  })
+  return changed
+}
+
 export async function deleteGroup(id) {
   await wait(200)
   save(load().filter((x) => x.id !== id))

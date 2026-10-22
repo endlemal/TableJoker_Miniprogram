@@ -35,7 +35,7 @@ export const privileges = [
   {
     key: 'device', title: '设备配置', icon: 'device-desktop', color: '#7896DA', tint: 'rgba(120, 150, 218, .14)',
     items: [
-      { key: 'remote', name: '遥控切屏', icon: 'device-remote', desc: '用手机遥控大屏，在计时、座位和排名之间切换。' },
+      { key: 'remote', name: '遥控切屏', icon: 'device-remote', desc: '用手机遥控大屏，在休眠、轮播海报、房间主题、签到墙和赛事列表之间一键切换。' },
       { key: 'bind', name: '设备管理', icon: 'devices', desc: '用配对码或扫码连接电视上的大屏计时器，统一命名、识别和解绑，在线状态一目了然。' },
       { key: 'poster', name: '海报广告', icon: 'photo', desc: '在大屏和比赛页投放你的海报，休息时间自动轮播。' }
     ]

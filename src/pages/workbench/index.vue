@@ -378,7 +378,7 @@ const myMatches = hostMatches.map((m) => {
 /* ---------- 赛事配置（金刚区） ---------- */
 const featureCount = featureGroups.reduce((s, g) => s + g.items.length, 0)
 // 已经做好的功能直接打开（右上角有绿点），其余提示即将上线
-const FEATURE_LINKS = { blinds: '/pages/create/index?open=blinds', schemes: '/pages/create/index?open=schemes', bind: '/pages/devices/index', poster: '/pages/posters/index' }
+const FEATURE_LINKS = { blinds: '/pages/create/index?open=blinds', schemes: '/pages/create/index?open=schemes', bind: '/pages/devices/index', poster: '/pages/posters/index', remote: '/pages/remote/index' }
 function openFeature(it) {
   if (FEATURE_LINKS[it.key]) return go(FEATURE_LINKS[it.key])
   toast(it.name + '即将上线')

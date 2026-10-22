@@ -172,7 +172,7 @@ import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.
 import { openScanner } from '@/common/scanner.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri } from '@/common/svg.js'
-import { coverArt, SCENE_TINT } from '@/common/cover-art.js'
+import { liveOf, contentCover, contentText } from '@/common/screens.js'
 import { listGroups } from '@/common/posters.js'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { requireLogin } from '@/common/auth.js'
@@ -240,29 +240,13 @@ function toggle(d) {
 }
 
 /* ---------- 封面：电视此刻的画面 ---------- */
-// 计时器显示比赛封面；海报轮播显示这台大屏正在播放的海报；计时器首页用深蓝底图；离线显示最后的画面（变灰）
-const liveGroupOf = (d) => posterGroups.value.find((g) => g.status === 'live' && (g.liveOn || []).includes(d.id)) || null
-const srcCache = {}
-function sceneSrc(scene, size) {
-  const k = scene + '/' + size
-  if (!srcCache[k]) srcCache[k] = svgUri(coverArt(scene, size))
-  return srcCache[k]
-}
-// 海报轮播时用哪一张：按设备 id 固定下来，不跟列表顺序走（新加一台大屏时，别的卡片封面不会变）
-const idHash = (id) => String(id).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
+// 内容、封面、文字说明都来自 src/common/screens.js（遥控切屏也用它）：离线时用最后显示的画面，变灰
 const covers = computed(() => {
   const map = {}
   devices.value.forEach((d) => {
     const on = online(d)
-    let img = null
-    if (on && d.showing === 'poster') {
-      const g = liveGroupOf(d)
-      if (g && g.images.length) img = g.images[idHash(d.id) % g.images.length]
-    }
-    if (!img) img = { scene: on && d.showing === 'home' ? 'abyss' : d.coverScene || (d.showing === 'timer' ? 'fog' : 'storm'), size: 'wide' }
-    const src = img.src || sceneSrc(img.scene, img.size || 'wide')
-    const tint = on ? (img.scene && SCENE_TINT[img.scene]) || '#1F222A' : '#24272F'
-    map[d.id] = { src, w: img.w || 1920, h: img.h || 1080, tint }
+    const c = contentCover(on ? liveOf(d, posterGroups.value) : { cat: '' }, posterGroups.value, d.id, d.coverScene)
+    map[d.id] = on ? c : { ...c, tint: '#24272F' }
   })
   return map
 })
@@ -279,12 +263,7 @@ function subText(d) {
   if (editing.value === d.id) return `最多 12 个字 · ${draft.value.length}/12`
   if (idf.id === d.id) return `电视上正在显示名称 · ${idf.left}s`
   if (!online(d)) return ago(d.lastSeen) + '在线'
-  if (d.showing === 'poster') {
-    const g = liveGroupOf(d)
-    return g ? '海报轮播 · ' + g.name : '海报轮播'
-  }
-  if (d.showing === 'home') return '计时器首页 · 等待开赛'
-  return String(d.showingText || '空闲').replace(/ · 计时器$/, '')
+  return contentText(liveOf(d, posterGroups.value), posterGroups.value) || d.showingText || '空闲'
 }
 
 /* ---------- 识别：电视浮现名称几秒 ---------- */
