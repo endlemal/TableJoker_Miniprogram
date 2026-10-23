@@ -20,6 +20,13 @@ export function saveMatch(match) {
   const list = loadList(KEY_MATCHES, []).filter((x) => x.id !== match.id)
   saveList(KEY_MATCHES, [match].concat(list).slice(0, 20))
 }
+// 6 位房间码：发布比赛时生成，不和已保存的比赛重复（正式环境由后端分配）。主办方在比赛邀请页能看到
+export function newRoomCode() {
+  const used = new Set(loadList(KEY_MATCHES, []).map((m) => m.roomCode).filter(Boolean))
+  let code = ''
+  do { code = String(100000 + Math.floor(Math.random() * 900000)) } while (used.has(code))
+  return code
+}
 export function getMatch(id) {
   return loadList(KEY_MATCHES, []).find((x) => x.id === id) || null
 }

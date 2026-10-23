@@ -134,17 +134,19 @@
       </view>
     </view>
 
-    <!-- 底部：方案 + 发布去分享 -->
+    <!-- 底部：方案 + 去发布。分享统一放在发布后的比赛邀请页 -->
     <view class="bar">
       <view class="bar-plan" hover-class="press" @tap="tplOpen = true">
         <z-icon name="stack-2" :size="18" color="#FFFFFF" />
         <text class="bar-plan-t">方案</text>
       </view>
-      <button class="bar-pub" :open-type="!published && canPublish ? 'share' : ''" hover-class="press" @tap="onPublish">
-        <z-icon :name="published ? 'arrow-right' : 'share'" :size="18" color="#FFFFFF" />
-        <text class="bar-pub-t">{{ published ? '进入房间' : '发布去分享' }}</text>
+      <button class="bar-pub" :class="{ 'bar-pub-busy': publishing }" hover-class="press" @tap="onPublish">
+        <view v-if="publishing" class="bar-spin"><z-icon name="loader-2" :size="18" color="#FFFFFF" /></view>
+        <z-icon v-else name="send" :size="18" color="#FFFFFF" />
+        <text class="bar-pub-t">{{ publishing ? '发布中…' : '去发布' }}</text>
       </button>
     </view>
+    <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
 
     <!-- 盲注方案选择 -->
     <view v-if="picker" class="ov">
@@ -181,10 +183,12 @@
           <view class="ed-close" hover-class="press" @tap="editor = false"><z-icon name="x" :size="16" color="#9CA3AF" /></view>
         </view>
         <view class="eg ed-cols">
-          <text class="ed-col">级</text><text class="ed-col">小盲</text><text class="ed-col">大盲</text><text class="ed-col">前注</text><text class="ed-col">分钟</text><text class="ed-col"></text>
+          <text class="ed-col"></text><text class="ed-col">级</text><text class="ed-col">小盲</text><text class="ed-col">大盲</text><text class="ed-col">前注</text><text class="ed-col">分钟</text><text class="ed-col"></text>
         </view>
-        <scroll-view class="ed-list" scroll-y :scroll-into-view="edAnchor" scroll-with-animation>
-          <view v-for="(r, i) in draft.rows" :id="'r' + r.k" :key="r.k" class="eg ed-row">
+        <scroll-view class="ed-list" scroll-y :scroll-into-view="edAnchor" :scroll-top="edScrollTop" :scroll-with-animation="drag.from < 0" @scroll="onEdScroll">
+          <view v-for="(r, i) in draft.rows" :id="'r' + r.k" :key="r.k" class="eg ed-row" :class="{ 'ed-row-drag': drag.from === i }" :style="rowStyle(i)">
+            <!-- 按住左侧把手上下拖动，调整这一行的位置。只拦 touchmove（挡住列表滚动），不拦 touchstart，以免小程序里的点击失效 -->
+            <view class="ed-grip" @touchstart="dragStart(i, $event)" @touchmove.stop.prevent="dragMove" @touchend="dragEnd" @touchcancel="dragEnd"><z-icon name="grip-vertical" :size="16" color="#6B7280" /></view>
             <block v-if="r.t === 'L'">
               <text class="ed-no">{{ levelNo[i] }}</text>
               <input
@@ -297,12 +301,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick } from 'vue'
-import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
+import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
+import ZPop from '@/components/z-pop/z-pop.vue'
+import { getAuth } from '@/common/auth.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
-import { MAX_SCHEMES, loadList, saveList, saveMatch } from '@/common/store.js'
+import { MAX_SCHEMES, loadList, saveList, saveMatch, newRoomCode } from '@/common/store.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
@@ -316,6 +322,15 @@ const backStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
 const p2 = (n) => (n < 10 ? '0' : '') + n
 const clone = (o) => JSON.parse(JSON.stringify(o))
 const toast = (title) => uni.showToast({ title, icon: 'none' })
+const buzz = (type = 'light') => { try { uni.vibrateShort({ type }) } catch (e) {} }
+const instance = getCurrentInstance()
+const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
+let popTimer = null
+function popMsg(text, icon = 'check', tone = 'red', ms = 2400) {
+  clearTimeout(popTimer)
+  Object.assign(pop, { show: true, text, icon, tone })
+  popTimer = setTimeout(() => { pop.show = false }, ms)
+}
 const noop = () => {}
 
 /* ---------- 封面 ---------- */
@@ -340,7 +355,6 @@ const schemes = ref(loadList(KEY_SCHEMES, blindSchemeSeeds))
 const templates = ref(loadList(KEY_TEMPLATES, matchTemplateSeeds))
 const form = reactive({ ...clone(createDraft), dayIdx: nextFriday, blindId: schemes.value.length ? schemes.value[0].id : '', coverImage: '' })
 const hosts = ref(clone(coHostSeeds))
-const published = ref(false)
 
 const picker = ref(false)
 const editor = ref(false)
@@ -608,6 +622,83 @@ function templateActions(t) {
   })
 }
 
+/* ---------- 盲注结构：按住左侧把手上下拖动调整顺序 ---------- */
+// 行高固定 84rpx，拖动的距离除以行高就是目标位置；其他行让出位置；靠近列表上下边缘时自动滚动
+const ROW_H = uni.upx2px(84)
+const drag = reactive({ from: -1, to: -1, dy: 0 })
+const edScrollTop = ref(0)
+let edScrollNow = 0
+let dragY0 = 0
+let dragScroll0 = 0
+let dragLastY = 0
+let listBox = null
+let autoTimer = null
+let autoV = 0
+function onEdScroll(e) { edScrollNow = (e && e.detail && e.detail.scrollTop) || 0 }
+function dragStart(i, e) {
+  const t = e.touches[0]
+  drag.from = i
+  drag.to = i
+  drag.dy = 0
+  dragY0 = dragLastY = t.clientY
+  dragScroll0 = edScrollNow
+  listBox = null
+  uni.createSelectorQuery().in(instance && instance.proxy).select('.ed-list').boundingClientRect((r) => { listBox = r }).exec()
+  buzz()
+}
+function updateDrag() {
+  if (drag.from < 0) return
+  drag.dy = dragLastY - dragY0 + (edScrollNow - dragScroll0)
+  const to = Math.max(0, Math.min(draft.rows.length - 1, drag.from + Math.round(drag.dy / ROW_H)))
+  if (to !== drag.to) { drag.to = to; buzz() }
+}
+function dragMove(e) {
+  if (drag.from < 0) return
+  dragLastY = e.touches[0].clientY
+  updateDrag()
+  // 手指靠近列表上下边缘：自动滚动，长的盲注表也能拖到头
+  const edge = 44
+  autoV = !listBox ? 0 : dragLastY < listBox.top + edge ? -8 : dragLastY > listBox.bottom - edge ? 8 : 0
+  if (autoV && !autoTimer) {
+    autoTimer = setInterval(() => {
+      const max = Math.max(0, draft.rows.length * ROW_H - (listBox ? listBox.height : 0))
+      const next = Math.max(0, Math.min(max, edScrollNow + autoV))
+      if (next === edScrollNow) return
+      edScrollNow = next
+      edScrollTop.value = next
+      updateDrag()
+    }, 16)
+  } else if (!autoV) stopAuto()
+}
+function stopAuto() {
+  clearInterval(autoTimer)
+  autoTimer = null
+}
+function rowStyle(i) {
+  if (drag.from < 0) return ''
+  const { from, to } = drag
+  if (i === from) return `transform:translateY(${drag.dy.toFixed(1)}px) scale(1.02);z-index:5`
+  if (from < to && i > from && i <= to) return `transform:translateY(${-ROW_H}px)`
+  if (from > to && i >= to && i < from) return `transform:translateY(${ROW_H}px)`
+  return ''
+}
+function dragEnd() {
+  if (drag.from < 0) return
+  stopAuto()
+  const { from, to } = drag
+  drag.from = -1
+  drag.to = -1
+  drag.dy = 0
+  if (from === to) return
+  const rows = draft.rows.slice()
+  const [moved] = rows.splice(from, 1)
+  rows.splice(to, 0, moved)
+  // 比赛从第一级开始：休息和截止买入不能排在最前面
+  if (rows[0].t !== 'L') return toast('第一行要是级别，休息和截止买入不能放在最前面')
+  draft.rows.splice(0, draft.rows.length, ...rows)
+  buzz('medium')
+}
+
 /* ---------- 发布 ---------- */
 // 比赛 id 在进入页面时就生成，分享路径和发布记录用同一个 id
 const matchId = 'm' + Date.now()
@@ -637,17 +728,23 @@ function buildMatch() {
     createdAt: Date.now()
   }
 }
-const canPublish = computed(() => !!form.name.trim() && !!currentScheme.value && !!form.location)
+const publishing = ref(false)
+// 去发布：校验通过后创建比赛，生成 6 位房间码并提示，再无缝跳到比赛邀请页（用 redirectTo，返回时不会回到已发布的表单）。
+// 分享统一在比赛邀请页做，这一页不再提供分享
 function onPublish() {
-  if (published.value) return uni.navigateTo({ url: '/pages/room/index?id=' + matchId })
+  if (publishing.value) return
   if (!form.name.trim()) return toast('先给比赛起个名字')
   if (!currentScheme.value) return toast('先选一个盲注方案')
   if (!form.location) return toast('先选择比赛地点')
-  saveMatch(buildMatch())
-  published.value = true
-  toast('已发布')
+  publishing.value = true
+  const match = buildMatch()
+  match.roomCode = newRoomCode()
+  match.ownerId = (getAuth() || {}).userId || me.id
+  saveMatch(match)
+  buzz('medium')
+  popMsg(`发布成功 · 房间码 ${match.roomCode.slice(0, 3)} ${match.roomCode.slice(3)}`, 'check', 'red', 1600)
+  setTimeout(() => uni.redirectTo({ url: `/pages/invite/index?id=${match.id}&created=1` }), 1100)
 }
-onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等你入座`, path: '/pages/invite/index?id=' + matchId }))
 </script>
 
 <style>
@@ -773,6 +870,9 @@ onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等�
 }
 .bar-pub::after { border: none; }
 .bar-pub-t { margin-left: 10rpx; font-size: 32rpx; font-weight: 500; color: #FFFFFF; }
+.bar-pub-busy { opacity: .85; }
+.bar-spin { display: flex; animation: bar-spin .8s linear infinite; }
+@keyframes bar-spin { to { transform: rotate(360deg); } }
 
 /* 弹层通用 */
 .ov { position: fixed; z-index: 100; left: 0; top: 0; right: 0; bottom: 0; }
@@ -822,15 +922,18 @@ onShareAppMessage(() => ({ title: `${form.name.trim() || '一场比赛'}，等�
 .ed-name { width: 220rpx; height: 60rpx; padding: 0 20rpx; border-radius: 999rpx; background: #262A34; font-size: 28rpx; font-weight: 500; color: #FFFFFF; }
 .ed-count { margin-left: 16rpx; font-size: 24rpx; color: #9CA3AF; }
 .ed-close { margin-left: auto; width: 64rpx; height: 64rpx; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
-.eg { display: grid; grid-template-columns: 48rpx 1fr 1fr 1fr 84rpx 52rpx; column-gap: 12rpx; align-items: center; }
+/* 列：把手 · 级 · 小盲 · 大盲 · 前注 · 分钟 · 删除。休息、截止买入那一行的文字横跨小盲到前注（第 3～5 列） */
+.eg { display: grid; grid-template-columns: 36rpx 44rpx 1fr 1fr 1fr 84rpx 52rpx; column-gap: 10rpx; align-items: center; }
 .ed-cols { padding: 0 20rpx 12rpx 24rpx; }
 .ed-col { text-align: center; font-size: 22rpx; color: #6B7280; }
 .ed-list { flex: 1; height: 0; box-sizing: border-box; padding: 0 20rpx 0 24rpx; }
-.ed-row { height: 84rpx; }
+.ed-row { position: relative; height: 84rpx; transition: transform .2s ease; }
+.ed-row-drag { transition: none; border-radius: 16rpx; background: #2A2D36; box-shadow: 0 16rpx 32rpx rgba(0, 0, 0, .45); }
+.ed-grip { height: 84rpx; display: flex; align-items: center; justify-content: center; }
 .ed-no { display: flex; align-items: center; justify-content: center; font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 30rpx; color: #6B7280; }
 .ed-cell { height: 64rpx; border-radius: 14rpx; background: #262A34; border: 2rpx solid transparent; text-align: center; font-size: 28rpx; color: #E5E7EB; }
 .ed-cell-on { border-color: #DC0000; background: #2A2D36; }
-.ed-span { grid-column: 2 / 5; height: 64rpx; padding-left: 20rpx; border-radius: 14rpx; display: flex; align-items: center; font-size: 26rpx; font-weight: 500; }
+.ed-span { grid-column: 3 / 6; height: 64rpx; padding-left: 20rpx; border-radius: 14rpx; display: flex; align-items: center; font-size: 26rpx; font-weight: 500; }
 .ed-span-b { background: #24231F; color: #C9A24A; }
 .ed-span-c { background: #272124; color: #C86A6A; }
 .ed-del { width: 52rpx; height: 52rpx; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }

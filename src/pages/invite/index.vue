@@ -74,6 +74,16 @@
         </view>
       </view>
 
+      <!-- 主办方视图：房间码（只有主办方看得到；刚发布进来时亮一下） -->
+      <view v-if="isHost && m.roomCode" class="rmc" :class="{ 'rmc-new': justCreated }">
+        <view class="rmc-l">
+          <view class="rmc-k"><z-icon name="hash" :size="13" color="#FFB547" /><text class="rmc-k-t">房间码 · 仅主办方可见</text></view>
+          <text class="rmc-code">{{ roomCodeText }}</text>
+        </view>
+        <text v-if="justCreated" class="rmc-new-tag">刚刚发布</text>
+        <view class="rmc-copy" hover-class="press" @tap="copyRoomCode"><z-icon name="copy" :size="16" color="#FFFFFF" /><text class="rmc-copy-t">复制</text></view>
+      </view>
+
       <!-- 地点：在开赛时间下方，点「导航」用微信内置地图打开 -->
       <view v-if="m.location" class="loc" hover-class="press-soft" @tap="openMap">
         <view class="loc-ic"><z-icon name="map-pin" :size="18" color="#FF4D4D" /></view>
@@ -132,8 +142,15 @@
       </view>
     </view>
 
-    <!-- 底部：公开且自动通过 → 立即进入；否则 → 报名加入 -->
-    <view class="bar">
+    <!-- 底部：主办方 → 去分享 + 进入房间（创建比赛后统一在这里分享）；玩家 → 公开且自动通过时立即进入，否则报名加入 -->
+    <view v-if="isHost" class="bar">
+      <view class="bar-note"><text>{{ justCreated ? '比赛已发布，分享给朋友来报名吧' : '你是这场比赛的主办方' }}</text></view>
+      <view class="bar-row">
+        <button class="bar-share bar-share-wide" open-type="share" hover-class="press"><z-icon name="share" :size="18" color="#FFFFFF" /><text class="bar-share-t">去分享</text></button>
+        <view class="bar-main" hover-class="press" @tap="enterRoom"><z-icon name="door-enter" :size="19" color="#FFFFFF" /><text class="bar-main-t">进入房间</text></view>
+      </view>
+    </view>
+    <view v-else class="bar">
       <view class="bar-note">
         <block v-if="joinStatus === 'pending'">
           <text>已提交报名，</text><text class="lnk" @tap="withdraw">撤回报名</text>
@@ -176,7 +193,7 @@
 </template>
 
 <script setup>
-import { requireLogin } from '@/common/auth.js'
+import { requireLogin, getAuth } from '@/common/auth.js'
 import { ref, computed } from 'vue'
 import { onLoad, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
@@ -185,7 +202,7 @@ import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
 import { getMatch, getJoin, setJoin } from '@/common/store.js'
 import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
-import { coverScenes, makeDemoMatch } from '@/mock/data.js'
+import { me, coverScenes, makeDemoMatch } from '@/mock/data.js'
 import { findPublicMatch } from '@/mock/plaza.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
@@ -213,6 +230,11 @@ onLoad((q) => {
   const query = q || {}
   const found = query.id ? getMatch(query.id) || findPublicMatch(query.id) : null
   if (found) m.value = { participants: [], hosts: [], ...found }
+  // 从创建比赛页发布后进来：房间码卡片亮一下
+  if (query.created === '1') {
+    justCreated.value = true
+    setTimeout(() => { justCreated.value = false }, 6000)
+  }
   // 开发者工具里可以用编译参数 pub=0 / auto=0 预览另外两种状态
   if (query.pub === '0') m.value.isPublic = false
   if (query.auto === '0') m.value.autoApprove = false
@@ -287,6 +309,19 @@ const shownRows = computed(() => {
   const list = expanded.value ? allRows.value : allRows.value.slice(0, cutIndex.value)
   return list.map((r, i) => ({ ...r, last: i === list.length - 1 }))
 })
+
+/* ---------- 主办方视图：自己发布的比赛（以后玩家和主办方在这一页看到不同的内容） ---------- */
+const uid = (getAuth() || {}).userId || me.id
+const isHost = computed(() => !!m.value && (m.value.ownerId === uid || m.value.mine === true))
+const justCreated = ref(false)
+const roomCodeText = computed(() => {
+  const c = (m.value && m.value.roomCode) || ''
+  return c ? c.slice(0, 3) + ' ' + c.slice(3) : ''
+})
+function copyRoomCode() {
+  uni.setClipboardData({ data: m.value.roomCode, success: () => toast('房间码已复制') })
+}
+const enterRoom = () => uni.navigateTo({ url: '/pages/room/index?id=' + m.value.id })
 
 /* ---------- 底部按钮 ---------- */
 const direct = computed(() => m.value.isPublic && m.value.autoApprove)
@@ -476,6 +511,19 @@ function leave() {
   background: #35383F; display: flex; align-items: center; justify-content: center;
 }
 .bar-share::after { border: none; }
+.bar-share-wide { width: auto; padding: 0 36rpx; border-radius: 999rpx; }
+.bar-share-t { margin-left: 8rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
+/* 主办方视图：房间码 */
+.rmc { position: relative; margin-top: 24rpx; padding: 24rpx 24rpx 24rpx 28rpx; border-radius: 28rpx; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(255, 181, 71, .22); display: flex; align-items: center; }
+.rmc-new { animation: rmc-glow 1.2s ease-in-out 3; }
+@keyframes rmc-glow { 50% { box-shadow: inset 0 0 0 3rpx #FFB547, 0 0 40rpx rgba(255, 181, 71, .45); } }
+.rmc-l { flex: 1; min-width: 0; }
+.rmc-k { display: flex; align-items: center; }
+.rmc-k-t { margin-left: 8rpx; font-size: 22rpx; color: #9CA3AF; }
+.rmc-code { display: block; margin-top: 8rpx; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 60rpx; line-height: 1; letter-spacing: 8rpx; color: #FFB547; }
+.rmc-new-tag { margin-right: 16rpx; padding: 4rpx 14rpx; border-radius: 999rpx; background: rgba(255, 181, 71, .16); font-size: 20rpx; color: #FFB547; }
+.rmc-copy { height: 64rpx; padding: 0 22rpx; border-radius: 999rpx; background: #35383F; display: flex; align-items: center; }
+.rmc-copy-t { margin-left: 8rpx; font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
 .bar-main {
   flex: 1; height: 96rpx; border-radius: 999rpx; background: #DC0000; box-shadow: 0 12rpx 36rpx rgba(220, 0, 0, .35);
   display: flex; align-items: center; justify-content: center;

@@ -20,11 +20,11 @@ export const publicMatches = [
   variant({ id: 'pm-fog', name: '雾港深筹赛', cover: 'fog', location: VENUES.harbor, startAt: at(4, 19, 30), cap: 27, participants: people(18).concat(people(3)), intro: '深筹慢节奏，适合想多打几手的朋友。' }),
   variant({ id: 'pm-jungle', name: '丛林猎手挑战赛', cover: 'jungle', location: VENUES.jungle, startAt: at(6, 20), cap: 18, participants: people(6), autoApprove: false, intro: '邀请制挑战赛，报名后由主持人审核。' })
 ]
-// 主办方自己办的比赛（工作台「我的比赛」和房间列表）
+// 主办方自己办的比赛（工作台「我的比赛」和房间列表）。mine 表示演示里当前账号就是主办方，比赛邀请页显示主办方视图
 export const hostMatches = [
-  variant({ id: 'hm-deep', name: '周五深筹码大师赛', cover: 'fog', startAt: Date.now() - 95 * 60000, liveLevel: 3, cap: 27, participants: people(18), intro: '深筹慢节奏，盲注每级 25 分钟，适合想多打几手的朋友。' }),
-  variant({ id: 'hm-hunter', name: '周末猎人锦标赛', cover: 'jungle', startAt: at(6, 20), cap: 18, participants: people(12), autoApprove: false, intro: '邀请制锦标赛，报名后由主办方审核。' }),
-  variant({ id: 'hm-newbie', name: '周日新手体验局', cover: 'snow', startAt: at(7, 14), cap: 18, participants: people(5), intro: '第一次玩也能来，开局前会把规则讲一遍。' })
+  variant({ id: 'hm-deep', mine: true, roomCode: '518302', name: '周五深筹码大师赛', cover: 'fog', startAt: Date.now() - 95 * 60000, liveLevel: 3, cap: 27, participants: people(18), intro: '深筹慢节奏，盲注每级 25 分钟，适合想多打几手的朋友。' }),
+  variant({ id: 'hm-hunter', mine: true, roomCode: '736941', name: '周末猎人锦标赛', cover: 'jungle', startAt: at(6, 20), cap: 18, participants: people(12), autoApprove: false, intro: '邀请制锦标赛，报名后由主办方审核。' }),
+  variant({ id: 'hm-newbie', mine: true, roomCode: '204815', name: '周日新手体验局', cover: 'snow', startAt: at(7, 14), cap: 18, participants: people(5), intro: '第一次玩也能来，开局前会把规则讲一遍。' })
 ]
 export const findPublicMatch = (id) => publicMatches.find((m) => m.id === id) || hostMatches.find((m) => m.id === id) || null
 
