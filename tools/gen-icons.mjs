@@ -6,7 +6,7 @@ import path from 'node:path'
 const root = process.argv[2] || 'node_modules'
 const base = path.join(root, '@tabler/icons/icons')
 const OUTLINE = ['dice', 'chess-knight', 'moon-stars', 'cards', 'plus', 'scan', 'link', 'dots', 'trophy', 'check',
-  'calendar-event', 'diamond', 'settings', 'chevron-down', 'chevron-right', 'arrow-left', 'eye', 'flask', 'users-group',
+  'calendar-event', 'diamond', 'settings', 'chevron-down', 'chevron-right', 'chevron-left', 'arrow-left', 'eye', 'flask', 'users-group',
   'crown', 'target', 'shield', 'flame', 'user', 'compass', 'chart-bar', 'flag', 'list', 'corner-down-left',
   'speakerphone', 'arrows-shuffle', 'calculator', 'x', 'lock', 'hourglass',
   'arrow-right', 'photo-plus', 'user-plus', 'stack-2', 'share', 'coffee', 'scissors',

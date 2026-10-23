@@ -42,7 +42,7 @@
         <text class="cur-n">{{ cur.name }}</text>
         <view class="pill" :class="'pill-' + cur.status"><text class="pill-t">{{ statusText(cur) }}</text></view>
       </view>
-      <view class="cta" :class="'cta-' + cur.status" hover-class="press" @tap="primary"><text class="cta-t">{{ ctaText }}</text></view>
+      <view v-if="ctaText" class="cta" :class="'cta-' + cur.status" hover-class="press" @tap="primary"><text class="cta-t">{{ ctaText }}</text></view>
     </view>
     <text v-if="cur && cur.status === 'rejected'" class="cur-reason">{{ cur.reason }}</text>
     <text v-else-if="cur && cur.status === 'reviewing'" class="cur-hint">一般几分钟内出结果，最长约 30 分钟</text>
@@ -59,9 +59,12 @@
           <text class="set-k">电视比例</text>
           <view class="chips">
             <view class="chip" :class="{ 'chip-on': !cur.tvRatio }" hover-class="press" @tap="setRatio(null)"><text class="chip-t">跟随设备</text></view>
-            <view v-for="r in ratioOptions" :key="r.key" class="chip" :class="{ 'chip-on': cur.tvRatio && ratio.key === r.key }" hover-class="press" @tap="setRatio(r)">
-              <z-icon v-if="r.device" name="device-tv" :size="12" :color="cur.tvRatio && ratio.key === r.key ? '#FF6B6B' : '#9CA3AF'" />
-              <text class="chip-t">{{ r.chip }}</text>
+            <view class="chip" :class="{ 'chip-on': !!cur.tvRatio, 'chip-open': ratioOpen }" hover-class="press" :aria-expanded="ratioOpen" @tap="ratioOpen = !ratioOpen"><text class="chip-t">{{ cur.tvRatio ? '其他尺寸 · ' + ratio.name : '其他尺寸' }}</text><view class="chev ps-ratio-chevron" :class="{ 'chev-up': ratioOpen }"><z-icon name="chevron-down" :size="12" color="#9CA3AF" /></view></view>
+          </view>
+          <view v-if="ratioOpen" class="chips ratio-chips">
+            <view v-for="r in ratioOptions" :key="r.key" class="chip ratio-chip" :class="{ 'chip-on': sameRatio(r) }" hover-class="press" @tap="setRatio(r)">
+              <text class="ratio-chip-name">{{ r.chip }}</text>
+              <text class="ratio-chip-size">{{ r.w }}×{{ r.h }}</text>
             </view>
           </view>
           <text class="set-k">铺盖方式</text>
@@ -112,7 +115,7 @@
 
     <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
 
-    <!-- 底部弹层：提交审核 / 投放到大屏 -->
+    <!-- 底部弹层：提交审核 -->
     <view v-if="sheet" class="sh" :class="{ 'sh-on': sheetOn }">
       <view class="sh-mask" @tap="closeSheet"></view>
       <view class="sh-panel">
@@ -134,25 +137,6 @@
           </view>
           <view class="btn" :class="{ 'btn-dis': !ack || busy }" hover-class="press" @tap="doSubmit"><text class="btn-t">{{ busy ? '正在提交…' : '提交审核' }}</text></view>
         </block>
-        <block v-else-if="sheet === 'deploy'">
-          <text class="sh-title">投放到大屏</text>
-          <text class="sh-sub">选中的大屏会轮播「{{ cur.name }}」</text>
-          <view v-if="!devices.length" class="nodev">
-            <text class="nodev-t">还没有绑定大屏</text>
-            <view class="nodev-b" hover-class="press" @tap="toDevices"><text class="nodev-bt">去设备管理</text></view>
-          </view>
-          <view v-for="(d, i) in devices" :key="d.id" class="dvr" :class="{ 'dvr-first': i === 0 }" hover-class="press-soft" @tap="togglePick(d.id)">
-            <view class="ck" :class="{ 'ck-on': picked.includes(d.id) }"><z-icon v-if="picked.includes(d.id)" name="check" :size="12" :stroke="3" color="#FFFFFF" /></view>
-            <view class="dvr-main">
-              <text class="dvr-n">{{ d.name }}</text>
-              <text class="dvr-s">{{ isOnline(d) ? '在线' : '离线，联网后开始播放' }}{{ d.resolution ? ' · ' + d.resolution.w + '×' + d.resolution.h : '' }}</text>
-            </view>
-            <view class="dot" :class="isOnline(d) ? 'dot-on' : 'dot-off'"></view>
-          </view>
-          <view v-if="devices.length" class="btn" :class="{ 'btn-dis': busy || (!picked.length && cur.status !== 'live') }" hover-class="press" @tap="doDeploy">
-            <text class="btn-t">{{ busy ? '正在投放…' : picked.length ? '投放到 ' + picked.length + ' 台大屏' : '停止投放' }}</text>
-          </view>
-        </block>
       </view>
     </view>
   </view>
@@ -169,7 +153,7 @@ import { posterImageSrc, posterImageSize } from '@/common/poster-display.js'
 import { requireLogin, persistAvatar } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline } from '@/common/devices.js'
-import { FITS, RATIOS, DWELLS, MAX_IMAGES, STATUS_TEXT, ratioName, listGroups, createGroup, updateGroup, submitGroup, deployGroup, deleteGroup } from '@/common/posters.js'
+import { FITS, RATIOS, DWELLS, MAX_IMAGES, STATUS_TEXT, ratioName, listGroups, createGroup, updateGroup, submitGroup, deleteGroup } from '@/common/posters.js'
 
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
@@ -204,7 +188,7 @@ const idx = ref(0)
 const onSwipe = (e) => { idx.value = (e && e.detail && e.detail.current) || 0 }
 const fitOf = (k) => FITS.find((f) => f.key === k) || FITS[1]
 const statusText = (g) => (g.status === 'live' ? `播放中 · ${(g.liveOn || []).length} 台` : STATUS_TEXT[g.status] || '')
-const CTA = { draft: '提交审核', reviewing: '审核中…', approved: '投放到大屏', live: '管理投放', rejected: '修改后重新提交' }
+const CTA = { draft: '提交审核', reviewing: '审核中…', rejected: '修改后重新提交' }
 const ctaText = computed(() => (cur.value ? CTA[cur.value.status] : ''))
 function ago(t) {
   const m = Math.round((Date.now() - t) / 60000)
@@ -268,6 +252,7 @@ const centerScale = computed(() => uni.upx2px(scr.value.w) / ratio.value.w)
 
 /* ---------- 画面设置 ---------- */
 const setOpen = ref(false)
+const ratioOpen = ref(false)
 async function patchCur(patch) {
   const g = await updateGroup(cur.value.id, patch)
   const i = groups.value.findIndex((x) => x.id === g.id)
@@ -275,7 +260,19 @@ async function patchCur(patch) {
 }
 const setFit = (k) => { if (cur.value.fit !== k) patchCur({ fit: k }) }
 const setDwell = (s) => { if (cur.value.dwell !== s) patchCur({ dwell: s }) }
-const setRatio = (r) => { if (cur.value) patchCur({ tvRatio: r ? { key: r.key, w: r.w, h: r.h } : null }) }
+const sameRatio = (r) => {
+  const saved = cur.value && cur.value.tvRatio
+  return !!saved && saved.key === r.key && saved.w === r.w && saved.h === r.h
+}
+async function setRatio(r) {
+  ratioOpen.value = false
+  if (!cur.value) return
+  try {
+    await patchCur({ tvRatio: r ? { key: r.key, w: r.w, h: r.h } : null })
+  } catch (e) {
+    toast('尺寸没有保存成功，请重试')
+  }
+}
 
 /* ---------- 海报组的照片排布：轻微旋转、互相压一点 ---------- */
 const TILT = [-5, 3, -2, 4, -3]
@@ -329,15 +326,14 @@ function primary() {
   const g = cur.value
   if (!g) return
   if (g.status === 'draft') return openSheet('submit')
-  if (g.status === 'approved' || g.status === 'live') return openDeploy()
   if (g.status === 'rejected') return rename(g, true)
   toast('正在审核，请稍候')
 }
 const MORE = {
   draft: ['提交审核', '重命名', '删除'],
   reviewing: ['删除'],
-  approved: ['投放到大屏', '重命名', '删除'],
-  live: ['管理投放', '停止投放', '删除'],
+  approved: ['重命名', '删除'],
+  live: ['重命名', '删除'],
   rejected: ['修改后重新提交', '删除']
 }
 function more(g) {
@@ -348,8 +344,6 @@ function more(g) {
       curId.value = g.id
       const act = items[tapIndex]
       if (act === '提交审核') openSheet('submit')
-      else if (act === '投放到大屏' || act === '管理投放') openDeploy()
-      else if (act === '停止投放') stop(g)
       else if (act === '重命名') rename(g, false)
       else if (act === '修改后重新提交') rename(g, true)
       else if (act === '删除') remove(g)
@@ -393,18 +387,12 @@ function remove(g) {
     }
   })
 }
-async function stop(g) {
-  await deployGroup(g.id, [])
-  await refresh()
-  popMsg('已停止投放，大屏不再播放这组海报', 'player-pause', 'gray')
-}
 
 /* ---------- 底部弹层 ---------- */
 const sheet = ref('')
 const sheetOn = ref(false)
 const busy = ref(false)
 const ack = ref(false)
-const picked = ref([])
 function openSheet(kind) {
   ack.value = false
   busy.value = false
@@ -423,27 +411,6 @@ async function doSubmit() {
   closeSheet()
   popMsg('已提交审核，结果出来会通知你', 'shield-check')
 }
-function openDeploy() {
-  picked.value = (cur.value.liveOn || []).slice()
-  if (!picked.value.length) picked.value = devices.value.filter(isOnline).map((d) => d.id)
-  openSheet('deploy')
-}
-function togglePick(id) {
-  const i = picked.value.indexOf(id)
-  if (i >= 0) picked.value.splice(i, 1)
-  else picked.value.push(id)
-}
-async function doDeploy() {
-  if (busy.value || (!picked.value.length && cur.value.status !== 'live')) return
-  busy.value = true
-  const n = picked.value.length
-  await deployGroup(cur.value.id, picked.value)
-  await refresh()
-  closeSheet()
-  popMsg(n ? `已投放到 ${n} 台大屏` : '已停止投放', n ? 'cast' : 'player-pause', n ? 'red' : 'gray')
-}
-const toDevices = () => { closeSheet(); uni.navigateTo({ url: '/pages/devices/index' }) }
-
 /* ---------- 紧凑标题栏 ---------- */
 const compact = ref(false)
 onPageScroll(({ scrollTop }) => {
@@ -471,9 +438,6 @@ onUnload(() => clearInterval(poll))
 .page { position: relative; min-height: 100vh; background: #181A20; padding-bottom: calc(80rpx + env(safe-area-inset-bottom)); }
 .press { opacity: .8; transform: scale(.96); }
 .press-soft { opacity: .85; }
-.dot { width: 12rpx; height: 12rpx; flex: none; border-radius: 50%; }
-.dot-on { background: #4CB582; }
-.dot-off { background: #4B5060; }
 
 /* 标题 */
 .cbar {
@@ -527,7 +491,6 @@ onUnload(() => clearInterval(poll))
 .cta-t { font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
 .cta-reviewing { background: #2A2D36; box-shadow: none; }
 .cta-reviewing .cta-t { color: #FFC53A; }
-.cta-live { background: #2A2D36; box-shadow: none; }
 .cur-reason { display: block; margin: 12rpx 40rpx 0; font-size: 22rpx; color: #FF6B6B; }
 .cur-hint { display: block; margin: 12rpx 40rpx 0; font-size: 22rpx; color: #6B7280; }
 
@@ -545,7 +508,16 @@ onUnload(() => clearInterval(poll))
 .chips { margin-top: 14rpx; display: flex; flex-wrap: wrap; }
 .chip { margin: 0 12rpx 12rpx 0; height: 56rpx; padding: 0 20rpx; border-radius: 999rpx; background: #262A34; border: 2rpx solid transparent; display: flex; align-items: center; }
 .chip-on { border-color: #DC0000; background: rgba(220, 0, 0, .12); }
+.chip-open { border-color: rgba(220, 0, 0, .45); }
 .chip-t { margin-left: 6rpx; font-size: 22rpx; color: #E5E7EB; }
+.ps-ratio-chevron { margin-left: 10rpx; }
+.ratio-chips { margin-top: 8rpx; animation: ratio-chips-in .18s ease; }
+.ratio-chip { height: auto; min-height: 66rpx; padding: 8rpx 20rpx; flex-direction: column; align-items: flex-start; background: #181A20; }
+.ratio-chip-name { font-size: 22rpx; line-height: 30rpx; color: #E5E7EB; }
+.ratio-chip-size { margin-top: 2rpx; font-size: 18rpx; line-height: 24rpx; color: #9CA3AF; }
+.ratio-chip.chip-on .ratio-chip-name { color: #FFFFFF; }
+.ratio-chip.chip-on .ratio-chip-size { color: #FFB4B4; }
+@keyframes ratio-chips-in { from { opacity: 0; transform: translateY(-6rpx); } to { opacity: 1; transform: none; } }
 .fits { margin-top: 14rpx; display: flex; flex-wrap: wrap; justify-content: space-between; }
 .fit { width: 49%; box-sizing: border-box; margin-bottom: 12rpx; padding: 16rpx; border-radius: 18rpx; background: #181A20; border: 2rpx solid transparent; display: flex; align-items: center; }
 .fit-on { border-color: #DC0000; background: rgba(220, 0, 0, .08); }
@@ -598,7 +570,6 @@ onUnload(() => clearInterval(poll))
 .sh-grab { width: 72rpx; height: 8rpx; margin: 0 auto 20rpx; border-radius: 4rpx; background: #35383F; }
 .sh-x { position: absolute; z-index: 2; right: 40rpx; top: 40rpx; width: 56rpx; height: 56rpx; border-radius: 50%; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
 .sh-title { display: block; min-height: 56rpx; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 40rpx; letter-spacing: 2rpx; color: #FFFFFF; }
-.sh-sub { display: block; margin-top: 4rpx; font-size: 22rpx; color: #9CA3AF; }
 .rows { margin-top: 20rpx; padding: 8rpx 24rpx; border-radius: 20rpx; background: #181A20; }
 .row { display: flex; align-items: center; justify-content: space-between; height: 64rpx; border-top: 1rpx solid #24272F; }
 .row-first { border-top: none; }
@@ -612,15 +583,6 @@ onUnload(() => clearInterval(poll))
 .btn { margin-top: 28rpx; height: 92rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; box-shadow: 0 12rpx 28rpx rgba(220, 0, 0, .3); }
 .btn-dis { background: #3A3B46; box-shadow: none; }
 .btn-t { font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
-.nodev { margin-top: 24rpx; padding: 32rpx; border-radius: 20rpx; background: #181A20; display: flex; align-items: center; justify-content: space-between; }
-.nodev-t { font-size: 26rpx; color: #CBD5E1; }
-.nodev-b { height: 60rpx; padding: 0 24rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; }
-.nodev-bt { font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
-.dvr { display: flex; align-items: center; padding: 22rpx 0; border-top: 1rpx solid #2A2D36; }
-.dvr-first { border-top: none; }
-.dvr-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; display: flex; flex-direction: column; }
-.dvr-n { font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
-.dvr-s { margin-top: 4rpx; font-size: 22rpx; color: #9CA3AF; }
 
 @media (prefers-reduced-motion: reduce) {
   .cbar, .tv, .tv-scr, .fold, .chev, .sh-panel, .sh-mask, .pv-dot, .grp { transition: none; }

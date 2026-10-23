@@ -1,6 +1,6 @@
 <template>
   <page-meta page-style="overflow:hidden"></page-meta>
-  <view class="rc" :class="{ 'rc-compact': L.compact }">
+  <view class="rc" :class="{ 'rc-compact': L.compact }" @touchstart="onSwipeStart" @touchmove="onSwipeMove" @touchend="onSwipeEnd" @touchcancel="onSwipeCancel" @mousedown="pageMouseDown" @mousemove="pageMouseMove" @mouseup="pageMouseUp" @mouseleave="pageMouseCancel">
     <view class="rc-bg">
       <view v-for="(l, k) in bgLayers" :key="k" class="rc-bg-l" :class="{ 'rc-bg-on': bgOn === k, 'rc-bg-gray': l.gray }">
         <z-fit-img v-if="l.src" :src="l.src" mode="aspectFill" :w="l.w" :h="l.h" :bg="l.tint" />
@@ -14,22 +14,22 @@
       <view class="rc-help-btn" hover-class="rc-press" @tap.stop="openHelp"><z-icon name="help-circle" :size="18" color="rgba(255,255,255,.8)" /></view>
     </view>
 
-    <!-- 大屏区域只展示设备当前画面；只有这里的左右滑动会切换设备 -->
+    <!-- 大屏区域只展示设备当前画面，画面内部不接管设备切换手势 -->
     <view class="rc-stage-head" :style="'top:' + (L.flowTop - px(56)) + 'px'">
       <view class="rc-live-label"><view class="rc-live-dot" :class="{ 'rc-live-dot-off': !cur || !online(cur) }"></view><text>设备当前画面</text></view>
       <view class="rc-screen-nav">
-        <button class="rc-screen-arrow" :class="{ 'rc-screen-arrow-off': busy || ci === 0 }" :disabled="busy || ci === 0" aria-label="上一台大屏" @tap.stop="go(-1)"><z-icon name="chevron-left" :size="17" color="#FFFFFF" /></button>
+        <button v-if="ci > 0" class="rc-screen-arrow" :class="{ 'rc-screen-arrow-off': busy }" :disabled="busy" aria-label="上一台大屏" @tap.stop="go(-1)"><z-icon name="chevron-left" :size="17" color="#FFFFFF" /></button>
         <text class="rc-screen-count">{{ queue.length ? ci + 1 : 0 }} / {{ queue.length }}</text>
         <button class="rc-screen-arrow" :class="{ 'rc-screen-arrow-off': busy || ci >= queue.length - 1 }" :disabled="busy || ci >= queue.length - 1" aria-label="下一台大屏" @tap.stop="go(1)"><z-icon name="chevron-right" :size="17" color="#FFFFFF" /></button>
       </view>
     </view>
     <view class="rc-glow" :style="glowStyle"></view>
-    <view class="rc-flow" :class="{ 'rc-flow-drag': flowDragging }" :style="'top:' + L.flowTop + 'px;height:' + L.flowH + 'px'" @touchstart="onSwipeStart" @touchmove="onSwipeMove" @touchend="onSwipeEnd" @touchcancel="onSwipeCancel">
+    <view class="rc-flow" :class="{ 'rc-flow-drag': flowDragging }" :style="'top:' + L.flowTop + 'px;height:' + L.flowH + 'px'">
       <view v-if="loaded && !queue.length" class="rc-empty" :style="'width:' + L.W + 'px;height:' + L.H + 'px;margin-left:' + -L.W / 2 + 'px'">
         <text class="rc-empty-t">{{ devices.length ? '没有符合筛选的大屏' : '还没有绑定大屏' }}</text>
         <view class="rc-chip-btn" hover-class="rc-press" @tap.stop="devices.length ? setFilter('all') : toDevices()"><text class="rc-chip-btn-t">{{ devices.length ? '查看全部大屏' : '去设备管理' }}</text></view>
       </view>
-      <view v-for="(d, i) in queue" :key="d.id" class="rc-scr" :class="{ 'rc-scr-cur': i === ci }" :style="scrStyle(d, i)" @tap.stop="tapScreen(i)">
+      <view v-for="(d, i) in queue" :key="d.id" class="rc-scr" :class="{ 'rc-scr-cur': i === ci }" :style="scrStyle(d, i)" @touchstart="blockPageSwipe" @mousedown="blockPageSwipe" @tap.stop="tapScreen(i)">
         <z-tv-screen :content="screenContent(d)" :groups="groups" :device-id="d.id" :last-scene="d.coverScene" :resolution="screenResolutionOf(d)" :preview-width="screenBox(d).w" :online="online(d)" :loading="!!casting[d.id]" :color="selCat.color" />
         <view v-if="allMode && online(d)" class="rc-scr-chk"><z-icon name="check" :size="12" :stroke="3" color="#FFFFFF" /></view>
       </view>
@@ -66,7 +66,7 @@
         <button class="rc-hint" :class="{ 'rc-hint-act': hintAction }" :disabled="busy || dialDragging || !hintAction" @tap.stop="tapHint"><text class="rc-hint-t">{{ dialDragging ? '左右拖动，松手后选择生效' : hintText }}</text><z-icon v-if="hintAction && !dialDragging" name="chevron-right" :size="12" color="#E1E8F6" /></button>
       </view>
 
-      <view class="rc-compass" :style="'height:' + L.compassH + 'px'">
+      <view class="rc-compass" :style="'height:' + L.compassH + 'px'" @touchstart="blockCompassSwipe" @mousedown="blockCompassSwipe">
         <view class="rc-dial" :class="{ 'rc-dial-busy': busy }" @touchstart="dialStart" @touchmove="dialMove" @touchend="dialEnd" @touchcancel="dialCancel" @mousedown="dialMouseDown" @mousemove="dialMouseMove" @mouseup="dialMouseUp" @mouseleave="dialMouseCancel">
           <view class="rc-rot" :class="{ 'rc-rot-drag': dialDragging }" :style="'top:' + (L.tickTop + L.R) + 'px;transform:rotate(' + rot + 'deg)'">
             <view v-for="mark in TICKS" :key="'tick-' + mark.angle" class="rc-tick-w" :style="'transform:rotate(' + mark.angle + 'deg)'"><view class="rc-tick" :class="{ 'rc-tick-major': mark.major }" :style="tickStyle(mark)"></view></view>
@@ -313,7 +313,7 @@ function ago(t) {
   return Math.round(m / 1440) + ' 天前'
 }
 
-/* ---------- 设备与罗盘分别处理自己的手势，空白处不切换设备 ---------- */
+/* ---------- 空白区域切换设备，画面内部、罗盘和系统返回边缘各自保留手势 ---------- */
 const overlayOpen = () => !!(picker.value || listShown.value || helpOpen.value || filterOpen.value || cpop.show)
 
 /* ---------- 筛选：按大屏正在显示的内容 ---------- */
@@ -369,17 +369,45 @@ function go(step) {
 }
 const tapScreen = (i) => { if (i !== ci.value) go(i - ci.value) }
 let sw = null
+let blockedSwipeStart = null
+let lastPageTouchAt = 0
+let ignorePageTapUntil = 0
+const gesturePoint = (e) => e.touches ? e.touches[0] : e
+const atSystemEdge = (x) => x < Math.max(px(48), (sys.safeAreaInsets && sys.safeAreaInsets.left) || 0) || x > sys.windowWidth - Math.max(px(48), (sys.safeAreaInsets && sys.safeAreaInsets.right) || 0)
+const insideCompass = (x, y) => Math.hypot(x - sys.windowWidth / 2, y - (L.controlsTop + L.orderH + L.tickTop + L.R)) <= L.R + px(8)
+function blockPageSwipe(e) {
+  const t = gesturePoint(e)
+  if (t) blockedSwipeStart = { x: t.clientX, y: t.clientY, at: Date.now() }
+}
+function blockCompassSwipe(e) {
+  const t = gesturePoint(e)
+  if (t && insideCompass(t.clientX, t.clientY)) blockPageSwipe(e)
+}
 function onSwipeStart(e) {
-  if (busy.value || overlayOpen()) return
-  const t = e.touches[0]
+  lastPageTouchAt = Date.now()
+  if (e.touches.length !== 1) return onSwipeCancel()
+  beginPageSwipe(e.touches[0])
+}
+function beginPageSwipe(t) {
+  onSwipeCancel()
+  const blocked = blockedSwipeStart
+  blockedSwipeStart = null
+  // 子区域先记录同一次起点，再让 touchstart 正常冒泡，避免影响小程序合成点击。
+  if (blocked && Date.now() - blocked.at < 200 && blocked.x === t.clientX && blocked.y === t.clientY) return
+  if (busy.value || overlayOpen() || queue.value.length < 2 || atSystemEdge(t.clientX)) return
   sw = { x: t.clientX, y: t.clientY, on: false }
 }
 function onSwipeMove(e) {
+  if (e.touches.length !== 1) return onSwipeCancel()
+  movePageSwipe(e.touches[0])
+}
+function movePageSwipe(t) {
   if (!sw) return
-  const t = e.touches[0]
+  if (busy.value || overlayOpen()) return onSwipeCancel()
   const dx = t.clientX - sw.x
   const dy = t.clientY - sw.y
-  if (!sw.on && Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { sw.on = true; flowDragging.value = true }
+  if (!sw.on && Math.abs(dy) > 12 && Math.abs(dy) >= Math.abs(dx)) return onSwipeCancel()
+  if (!sw.on && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) { sw.on = true; flowDragging.value = true }
   if (!sw.on) return
   const atEdge = (dx > 0 && ci.value === 0) || (dx < 0 && ci.value === queue.value.length - 1)
   dragX.value = atEdge ? dx * 0.3 : dx
@@ -392,14 +420,36 @@ function onSwipeEnd() {
   const d = dragX.value
   flowDragging.value = false
   dragX.value = 0
-  if (d < -L.W * 0.18) go(1)
-  else if (d > L.W * 0.18) go(-1)
+  ignorePageTapUntil = Date.now() + 350
+  const threshold = Math.max(42, L.W * 0.18)
+  if (d < -threshold) go(1)
+  else if (d > threshold) go(-1)
 }
 
 function onSwipeCancel() {
   sw = null
   flowDragging.value = false
   dragX.value = 0
+}
+function pageMouseDown(e) {
+  // #ifdef H5
+  if ((e.button == null || e.button === 0) && Date.now() - lastPageTouchAt > 800) beginPageSwipe(e)
+  // #endif
+}
+function pageMouseMove(e) {
+  // #ifdef H5
+  if (Date.now() - lastPageTouchAt > 800) movePageSwipe(e)
+  // #endif
+}
+function pageMouseUp() {
+  // #ifdef H5
+  if (Date.now() - lastPageTouchAt > 800) onSwipeEnd()
+  // #endif
+}
+function pageMouseCancel() {
+  // #ifdef H5
+  onSwipeCancel()
+  // #endif
 }
 
 /* ---------- 罗盘：固定中央选择窗，刻度旋转；切换设备不改变选择 ---------- */
@@ -432,7 +482,7 @@ function dialMove(e) {
   moveDial(e.touches[0].clientX, e.touches[0].clientY)
 }
 function startDial(x, y) {
-  if (busy.value || overlayOpen()) return
+  if (busy.value || overlayOpen() || atSystemEdge(x) || !insideCompass(x, y)) return
   dg = { x, y, base: rot.value, moved: false }
 }
 function moveDial(x, y) {
@@ -483,7 +533,7 @@ function dialMouseCancel() {
   // #endif
 }
 function tapCategory(idx) {
-  if (Date.now() < ignoreCategoryTapUntil || busy.value) return
+  if (Date.now() < Math.max(ignoreCategoryTapUntil, ignorePageTapUntil) || busy.value) return
   setCat(idx)
   buzz()
 }
