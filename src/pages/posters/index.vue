@@ -58,8 +58,9 @@
         <view class="set-b">
           <text class="set-k">电视比例</text>
           <view class="chips">
-            <view v-for="r in ratioOptions" :key="r.key" class="chip" :class="{ 'chip-on': ratio.key === r.key }" hover-class="press" @tap="ratioKey = r.key">
-              <z-icon v-if="r.device" name="device-tv" :size="12" :color="ratio.key === r.key ? '#FF6B6B' : '#9CA3AF'" />
+            <view class="chip" :class="{ 'chip-on': !cur.tvRatio }" hover-class="press" @tap="setRatio(null)"><text class="chip-t">跟随设备</text></view>
+            <view v-for="r in ratioOptions" :key="r.key" class="chip" :class="{ 'chip-on': cur.tvRatio && ratio.key === r.key }" hover-class="press" @tap="setRatio(r)">
+              <z-icon v-if="r.device" name="device-tv" :size="12" :color="cur.tvRatio && ratio.key === r.key ? '#FF6B6B' : '#9CA3AF'" />
               <text class="chip-t">{{ r.chip }}</text>
             </view>
           </view>
@@ -164,8 +165,7 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
-import { svgUri } from '@/common/svg.js'
-import { coverArt, COVER_SIZES } from '@/common/cover-art.js'
+import { posterImageSrc, posterImageSize } from '@/common/poster-display.js'
 import { requireLogin, persistAvatar } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline } from '@/common/devices.js'
@@ -190,20 +190,9 @@ function popMsg(text, icon = 'check', tone = 'red') {
 /* ---------- 图片：示意图（封面插画）或真实上传的图片 ---------- */
 // 示意图按 3 倍尺寸算原始像素（接近真实海报的大小），「居中裁剪不缩放」才有参考意义
 // 「拉伸到四个角」时示意图要加 preserveAspectRatio="none"：SVG 默认保持自己的比例，不加的话拉不开（真实照片用 image 组件，不受影响）
-const srcCache = {}
-function srcOf(im, mode) {
-  if (im.src) return im.src
-  const stretch = mode === 'scaleToFill'
-  const k = im.scene + '/' + im.size + (stretch ? '/stretch' : '')
-  if (!srcCache[k]) {
-    const svg = coverArt(im.scene, im.size)
-    srcCache[k] = svgUri(stretch ? svg.replace('<svg ', '<svg preserveAspectRatio="none" ') : svg)
-  }
-  return srcCache[k]
-}
-const sizeOf = (im) => COVER_SIZES[im.size] || { w: 640, h: 360 }
-const wOf = (im) => (im.src ? im.w : sizeOf(im).w * 3)
-const hOf = (im) => (im.src ? im.h : sizeOf(im).h * 3)
+const srcOf = posterImageSrc
+const wOf = (im) => posterImageSize(im).w
+const hOf = (im) => posterImageSize(im).h
 
 /* ---------- 数据 ---------- */
 const groups = ref([])
@@ -240,7 +229,6 @@ function select(g) {
 }
 
 /* ---------- 电视比例：默认跟随已绑定的大屏 ---------- */
-const ratioKey = ref('')
 const ratioOptions = computed(() => {
   const seen = new Set()
   const fromDevices = []
@@ -257,8 +245,13 @@ const ratioOptions = computed(() => {
 })
 const ratio = computed(() => {
   const list = ratioOptions.value
-  const hit = list.find((r) => r.key === ratioKey.value)
-  if (hit) return hit
+  const saved = cur.value && cur.value.tvRatio
+  if (saved) {
+    const hit = list.find((r) => r.key === saved.key && r.w === saved.w && r.h === saved.h)
+    if (hit) return hit
+    const name = ratioName(saved.w, saved.h)
+    return { ...saved, name, label: `${name} · ${saved.w}×${saved.h}` }
+  }
   // 默认：第一台在线大屏的分辨率；没有就用第一台；都没有用 16:9
   const online = devices.value.find((d) => d.resolution && isOnline(d))
   const first = online || devices.value.find((d) => d.resolution)
@@ -282,6 +275,7 @@ async function patchCur(patch) {
 }
 const setFit = (k) => { if (cur.value.fit !== k) patchCur({ fit: k }) }
 const setDwell = (s) => { if (cur.value.dwell !== s) patchCur({ dwell: s }) }
+const setRatio = (r) => { if (cur.value) patchCur({ tvRatio: r ? { key: r.key, w: r.w, h: r.h } : null }) }
 
 /* ---------- 海报组的照片排布：轻微旋转、互相压一点 ---------- */
 const TILT = [-5, 3, -2, 4, -3]

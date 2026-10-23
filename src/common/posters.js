@@ -95,7 +95,7 @@ export async function createGroup(images) {
   return g
 }
 
-// 改名、铺盖方式、停留时长：都不改变图片内容，不需要重新审核（正式环境改名会过一次 msgSecCheck）
+// 改名、电视比例、铺盖方式、停留时长：都不改变图片内容，不需要重新审核（正式环境改名会过一次 msgSecCheck）
 export async function updateGroup(id, patch) {
   await wait(120)
   const list = load()

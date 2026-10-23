@@ -1,6 +1,11 @@
 <template>
   <view class="tvs" :class="'tvs-' + kind">
-    <view v-if="kind !== 'sleep' && kind !== 'off'" class="tvs-bg"><z-fit-img :src="cover.src" mode="aspectFill" :w="cover.w" :h="cover.h" :bg="cover.tint" /></view>
+    <swiper v-if="kind === 'poster' && posterImages.length" :key="posterKey" class="tvs-bg" circular :autoplay="!loading" :disable-touch="true" :interval="posterInterval" :duration="700">
+      <swiper-item v-for="im in posterImages" :key="im.id">
+        <z-fit-img :src="posterImageSrc(im, fit)" :mode="fit" :w="posterImageSize(im).w" :h="posterImageSize(im).h" :scale="centerScale" />
+      </swiper-item>
+    </swiper>
+    <view v-else-if="kind !== 'sleep' && kind !== 'off'" class="tvs-bg"><z-fit-img :src="cover.src" mode="aspectFill" :w="cover.w" :h="cover.h" :bg="cover.tint" /></view>
 
     <view v-if="kind === 'theme'" class="tvs-fill tvs-theme">
       <text class="tvs-lv">LV.3 · 100/200</text>
@@ -47,6 +52,7 @@ import { computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { contentCover, currentRoom } from '@/common/screens.js'
+import { posterFit, posterImageSrc, posterImageSize, screenResolution } from '@/common/poster-display.js'
 import { topPlayers } from '@/mock/workbench.js'
 import { hostMatches } from '@/mock/plaza.js'
 
@@ -55,6 +61,8 @@ const props = defineProps({
   groups: { type: Array, default: () => [] },
   deviceId: { type: String, default: '' },
   lastScene: { type: String, default: '' },
+  resolution: { type: Object, default: () => ({ w: 3840, h: 2160 }) },
+  previewWidth: { type: Number, default: 0 },
   online: { type: Boolean, default: true },
   loading: { type: Boolean, default: false },
   badge: { type: String, default: '' },
@@ -63,7 +71,13 @@ const props = defineProps({
 const kind = computed(() => (!props.online ? 'off' : props.content.cat || 'off'))
 const cover = computed(() => contentCover(props.content, props.groups, props.deviceId, props.lastScene))
 const room = currentRoom()
-const groupName = computed(() => { const g = props.groups.find((x) => x.id === props.content.groupId); return g ? g.name : '' })
+const group = computed(() => props.groups.find((x) => x.id === props.content.groupId))
+const groupName = computed(() => group.value ? group.value.name : '')
+const posterImages = computed(() => group.value ? group.value.images || [] : [])
+const fit = computed(() => posterFit(group.value))
+const posterKey = computed(() => `${props.content.groupId}-${fit.value}-${props.resolution.w}x${props.resolution.h}`)
+const posterInterval = computed(() => Math.max(1, Number(group.value && group.value.dwell) || 8) * 1000)
+const centerScale = computed(() => props.previewWidth / screenResolution(props.resolution).w)
 const avatars = topPlayers.concat(topPlayers.slice(0, 2))
 const p2 = (n) => (n < 10 ? '0' : '') + n
 const matches = hostMatches.slice(0, 3).map((m) => { const d = new Date(m.startAt); return { id: m.id, name: m.name, t: m.startAt <= Date.now() ? '进行中' : `${d.getMonth() + 1}/${d.getDate()} ${p2(d.getHours())}:${p2(d.getMinutes())}` } })
@@ -71,7 +85,7 @@ const matches = hostMatches.slice(0, 3).map((m) => { const d = new Date(m.startA
 
 <style>
 .tvs { position: relative; width: 100%; height: 100%; overflow: hidden; background: #050507; }
-.tvs-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.tvs-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
 .tvs-fill { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .tvs-theme { background: rgba(4, 6, 10, .55); }
 .tvs-lv { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 20rpx; letter-spacing: 2rpx; color: #FFB547; }
