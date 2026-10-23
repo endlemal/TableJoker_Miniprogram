@@ -8,12 +8,10 @@
       <view class="rc-bg-glass"></view>
     </view>
 
-    <view class="rc-nav" :style="'padding-top:' + nav.statusBar + 'px;height:' + nav.navH + 'px'">
+    <view class="rc-nav" :style="'padding-top:' + nav.statusBar + 'px;height:' + nav.navH + 'px;padding-right:' + (nav.capsuleW + px(40)) + 'px'">
       <view class="rc-gbtn" hover-class="rc-press" @tap.stop="goBack"><z-icon name="arrow-left" :size="18" color="#FFFFFF" /></view>
-      <view class="rc-nav-mid" :style="'top:' + (nav.statusBar + px(22)) + 'px;height:' + nav.navH + 'px;padding-right:' + nav.capsuleW + 'px'">
-        <text class="rc-nav-t">遥控切屏</text>
-        <view class="rc-help-btn" hover-class="rc-press" @tap.stop="openHelp"><z-icon name="help-circle" :size="17" color="rgba(255,255,255,.8)" /></view>
-      </view>
+      <text class="rc-nav-t">遥控切屏</text>
+      <view class="rc-help-btn" hover-class="rc-press" @tap.stop="openHelp"><z-icon name="help-circle" :size="18" color="rgba(255,255,255,.8)" /></view>
     </view>
 
     <!-- 大屏区域只展示设备当前画面；只有这里的左右滑动会切换设备 -->
@@ -57,7 +55,7 @@
     </view>
 
     <!-- 罗盘始终保留待投放选择；当前设备画面和待投放内容各自独立 -->
-    <view class="rc-controls" :style="'top:' + L.controlsTop + 'px;height:' + L.controlsH + 'px;--rc-accent:' + hoverCat.color">
+    <view class="rc-controls" :style="'top:' + L.controlsTop + 'px;height:' + L.controlsH + 'px;--rc-accent:' + hoverCat.color + ';--category-color:' + hoverCat.color">
       <view class="rc-order" :style="'height:' + L.orderH + 'px'">
         <view class="rc-order-line">
           <text class="rc-order-eyebrow">{{ busy ? '正在投放' : dialDragging ? '松手选中' : '待投放' }}</text>
@@ -78,7 +76,7 @@
           </view>
           <view class="rc-dial-index" :style="'top:' + (L.tickTop - px(8)) + 'px'"><view class="rc-dial-index-dot"></view></view>
         </view>
-        <view class="rc-cast-wrap rc-sel" :style="'top:' + (L.dialCenter - L.castH / 2) + 'px;width:' + L.castW + 'px;height:' + L.castH + 'px;margin-left:' + -L.castW / 2 + 'px'">
+        <view class="rc-cast-wrap rc-sel" :style="'top:' + (L.dialCenter + L.castOffset - L.castH / 2) + 'px;width:' + L.castW + 'px;height:' + L.castH + 'px;margin-left:' + -L.castW / 2 + 'px'">
           <view v-if="selCat.hold && charge > 0" class="rc-charge-ring" :style="chargeStyle"></view>
           <button class="rc-cast" :class="{ 'rc-cast-dis': castDisabled && !busy, 'rc-cast-down': pressing, 'rc-cast-busy': busy, 'rc-cast-success': acknowledged }" :disabled="castDisabled" :aria-label="castAriaLabel" @tap.stop="castTap" @touchstart="castDown" @touchmove="castMove" @touchend="castUp" @touchcancel="castCancel" @mousedown="castMouseDown" @mouseup="castMouseUp" @mouseleave="castMouseCancel" @keydown="castKeyDown" @keyup="castKeyUp">
             <view class="rc-cast-rim"></view>
@@ -267,7 +265,7 @@ const L = (() => {
   const tickTop = px(12)
   const R = px(600)
   const nodeR = R - px(160)
-  return { compact, W, H, flowTop, flowH, infoTop, infoH, controlsTop, controlsH, orderH: px(compact ? 100 : 112), compassH: px(compact ? 332 : 348), dialCenter: tickTop + R - nodeR, tickTop, nodeR, castW: px(compact ? 152 : 164), castH: px(compact ? 236 : 252), R, spacing: W * 0.88, pickerCenter: Math.round(sys.windowHeight * 0.48) }
+  return { compact, W, H, flowTop, flowH, infoTop, infoH, controlsTop, controlsH, orderH: px(compact ? 100 : 112), compassH: px(compact ? 332 : 348), dialCenter: tickTop + R - nodeR, castOffset: px(compact ? 42 : 50), tickTop, nodeR, castW: px(compact ? 152 : 164), castH: px(compact ? 236 : 252), R, spacing: W * 0.88, pickerCenter: Math.round(sys.windowHeight * 0.48) }
 })()
 const busy = ref(false)
 const refreshing = ref(false)
@@ -418,9 +416,10 @@ const nodeStyle = (c, i) => `top:${-L.nodeR - px(44)}px;transform:rotate(${-i * 
 function tickStyle(mark) {
   const distance = Math.abs(mark.angle + rot.value)
   const focus = Math.max(0, 1 - distance / 54)
-  const color = `rgb(${Math.round(30 + focus * 100)},${Math.round(29 + focus * 210)},${Math.round(77 + focus * 169)})`
   const height = px(mark.major ? 48 : 19 + focus * 24)
-  return `top:${-L.R}px;height:${height.toFixed(1)}px;background:linear-gradient(180deg,${color} 12%,${color} 75%,rgba(22,38,70,.12));opacity:${distance > 65 ? 0 : (0.4 + focus * 0.6).toFixed(2)};box-shadow:0 0 ${px(7)}px ${color}`
+  const glow = px(3 + focus * 5)
+  // 颜色只取当前分类色，焦点只控制透明度和发光强度，避免混入固定的暗蓝紫。
+  return `top:${-L.R}px;height:${height.toFixed(1)}px;background:linear-gradient(180deg,var(--category-color) 12%,var(--category-color) 75%,transparent);opacity:${distance > 65 ? 0 : (0.32 + focus * 0.68).toFixed(2)};box-shadow:0 0 ${glow.toFixed(1)}px var(--category-color)`
 }
 let dg = null
 let ignoreCategoryTapUntil = 0
@@ -623,7 +622,7 @@ function castDown(e) {
 function castMove(e) {
   if (!pressing.value || !pressOrigin) return
   const t = e.touches[0]
-  const centerY = L.controlsTop + L.orderH + L.dialCenter
+  const centerY = L.controlsTop + L.orderH + L.dialCenter + L.castOffset
   const dx = t.clientX - sys.windowWidth / 2
   const dy = Math.max(0, Math.abs(t.clientY - centerY) - (L.castH - L.castW) / 2)
   if (Math.hypot(dx, dy) > L.castW / 2 + px(12)) castCancel()
@@ -900,11 +899,10 @@ onUnload(() => { clearInterval(tickTimer); clearTimeout(ackTimer); clearTimeout(
 .rc-bg-on { opacity: .64; }
 .rc-bg-gray { filter: blur(16px) grayscale(1) brightness(.55); }
 .rc-bg-glass { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,11,18,.34), rgba(8,11,18,.2) 30%, rgba(8,11,18,.7) 62%, #080B12 97%); }
-.rc-nav { position: absolute; z-index: 20; left: 0; right: 0; top: 0; box-sizing: content-box; padding-left: 24rpx; display: flex; align-items: center; }
-.rc-gbtn { width: 72rpx; height: 72rpx; flex: none; border-radius: 50%; background: rgba(255,255,255,.07); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1rpx rgba(255,255,255,.12); }
-.rc-nav-mid { position: absolute; left: 0; right: 0; box-sizing: border-box; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.rc-nav-t { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 38rpx; letter-spacing: 5rpx; color: #FFFFFF; }
-.rc-help-btn { width: 76rpx; height: 76rpx; margin-left: 2rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+.rc-nav { position: absolute; z-index: 20; left: 0; right: 0; top: 0; box-sizing: content-box; padding-left: 40rpx; display: flex; align-items: center; }
+.rc-gbtn { width: 64rpx; height: 64rpx; flex: none; margin-right: 20rpx; border-radius: 50%; background: rgba(255,255,255,.07); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1rpx rgba(255,255,255,.12); }
+.rc-nav-t { flex: none; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 56rpx; line-height: 1; letter-spacing: 4rpx; color: #FFFFFF; white-space: nowrap; }
+.rc-help-btn { width: 64rpx; height: 64rpx; margin-left: auto; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
 /* 大屏向屏幕中部靠拢，增加可见尺寸 */
 .rc-stage-head { position: absolute; z-index: 11; left: 24rpx; right: 24rpx; height: 48rpx; display: flex; align-items: center; justify-content: space-between; }
@@ -957,7 +955,7 @@ onUnload(() => { clearInterval(tickTimer); clearTimeout(ackTimer); clearTimeout(
 .rc-hint-t { min-width: 0; font-size: 24rpx; color: #ADBBD1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rc-hint-act .rc-hint-t { color: #E1E8F6; }
 
-/* 刻度本身构成轮廓：密集青蓝渐变短条，固定银色指示针 */
+/* 刻度本身构成轮廓：密集分类色渐变短条，固定银色指示针 */
 .rc-compass { position: relative; }
 .rc-dial { position: absolute; inset: 0; overflow: hidden; touch-action: pan-y; -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent); }
 .rc-dial-busy { opacity: .55; }
