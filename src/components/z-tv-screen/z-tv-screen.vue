@@ -1,5 +1,5 @@
 <template>
-  <view class="tvs" :class="'tvs-' + kind">
+  <view class="tvs" :class="'tvs-kind-' + kind">
     <view v-if="kind === 'poster' && posterImages.length" class="tvs-bg">
       <view v-for="(im, i) in posterImages" :key="im.id" class="tvs-poster" :class="{ 'tvs-poster-on': i === posterIndex }" :aria-hidden="i !== posterIndex">
         <z-fit-img :src="posterImageSrc(im, fit)" :mode="fit" :w="posterImageSize(im).w" :h="posterImageSize(im).h" :scale="centerScale" />
