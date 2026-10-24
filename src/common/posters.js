@@ -12,8 +12,9 @@ const KEY = 'zz_posters'
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 export const MAX_IMAGES = 9
 export const REVIEW_DEMO_MS = 6000
-// 涉赌字样：机审的关键词规则之一（正式环境放在服务端，并且也检查图片里的文字）
-export const BANNED = /现金|返水|带入|兑换|上分|下分|赌/
+// 涉赌字样的关键词规则和比赛标签共用，见 moderation.js
+import { BANNED } from './moderation.js'
+export { BANNED }
 
 export const FITS = [
   { key: 'center', name: '居中裁剪不缩放', desc: '按原图大小居中，超出屏幕的部分裁掉' },

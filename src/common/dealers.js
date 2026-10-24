@@ -8,4 +8,4 @@ export function listDealers() {
   return Array.isArray(saved) && saved.length ? saved : dealerRoster.map((d) => ({ ...d, tags: d.tags.slice() }))
 }
 // 存进比赛记录里的快照：荷官以后改名或离开名册，已经发布的比赛仍然显示当时的信息
-export const dealerSnapshot = (d) => ({ id: d.id, name: d.name, char: d.char, bg: d.bg, fg: d.fg, title: d.title })
+export const dealerSnapshot = (d) => ({ id: d.id, name: d.name, char: d.char, bg: d.bg, fg: d.fg, title: d.title, years: d.years, tags: (d.tags || []).slice(), photo: d.photo || '', tone: d.tone || '' })

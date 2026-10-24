@@ -27,6 +27,7 @@ export function newRoomCode() {
   do { code = String(100000 + Math.floor(Math.random() * 900000)) } while (used.has(code))
   return code
 }
+export const listMatches = () => loadList(KEY_MATCHES, [])
 export function getMatch(id) {
   return loadList(KEY_MATCHES, []).find((x) => x.id === id) || null
 }

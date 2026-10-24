@@ -1,5 +1,6 @@
 // 广场 · 演示数据：公开赛事、带封面的帖子、海报广告。接后端时按同样字段替换。
 import { makeDemoMatch, coverScenes, VENUES } from './data.js'
+import { dealerRoster } from './workbench.js'
 
 const DAY = 86400000
 const at = (dayOffset, h, m = 0) => {
@@ -13,18 +14,27 @@ const people = (n) => makeDemoMatch().participants.concat(makeDemoMatch().partic
 
 // 公开赛事：字段与分享落地页一致，点进去直接展示对应的比赛
 const variant = (over) => ({ ...makeDemoMatch(), ...over })
+// 创建者：主办方（认证主办方创建，带 V 标识，可以有标签、驻场荷官、规程）或玩家（普通用户自己约的局）
+const HOST_NIGHT = { name: '夜航棋牌俱乐部', char: '夜', bg: '#2A2140', fg: '#C9B8FF', role: 'host' }
+const HOST_FOG = { name: '雾港桌游会所', char: '雾', bg: '#1E3550', fg: '#BFD8F2', role: 'host' }
+const PLAYER_SEN = { name: '阿森', char: '森', bg: '#E4E9D8', fg: '#3E5A1E', role: 'player' }
+const PLAYER_KE = { name: '可乐', char: '可', bg: '#F3E6CF', fg: '#6B4A12', role: 'player' }
+const photoDealer = (id) => { const d = dealerRoster.find((x) => x.id === id); return { id: d.id, name: d.name, char: d.char, bg: d.bg, fg: d.fg, title: d.title, years: d.years, tags: d.tags.slice(), photo: d.photo || '', tone: d.tone || '' } }
 export const publicMatches = [
-  makeDemoMatch(),
-  variant({ id: 'pm-night', name: '血月深夜赛', cover: 'blood', location: VENUES.night, startAt: at(4, 22), cap: 18, participants: people(8), intro: '十点开局的深夜场，节奏快，盲注每级 15 分钟。' }),
-  variant({ id: 'pm-newbie', name: '新手德扑体验局', cover: 'snow', location: VENUES.cedar, startAt: at(5, 14), cap: 18, participants: people(4), intro: '第一次玩德扑也能来，开局前会把规则讲一遍。' }),
-  variant({ id: 'pm-fog', name: '雾港深筹赛', cover: 'fog', location: VENUES.harbor, startAt: at(4, 19, 30), cap: 27, participants: people(18).concat(people(3)), intro: '深筹慢节奏，适合想多打几手的朋友。' }),
-  variant({ id: 'pm-jungle', name: '丛林猎手挑战赛', cover: 'jungle', location: VENUES.jungle, startAt: at(6, 20), cap: 18, participants: people(6), autoApprove: false, intro: '邀请制挑战赛，报名后由主持人审核。' })
+  { ...makeDemoMatch(), creatorRole: 'player', creator: PLAYER_SEN },
+  variant({ id: 'pm-night', creatorRole: 'host', creator: HOST_NIGHT, name: '血月深夜赛', cover: 'blood', location: VENUES.night, startAt: at(4, 22), cap: 18, participants: people(8), intro: '十点开局的深夜场，节奏快，盲注每级 15 分钟。',
+    tags: ['快速赛', '夜场常规赛'], dealers: [photoDealer('dl2'), photoDealer('dl4')],
+    rules: [{ level: 1, title: '赛制说明', body: '锦标赛制，起始筹码 20000，每级 15 分钟。' }, { level: 2, title: '截止报名', body: '第 6 级开始后截止报名。' }] }),
+  variant({ id: 'pm-newbie', creatorRole: 'player', creator: PLAYER_KE, name: '新手德扑体验局', cover: 'snow', location: VENUES.cedar, startAt: at(5, 14), cap: 18, participants: people(4), intro: '第一次玩德扑也能来，开局前会把规则讲一遍。' }),
+  variant({ id: 'pm-fog', creatorRole: 'host', creator: HOST_FOG, name: '雾港深筹赛', cover: 'fog', location: VENUES.harbor, startAt: at(4, 19, 30), cap: 27, participants: people(18).concat(people(3)), intro: '深筹慢节奏，适合想多打几手的朋友。',
+    tags: ['深筹赛'], dealers: [photoDealer('dl4'), photoDealer('dl3')] }),
+  variant({ id: 'pm-jungle', creatorRole: 'player', creator: PLAYER_SEN, name: '丛林猎手挑战赛', cover: 'jungle', location: VENUES.jungle, startAt: at(6, 20), cap: 18, participants: people(6), autoApprove: false, intro: '邀请制挑战赛，报名后由主持人审核。' })
 ]
 // 主办方自己办的比赛（工作台「我的比赛」和房间列表）。mine 表示演示里当前账号就是主办方，比赛邀请页显示主办方视图
 export const hostMatches = [
-  variant({ id: 'hm-deep', mine: true, roomCode: '518302', name: '周五深筹码大师赛', cover: 'fog', startAt: Date.now() - 95 * 60000, liveLevel: 3, cap: 27, participants: people(18), intro: '深筹慢节奏，盲注每级 25 分钟，适合想多打几手的朋友。' }),
-  variant({ id: 'hm-hunter', mine: true, roomCode: '736941', name: '周末猎人锦标赛', cover: 'jungle', startAt: at(6, 20), cap: 18, participants: people(12), autoApprove: false, intro: '邀请制锦标赛，报名后由主办方审核。' }),
-  variant({ id: 'hm-newbie', mine: true, roomCode: '204815', name: '周日新手体验局', cover: 'snow', startAt: at(7, 14), cap: 18, participants: people(5), intro: '第一次玩也能来，开局前会把规则讲一遍。' })
+  variant({ id: 'hm-deep', mine: true, creatorRole: 'host', roomCode: '518302', name: '周五深筹码大师赛', cover: 'fog', startAt: Date.now() - 95 * 60000, liveLevel: 3, cap: 27, participants: people(18), intro: '深筹慢节奏，盲注每级 25 分钟，适合想多打几手的朋友。' }),
+  variant({ id: 'hm-hunter', mine: true, creatorRole: 'host', roomCode: '736941', name: '周末猎人锦标赛', cover: 'jungle', startAt: at(6, 20), cap: 18, participants: people(12), autoApprove: false, intro: '邀请制锦标赛，报名后由主办方审核。' }),
+  variant({ id: 'hm-newbie', mine: true, creatorRole: 'host', roomCode: '204815', name: '周日新手体验局', cover: 'snow', startAt: at(7, 14), cap: 18, participants: people(5), intro: '第一次玩也能来，开局前会把规则讲一遍。' })
 ]
 export const findPublicMatch = (id) => publicMatches.find((m) => m.id === id) || hostMatches.find((m) => m.id === id) || null
 

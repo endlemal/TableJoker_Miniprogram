@@ -19,7 +19,7 @@
 
     <view class="sheet">
       <view class="inviter">
-        <view class="av av-28" :style="'background:' + m.inviter.bg + ';color:' + m.inviter.fg"><text>{{ m.inviter.c }}</text></view>
+        <view class="av av-28" :style="'background:' + m.inviter.bg + ';color:' + m.inviter.fg"><text>{{ m.inviter.c }}</text><view v-if="byHost" class="av-v"><z-icon name="letter-v" :size="7" :stroke="3.4" color="#FFFFFF" /></view></view>
         <text class="inviter-t"><text class="inviter-n">{{ m.inviter.name }}</text> 邀请你参加</text>
         <view class="srv"><z-icon name="dice" :size="13" color="#F2A7A7" /><text class="srv-t">{{ m.server }}</text></view>
       </view>
@@ -35,7 +35,7 @@
           <z-icon :name="m.autoApprove ? 'bolt' : 'user-check'" :size="13" :color="m.autoApprove ? '#3FCF84' : '#FFC53A'" />
           <text class="chip-t" :style="{ color: m.autoApprove ? '#3FCF84' : '#FFC53A' }">{{ m.autoApprove ? '自动通过' : '需审核' }}</text>
         </view>
-        <view v-for="t in m.tags || []" :key="t" class="chip chip-tag"><text>{{ t }}</text></view>
+        <view v-for="t in shownTags" :key="t.text" class="chip chip-tag" :class="{ 'chip-pending': t.pending }"><text>{{ t.text }}</text><text v-if="t.pending" class="chip-st">审核中</text></view>
       </view>
 
       <!-- 关键信息板：站牌风格，和房间页的翻牌钟一致 -->
@@ -142,7 +142,7 @@
         <view class="sec"><text class="st">驻场荷官</text><text class="sec-n">{{ m.dealers.length }} 位</text></view>
         <view class="hosts">
           <view v-for="d in m.dealers" :key="d.id" class="host">
-            <view class="av av-44" :style="'background:' + d.bg + ';color:' + d.fg"><text>{{ d.char }}</text></view>
+            <view class="av av-44 av-photo" :style="'background:' + d.bg + ';color:' + d.fg"><image v-if="d.photo" class="av-img" :src="d.photo" mode="aspectFill" /><text v-else>{{ d.char }}</text></view>
             <text class="host-n">{{ d.name }}</text>
             <text class="host-r host-r-dealer">{{ d.title }}</text>
           </view>
@@ -223,6 +223,7 @@ import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
 import { me, coverScenes, makeDemoMatch } from '@/mock/data.js'
 import { findPublicMatch } from '@/mock/plaza.js'
 import { TV_THEMES } from '@/mock/remote.js'
+import { tagOf, tagStatus } from '@/common/tags.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
 const nav = getNavMetrics()
@@ -341,6 +342,13 @@ function copyRoomCode() {
   uni.setClipboardData({ data: m.value.roomCode, success: () => toast('房间码已复制') })
 }
 const enterRoom = () => uni.navigateTo({ url: '/pages/room/index?id=' + m.value.id })
+// 主办方创建的比赛：邀请人头像带 V 标识
+const byHost = computed(() => !!m.value && m.value.creatorRole === 'host')
+// 标签：公开显示审核通过的；主办方视图里也能看到审核中的（标「审核中」）
+const shownTags = computed(() => ((m.value && m.value.tags) || []).map(tagOf)
+  .map((t) => ({ text: t.text, status: tagStatus(t) }))
+  .filter((t) => t.status === 'approved' || (isHost.value && t.status === 'pending'))
+  .map((t) => ({ text: t.text, pending: t.status === 'pending' })))
 // 主办方视图：现场配置一行（现场大屏、TV 主题、显示几项信息）
 const proLine = computed(() => {
   const x = m.value || {}
@@ -444,7 +452,7 @@ function leave() {
 /* 内容面板 */
 .sheet { position: relative; z-index: 1; margin-top: -56rpx; padding: 36rpx 32rpx 0; background: #181A20; border-radius: 56rpx 56rpx 0 0; }
 .inviter { display: flex; align-items: center; }
-.av { display: flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; border-radius: 50%; font-weight: 500; }
+.av { position: relative; display: flex; align-items: center; justify-content: center; flex: none; box-sizing: border-box; border-radius: 50%; font-weight: 500; }
 .av-28 { width: 56rpx; height: 56rpx; font-size: 24rpx; }
 .av-44 { width: 88rpx; height: 88rpx; font-size: 32rpx; }
 .av-30 { width: 60rpx; height: 60rpx; font-size: 24rpx; border: 4rpx solid #181A20; }
@@ -527,6 +535,11 @@ function leave() {
 .host-r-dealer { color: #9CA3AF; }
 .sec-n { font-size: 24rpx; color: #6B7280; }
 .chip-tag { background: #2A1216; color: #FF8A8A; }
+.chip-pending { background: rgba(255, 197, 58, .1); color: #FFC53A; }
+.chip-st { margin-left: 6rpx; font-size: 20rpx; }
+.av-v { position: absolute; right: -6rpx; bottom: -6rpx; width: 26rpx; height: 26rpx; box-sizing: border-box; border-radius: 50%; background: #DC0000; border: 3rpx solid #181A20; display: flex; align-items: center; justify-content: center; }
+.av-photo { overflow: hidden; }
+.av-img { width: 100%; height: 100%; }
 /* 规程 */
 .rl { margin-top: 28rpx; }
 .rl-h2 { margin-top: 20rpx; padding-left: 24rpx; }

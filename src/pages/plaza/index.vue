@@ -11,7 +11,7 @@
         <text class="h-title">广场</text>
       </view>
       <view class="h-stat">
-        <text class="h-num">{{ p2(publicMatches.length) }}</text>
+        <text class="h-num">{{ p2(featured.length) }}</text>
         <view class="h-stat-t"><text class="h-stat-a">场公开赛</text><text class="h-stat-b">正在报名，点开就能报名或进入</text></view>
       </view>
     </view>
@@ -36,7 +36,18 @@
         <swiper-item v-for="(mt, i) in featured" :key="mt.id">
           <view class="fm" :class="{ 'fm-cur': i === featIdx }" hover-class="fm-press" @tap="openMatch(mt)">
             <view class="fm-cover" :style="mt.coverStyle">
-              <view class="fm-line"><text class="fm-line-n">{{ mt.scene.name }}</text><text class="fm-line-t">{{ mt.scene.line }}</text></view>
+              <!-- 创建者：主办方创建的带 V 标识，还会显示审核通过的标签和驻场荷官 -->
+              <view class="by">
+                <view class="by-av" :style="'background:' + mt.creator.bg + ';color:' + mt.creator.fg"><text>{{ mt.creator.char }}</text><view v-if="mt.byHost" class="by-v"><z-icon name="letter-v" :size="7" :stroke="3.4" color="#FFFFFF" /></view></view>
+                <text class="by-n">{{ mt.creator.name }}</text>
+                <text class="by-r" :class="{ 'by-r-host': mt.byHost }">{{ mt.byHost ? '主办方' : '玩家发起' }}</text>
+              </view>
+              <view v-if="mt.pubTags.length" class="by-tags"><text v-for="t in mt.pubTags" :key="t" class="by-tag">{{ t }}</text></view>
+              <view v-if="mt.dealerFaces.length" class="by-dl">
+                <view v-for="(d, k) in mt.dealerFaces" :key="d.id" class="by-dl-av" :style="'background:' + d.bg + ';color:' + d.fg + ';z-index:' + (5 - k)"><image v-if="d.photo" class="by-dl-img" :src="d.photo" mode="aspectFill" /><text v-else>{{ d.char }}</text></view>
+                <text class="by-dl-t">驻场荷官</text>
+              </view>
+              <view class="fm-line" :class="{ 'fm-line-short': mt.dealerFaces.length }"><text class="fm-line-n">{{ mt.scene.name }}</text><text class="fm-line-t">{{ mt.scene.line }}</text></view>
               <view v-if="!mt.autoApprove" class="fm-flag"><z-icon name="user-check" :size="12" color="#FFC53A" /><text class="fm-flag-t">需审核</text></view>
             </view>
             <view class="fm-body">
@@ -97,7 +108,13 @@
 
           <view v-else class="mc">
             <view class="mc-hero" :style="it.feedCoverStyle">
-              <view class="mc-top"><text class="mc-srv">{{ it.server }}</text><z-icon name="arrow-up-right" :size="16" color="#FFFFFF" /></view>
+              <view class="mc-top">
+                <view class="mc-by">
+                  <view class="by-av by-av-s" :style="'background:' + it.creator.bg + ';color:' + it.creator.fg"><text>{{ it.creator.char }}</text><view v-if="it.byHost" class="by-v"><z-icon name="letter-v" :size="6" :stroke="3.4" color="#FFFFFF" /></view></view>
+                  <text class="mc-srv">{{ it.creator.name }}</text>
+                </view>
+                <z-icon name="arrow-up-right" :size="16" color="#FFFFFF" />
+              </view>
               <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name) }">{{ it.name }}</text>
               <text v-if="it.location" class="mc-loc">{{ it.location.name }}</text>
             </view>
@@ -167,7 +184,9 @@
 <script setup>
 import { requireLogin } from '@/common/auth.js'
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
+import { onLoad, onShow, onReady, onPageScroll, onPullDownRefresh, onReachBottom, onShareAppMessage, onUnload, onBackPress } from '@dcloudio/uni-app'
+import { listMatches } from '@/common/store.js'
+import { publicTags } from '@/common/tags.js'
 import { tabItems, tapTab } from '@/common/tabs.js'
 import { useCertState } from '@/common/cert.js'
 import ZIcon from '@/components/z-icon/z-icon.vue'
@@ -220,10 +239,23 @@ const decorate = (m) => {
     time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
     date: `${p2(d.getMonth() + 1)}/${p2(d.getDate())} 周${WEEK[d.getDay()]}`,
     signed,
-    pct: Math.min(100, Math.round((signed / m.cap) * 100))
+    pct: Math.min(100, Math.round((signed / m.cap) * 100)),
+    // 创建者的身份：主办方创建的带 V 标识，显示审核通过的标签和驻场荷官；玩家自己约的只显示创建者
+    byHost: m.creatorRole === 'host',
+    creator: creatorOf(m),
+    pubTags: publicTags(m.tags).slice(0, 2),
+    dealerFaces: (m.dealers || []).slice(0, 3)
   }
 }
-const featured = publicMatches.map(decorate)
+const creatorOf = (m) => m.creator || { name: (m.inviter && m.inviter.name) || '玩家', char: (m.inviter && m.inviter.c) || '玩', bg: (m.inviter && m.inviter.bg) || '#E4E9D8', fg: (m.inviter && m.inviter.fg) || '#3E5A1E' }
+// 正在报名：自己发布的公开比赛排在最前面，再加上广场上别人的比赛（主办方和玩家创建的都有）
+const featured = ref([])
+function loadFeatured() {
+  const mine = listMatches().filter((m) => m.isPublic && m.startAt > Date.now() - 6 * 3600000)
+  featured.value = mine.concat(publicMatches.filter((p) => !mine.some((x) => x.id === p.id))).map((m) => decorate({ participants: [], ...m }))
+}
+loadFeatured()
+onShow(loadFeatured)
 const featIdx = ref(0)
 const onFeat = (e) => { featIdx.value = e.detail.current }
 function openMatch(m) {
@@ -255,11 +287,11 @@ const loading = ref(false)
 const ended = ref(false)
 
 const feedItems = computed(() => {
-  if (cat.value === 1) return featured.slice()
+  if (cat.value === 1) return featured.value.slice()
   if (cat.value === 2) return posts.value.slice()
   // 全部：帖子为主，穿插海报广告和带封面的赛事卡片
   const out = []
-  const extraMatches = featured.slice(1)
+  const extraMatches = featured.value.slice(1)
   posts.value.forEach((p, i) => {
     out.push(p)
     if (i === 1 && ads[0]) out.push(ads[0])
@@ -532,6 +564,24 @@ function onNav(i) {
 .fm-cur { transform: scale(1); opacity: 1; }
 .fm-press { transform: scale(.97); }
 .fm-cover { position: relative; height: 232rpx; }
+/* 创建者：主办方带 V 标识 */
+.by { position: absolute; z-index: 2; left: 18rpx; top: 18rpx; height: 48rpx; padding: 0 16rpx 0 6rpx; border-radius: 999rpx; background: rgba(10, 10, 12, .55); display: flex; align-items: center; }
+.by-av { position: relative; width: 36rpx; height: 36rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18rpx; font-weight: 600; }
+.by-av-s { width: 32rpx; height: 32rpx; font-size: 16rpx; }
+.by-v { position: absolute; right: -8rpx; bottom: -6rpx; width: 22rpx; height: 22rpx; box-sizing: border-box; border-radius: 50%; background: #DC0000; border: 3rpx solid #121419; display: flex; align-items: center; justify-content: center; }
+.by-n { margin-left: 12rpx; font-size: 22rpx; font-weight: 500; color: #FFFFFF; }
+.by-r { margin-left: 10rpx; font-size: 20rpx; color: rgba(255, 255, 255, .6); }
+.by-r-host { color: #F4B740; }
+.by-tags { position: absolute; z-index: 2; left: 18rpx; top: 76rpx; display: flex; }
+.by-tag { margin-right: 8rpx; height: 36rpx; line-height: 36rpx; padding: 0 12rpx; border-radius: 8rpx; background: rgba(220, 0, 0, .78); font-size: 20rpx; color: #FFFFFF; }
+.by-dl { position: absolute; z-index: 2; right: 18rpx; bottom: 16rpx; height: 48rpx; padding: 0 14rpx 0 18rpx; border-radius: 999rpx; background: rgba(10, 10, 12, .55); display: flex; align-items: center; }
+.by-dl-av { position: relative; width: 36rpx; height: 36rpx; margin-left: -10rpx; border-radius: 50%; overflow: hidden; border: 2rpx solid rgba(255, 255, 255, .8); display: flex; align-items: center; justify-content: center; font-size: 16rpx; font-weight: 600; }
+.by-dl-img { width: 100%; height: 100%; }
+.by-dl-t { margin-left: 10rpx; font-size: 20rpx; color: rgba(255, 255, 255, .85); }
+.fm-line-short { max-width: 52%; overflow: hidden; }
+.fm-line-short .fm-line-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-by { display: flex; align-items: center; min-width: 0; }
+.mc-by .mc-srv { margin-left: 12rpx; }
 .fm-line { position: absolute; left: 20rpx; bottom: 20rpx; display: flex; align-items: center; padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(10, 10, 12, .55); }
 .fm-line-n { font-size: 22rpx; font-weight: 500; color: #FFFFFF; }
 .fm-line-t { margin-left: 12rpx; font-size: 22rpx; color: #E5E7EB; }

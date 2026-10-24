@@ -95,7 +95,7 @@
         <view v-for="(r, i) in form.rules" :key="r.id" class="fd rule" :class="r.level === 1 ? 'rule-h1' : 'rule-h2'">
           <view class="rule-top">
             <view class="rule-lv" hover-class="press" @tap="r.level = r.level === 1 ? 2 : 1"><text>{{ r.level === 1 ? '一级标题' : '二级标题' }}</text></view>
-            <input v-model="r.title" class="rule-title" :maxlength="fieldMax(r.title, 20)" placeholder="段落标题" placeholder-class="ph" />
+            <input v-model="r.title" class="rule-title" :maxlength="fieldMax(r.title, 20)" :focus="focusRule === r.id" :placeholder="r.level === 1 ? '一级标题' : '二级标题'" placeholder-class="ph" @blur="focusRule = ''" />
             <view v-if="i > 0" class="rule-act" hover-class="press" @tap="moveRule(i, -1)"><z-icon name="arrow-up" :size="14" color="#9CA3AF" /></view>
             <view v-if="i < form.rules.length - 1" class="rule-act" hover-class="press" @tap="moveRule(i, 1)"><z-icon name="arrow-down" :size="14" color="#9CA3AF" /></view>
             <view class="rule-act" hover-class="press" @tap="form.rules.splice(i, 1)"><z-icon name="x" :size="13" :stroke="2.5" color="#B86A6A" /></view>
@@ -103,10 +103,9 @@
           <textarea v-if="!overlayOpen" v-model="r.body" class="rule-body" auto-height :maxlength="fieldMax(r.body)" placeholder="正文" placeholder-class="ph" />
           <text v-else class="rule-body rule-body-static">{{ r.body || '正文' }}</text>
         </view>
-        <view class="snips">
-          <text class="snips-t">插入段落</text>
-          <view v-for="sn in RULE_SNIPPETS" :key="sn.key" class="snip" hover-class="press" @tap="addRule(sn)"><text>{{ sn.title }}</text></view>
-          <view class="snip" hover-class="press" @tap="addRule(null)"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="snip-t">空白段落</text></view>
+        <view class="rule-adds">
+          <view class="rule-add" hover-class="press" @tap="addRule(1)"><z-icon name="plus" :size="14" color="#FF6B6B" /><text class="rule-add-t">一级标题</text></view>
+          <view class="rule-add rule-add-2" hover-class="press" @tap="addRule(2)"><z-icon name="plus" :size="14" color="#9CA3AF" /><text class="rule-add-t">二级标题</text></view>
         </view>
       </block>
 
@@ -155,38 +154,93 @@
         <view class="sw" :class="{ 'sw-on': form.autoApprove }" @tap="form.autoApprove = !form.autoApprove"><view class="sw-knob"></view></view>
       </view>
 
-      <!-- 主办方 · 专业赛制配置：只有认证主办方看得到 -->
+      <!-- 主办方专属：只有认证主办方看得到；选中的内容直接显示在页面上 -->
       <block v-if="isHost">
-        <view class="more"><text class="lb">专业赛制配置</text><view class="pro-badge"><z-icon name="crown" :size="11" color="#F4B740" /><text class="pro-badge-t">主办方</text></view><view class="more-line"></view></view>
-        <view class="fd pro-list">
-          <view class="pro-row" hover-class="press-soft" @tap="openScreens">
-            <view class="pro-ic"><z-icon name="device-tv" :size="18" color="#FFFFFF" /></view>
-            <view class="pro-main"><text class="pro-t">现场大屏</text><text class="pro-s">{{ screensSummary }}</text></view>
-            <z-icon name="chevron-right" :size="16" color="#6B7280" />
-          </view>
-          <view class="pro-row" hover-class="press-soft" @tap="themeOpen = true">
-            <view class="pro-ic"><z-icon name="palette" :size="18" color="#FFFFFF" /></view>
-            <view class="pro-main"><text class="pro-t">房间 TV 主题</text><text class="pro-s">{{ themeSummary }}</text></view>
-            <z-icon name="chevron-right" :size="16" color="#6B7280" />
-          </view>
-          <view class="pro-row" hover-class="press-soft" @tap="dealersOpen = true">
-            <view class="pro-ic"><z-icon name="user-check" :size="18" color="#FFFFFF" /></view>
-            <view class="pro-main"><text class="pro-t">驻场荷官</text><text class="pro-s">{{ dealerSummary }}</text></view>
-            <view v-if="dealerPicked.length" class="pro-avs">
-              <view v-for="(d, k) in dealerPicked.slice(0, 3)" :key="d.id" class="pro-av" :style="'background:' + d.bg + ';color:' + d.fg + ';z-index:' + (3 - k)"><text>{{ d.char }}</text></view>
-            </view>
-            <z-icon name="chevron-right" :size="16" color="#6B7280" />
+        <view class="more"><text class="lb">主办方专属</text><view class="pro-badge"><z-icon name="crown" :size="11" color="#F4B740" /><text class="pro-badge-t">主办方</text></view><view class="more-line"></view></view>
+
+        <!-- 现场大屏：在抽屉栏里选，选中的大屏列在这里 -->
+        <view class="lb-row"><text class="lb">现场大屏</text><text class="lb-act" @tap="openScreens">{{ pickedScreens.length ? '调整' : '选择' }}</text></view>
+        <view v-for="d in pickedScreens" :key="d.id" class="scap scap-inline" :class="{ 'scap-off': !isOnline(d) }">
+          <view class="scap-cv"><z-fit-img :src="capCover(d).src" mode="aspectFill" :w="capCover(d).w" :h="capCover(d).h" :bg="capCover(d).tint" /></view>
+          <view class="scap-mask" :style="capMask(d)"></view>
+          <view class="scap-ic" :class="isOnline(d) ? 'scap-ic-on' : 'scap-ic-off'"><z-icon :name="isOnline(d) ? 'device-tv' : 'device-tv-off'" :size="18" :color="isOnline(d) ? '#4CB582' : '#FF8A8A'" /></view>
+          <view class="scap-main"><text class="scap-n">{{ d.name }}</text><text class="scap-s">{{ screenSub(d) }}</text></view>
+          <view class="scap-x" hover-class="press" @tap="toggleScreen(d)"><z-icon name="x" :size="14" :stroke="2.5" color="#FFFFFF" /></view>
+        </view>
+        <view v-if="!pickedScreens.length" class="fd add-box" hover-class="press-soft" @tap="openScreens">
+          <z-icon name="device-tv" :size="18" color="#9CA3AF" /><text class="add-box-t">选择开赛时显示计时器的大屏</text>
+        </view>
+
+        <!-- 房间 TV 主题：主题和显示的信息直接在这里选，上方是预览 -->
+        <view class="lb-row lb-gap"><text class="lb">房间 TV 主题</text><text class="count">显示 {{ form.tvTheme.dims.length }} 项信息</text></view>
+        <view class="tvp tvp-inline">
+          <text class="tvp-theme">{{ themeName }}</text>
+          <text class="tvp-time">18:42</text>
+          <view class="tvp-dims"><text v-for="d in shownDims" :key="d.key" class="tvp-dim">{{ d.name }}</text></view>
+        </view>
+        <view class="themes">
+          <view v-for="t in TV_THEMES" :key="t.key" class="thc" :class="{ 'thc-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
+            <text class="thc-n">{{ t.name }}</text><text class="thc-d">{{ t.desc }}</text>
           </view>
         </view>
+        <view class="dims dims-inline">
+          <view v-for="d in TV_DIMS" :key="d.key" class="dim" :class="{ 'dim-on': form.tvTheme.dims.includes(d.key), 'dim-fixed': d.fixed }" hover-class="press" @tap="toggleDim(d)">
+            <z-icon :name="d.fixed ? 'lock' : form.tvTheme.dims.includes(d.key) ? 'check' : 'plus'" :size="12" :stroke="2.5" :color="d.fixed ? '#6B7280' : form.tvTheme.dims.includes(d.key) ? '#FF6B6B' : '#9CA3AF'" />
+            <text class="dim-t">{{ d.name }}</text>
+          </view>
+        </view>
+
+        <!-- 驻场荷官：名牌墙（倾斜的封面流）。中间一张展开显示照片、头衔和经验，两侧的只露出竖排名字 -->
+        <view class="lb-row lb-gap"><text class="lb">驻场荷官</text><text class="lb-act" @tap="dealersOpen = true">{{ dealerPicked.length ? '添加 / 调整' : '添加' }}</text></view>
+        <view class="dw">
+          <swiper class="dw-sw" previous-margin="130rpx" next-margin="130rpx" :current="dwIdx" @change="onDw">
+            <swiper-item v-for="(d, i) in dwItems" :key="d.id">
+              <view class="dw-card" :class="{ 'dw-cur': i === dwIdx, 'dw-add': d.add }" @tap="tapDw(i, d)">
+                <view class="dw-skew" :style="d.add ? '' : 'background:' + (d.tone || d.bg)">
+                  <view class="dw-unskew">
+                    <block v-if="d.add">
+                      <z-icon name="plus" :size="26" color="#9CA3AF" />
+                      <text class="dw-add-t">添加荷官</text>
+                      <text class="dw-add-s">从工作台荷官名册选择</text>
+                    </block>
+                    <block v-else>
+                      <image v-if="d.photo" class="dw-img" :src="d.photo" mode="aspectFill" />
+                      <view v-else class="dw-ph" :style="'background:linear-gradient(160deg, ' + (d.tone || '#2A2D36') + ' 0%, #0E0F13 100%)'"><text class="dw-ph-c">{{ d.char }}</text></view>
+                      <view class="dw-shade"></view>
+                      <text class="dw-title">{{ d.title }}</text>
+                      <text class="dw-vname">{{ d.name }}</text>
+                      <view class="dw-info">
+                        <text class="dw-name">{{ d.name }}</text>
+                        <view class="dw-stats">
+                          <view class="dw-st"><text class="dw-st-v">{{ d.years }}</text><text class="dw-st-k">年经验</text></view>
+                          <view class="dw-st"><text class="dw-st-v">{{ i + 1 }}</text><text class="dw-st-k">号名牌</text></view>
+                          <text class="dw-tags">{{ (d.tags || []).join(' · ') }}</text>
+                        </view>
+                      </view>
+                      <view class="dw-btn" hover-class="press" @tap.stop="removeDealer(d)"><z-icon name="x" :size="12" :stroke="3" color="#0B0C10" /><text class="dw-btn-t">移出</text></view>
+                    </block>
+                  </view>
+                </view>
+              </view>
+            </swiper-item>
+          </swiper>
+        </view>
+        <text class="dw-hint">只作信息展示，不关联账号，也没有控场操作；左右滑动翻看</text>
+
+        <!-- 比赛标签：2 个预设 + 自定义；自定义的要审核，通过后才公开显示 -->
         <view class="lb-row lb-gap"><text class="lb">比赛标签</text><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
         <view class="tags">
-          <view v-for="t in tagChoices" :key="t" class="tg" :class="{ 'tg-on': form.tags.includes(t) }" hover-class="press" @tap="toggleTag(t)">
-            <text class="tg-t">{{ t }}</text>
-            <z-icon v-if="form.tags.includes(t)" name="check" :size="12" :stroke="2.5" color="#FF6B6B" />
+          <view v-for="t in tagChips" :key="t.text" class="tg" :class="['tg-' + t.state, { 'tg-on': t.on }]" hover-class="press" @tap="toggleTag(t)">
+            <z-icon v-if="t.state === 'pending'" name="hourglass" :size="12" color="#FFC53A" />
+            <text class="tg-t">{{ t.text }}</text>
+            <text v-if="t.state === 'pending'" class="tg-st">审核中</text>
+            <text v-else-if="t.state === 'rejected'" class="tg-st tg-st-bad">未通过</text>
+            <z-icon v-else-if="t.on" name="check" :size="12" :stroke="2.5" color="#FF6B6B" />
           </view>
           <view v-if="tagInput" class="tg tg-input"><input v-model="tagDraft" class="tg-in" :maxlength="TAG_MAX_LEN" focus confirm-type="done" placeholder="最多 6 个字" placeholder-class="ph" @confirm="commitTag" @blur="commitTag" /></view>
           <view v-else class="tg tg-add" hover-class="press" @tap="startTag"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="tg-t tg-add-t">自定义</text></view>
         </view>
+        <text class="tg-hint">自定义标签提交后要审核，通过后才会公开显示</text>
       </block>
     </view>
 
@@ -212,14 +266,6 @@
         <view class="sh-head">
           <text class="sh-title">盲注方案</text>
           <text class="sh-sub">{{ schemes.length }}/{{ maxSlots }}</text>
-        </view>
-        <view v-if="isHost" class="pre">
-          <text class="pre-t">工作台预设</text>
-          <scroll-view scroll-x class="pre-scroll"><view class="pre-row">
-            <view v-for="pr in BLIND_PRESETS" :key="pr.id" class="pre-c" :class="{ 'pre-on': form.blindId === pr.id }" hover-class="press-soft" @tap="chooseScheme(pr.id)">
-              <text class="pre-n">{{ pr.name }}</text><text class="pre-d">{{ pr.desc }}</text>
-            </view>
-          </view></scroll-view>
         </view>
         <scroll-view scroll-y class="tiles-scroll" :class="{ 'tiles-scroll-host': isHost }"><view class="tiles">
           <view v-for="t in schemeTiles" :key="t.id" class="tile" :class="{ 'tile-on': t.on }" hover-class="press-soft" @tap="chooseScheme(t.id)" @longpress="schemeActions(t)">
@@ -359,35 +405,6 @@
       </view>
     </view>
 
-    <!-- 房间 TV 主题：视觉主题 + 显示的信息 -->
-    <view v-if="themeOpen" class="ov">
-      <view class="mask" @tap="themeOpen = false" @touchmove.stop.prevent="noop"></view>
-      <view class="sheet sheet-pro">
-        <view class="grab"></view>
-        <view class="sh-head"><text class="sh-title">房间 TV 主题</text><text class="sh-sub">大屏计时器的样式和信息</text></view>
-        <view class="tvp">
-          <text class="tvp-theme">{{ themeName }}</text>
-          <text class="tvp-time">18:42</text>
-          <view class="tvp-dims">
-            <text v-for="d in shownDims" :key="d.key" class="tvp-dim">{{ d.name }}</text>
-          </view>
-        </view>
-        <view class="themes">
-          <view v-for="t in TV_THEMES" :key="t.key" class="thc" :class="{ 'thc-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
-            <text class="thc-n">{{ t.name }}</text><text class="thc-d">{{ t.desc }}</text>
-          </view>
-        </view>
-        <text class="sh-sec">显示的信息</text>
-        <view class="dims">
-          <view v-for="d in TV_DIMS" :key="d.key" class="dim" :class="{ 'dim-on': form.tvTheme.dims.includes(d.key), 'dim-fixed': d.fixed }" hover-class="press" @tap="toggleDim(d)">
-            <z-icon :name="d.fixed ? 'lock' : form.tvTheme.dims.includes(d.key) ? 'check' : 'plus'" :size="12" :stroke="2.5" :color="d.fixed ? '#6B7280' : form.tvTheme.dims.includes(d.key) ? '#FF6B6B' : '#9CA3AF'" />
-            <text class="dim-t">{{ d.name }}</text>
-          </view>
-        </view>
-        <view class="sh-done" hover-class="press" @tap="themeOpen = false"><text class="sh-done-t">完成</text></view>
-      </view>
-    </view>
-
     <!-- 驻场荷官：从工作台的荷官名册里添加，只作信息展示 -->
     <view v-if="dealersOpen" class="ov">
       <view class="mask" @tap="dealersOpen = false" @touchmove.stop.prevent="noop"></view>
@@ -396,7 +413,7 @@
         <view class="sh-head"><text class="sh-title">驻场荷官</text><text class="sh-sub">已选 {{ form.dealers.length }} 位</text></view>
         <scroll-view scroll-y class="pro-scroll">
           <view v-for="d in dealerList" :key="d.id" class="dlr" :class="{ 'dlr-on': form.dealers.includes(d.id) }" hover-class="press-soft" @tap="toggleDealer(d)">
-            <view class="dlr-av" :style="'background:' + d.bg + ';color:' + d.fg"><text>{{ d.char }}</text></view>
+            <view class="dlr-av" :style="'background:' + d.bg + ';color:' + d.fg"><image v-if="d.photo" class="dlr-img" :src="d.photo" mode="aspectFill" /><text v-else>{{ d.char }}</text></view>
             <view class="dlr-main">
               <view class="dlr-top"><text class="dlr-n">{{ d.name }}</text><text class="dlr-title">{{ d.title }}</text></view>
               <text class="dlr-s">从业 {{ d.years }} 年 · {{ d.tags.join(' / ') }}</text>
@@ -418,15 +435,6 @@
           <text class="sh-sub md-sub">{{ templates.length }}/{{ maxSlots }}</text>
           <view class="md-close" hover-class="press" @tap="tplOpen = false"><z-icon name="x" :size="16" color="#9CA3AF" /></view>
         </view>
-        <view v-if="isHost" class="pre pre-md">
-          <text class="pre-t">工作台预设</text>
-          <scroll-view scroll-x class="pre-scroll"><view class="pre-row">
-            <view v-for="pr in MATCH_PRESETS" :key="pr.id" class="pre-c pre-c-tpl" hover-class="press-soft" @tap="applyPreset(pr)">
-              <view class="pre-cover" :style="presetCover(pr)"></view>
-              <text class="pre-n">{{ pr.name }}</text><text class="pre-d">{{ pr.data.tags.join(' · ') }}</text>
-            </view>
-          </view></scroll-view>
-        </view>
         <scroll-view scroll-y class="tiles-scroll" :class="{ 'tiles-scroll-host': isHost }"><view class="tiles">
           <view v-for="t in templateTiles" :key="t.id" class="tile tpl" hover-class="press-soft" @tap="applyTemplate(t.id)" @longpress="templateActions(t)">
             <view class="tpl-cover" :style="t.bg"></view>
@@ -447,7 +455,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import { getAuth } from '@/common/auth.js'
@@ -459,7 +467,8 @@ import { listDevices, isOnline } from '@/common/devices.js'
 import { listDealers, dealerSnapshot } from '@/common/dealers.js'
 import { liveOf, contentCover } from '@/common/screens.js'
 import { TV_THEMES } from '@/mock/remote.js'
-import { SLOTS, INTRO_MAX, TV_DIMS, DEFAULT_DIMS, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN, RULE_SNIPPETS, BLIND_PRESETS, MATCH_PRESETS } from '@/mock/pro.js'
+import { SLOTS, INTRO_MAX, TV_DIMS, DEFAULT_DIMS, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN } from '@/mock/pro.js'
+import { tagOf, newTag, tagStatus, tagProblem, TAG_REVIEW_MS } from '@/common/tags.js'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
@@ -524,7 +533,7 @@ onLoad((q) => {
   if (q && q.open === 'schemes') setTimeout(() => { tplOpen.value = true }, 350)
   if (isHost.value) loadDevices()
 })
-const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || screensOpen.value || themeOpen.value || dealersOpen.value)
+const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || screensOpen.value || dealersOpen.value)
 
 const coverInfo = computed(() => coverScenes.find((c) => c.key === form.cover) || coverScenes[0])
 function pickScene(key) {
@@ -643,11 +652,10 @@ const startOf = (rows) => {
   const f = levelsOf(rows)[0]
   return f ? [fmtNum(f.sb), fmtNum(f.bb)] : ['—', '—']
 }
-// 工作台预设的盲注结构可以直接调用（只有主办方有）
-const schemeById = (id) => schemes.value.find((s) => s.id === id) || (isHost.value ? BLIND_PRESETS.find((s) => s.id === id) : null)
+const schemeById = (id) => schemes.value.find((s) => s.id === id)
 const currentScheme = computed(() => schemeById(form.blindId))
 const blindSummary = computed(() =>
-  currentScheme.value ? `${currentScheme.value.preset ? '预设 · ' : ''}${levelsOf(currentScheme.value.rows).length} 级，${startOf(currentScheme.value.rows).join('/')} 起` : '选择或新建方案')
+  currentScheme.value ? `${levelsOf(currentScheme.value.rows).length} 级，${startOf(currentScheme.value.rows).join('/')} 起` : '选择或新建方案')
 const schemeTiles = computed(() => schemes.value.map((s) => ({
   id: s.id, name: s.name, start: startOf(s.rows), count: levelsOf(s.rows).length, on: s.id === form.blindId
 })))
@@ -755,6 +763,8 @@ function applyTemplate(id) {
   const t = templates.value.find((x) => x.id === id)
   if (!t) return
   Object.assign(form, proDefaults(), clone(t.data), { coverImage: '' })
+  form.tags = (form.tags || []).map(tagOf)
+  watchReview()
   if (!schemeById(form.blindId)) form.blindId = schemes.value.length ? schemes.value[0].id : ''
   hosts.value = clone(t.hosts || [])
   tplOpen.value = false
@@ -786,7 +796,6 @@ function templateActions(t) {
 
 /* ---------- 主办方 · 专业赛制配置 ---------- */
 const screensOpen = ref(false)
-const themeOpen = ref(false)
 const dealersOpen = ref(false)
 const devices = ref([])
 const dealerList = ref(listDealers())
@@ -802,10 +811,7 @@ function toggleList(list, id) {
   else list.push(id)
 }
 const toggleScreen = (d) => toggleList(form.screens, d.id)
-const screensSummary = computed(() => {
-  const picked = form.screens.map((id) => devices.value.find((d) => d.id === id)).filter(Boolean)
-  return picked.length ? `${picked.length} 台：${picked.map((d) => d.name).join('、')}` : '选择开赛时显示计时器的大屏'
-})
+const pickedScreens = computed(() => form.screens.map((id) => devices.value.find((d) => d.id === id)).filter(Boolean))
 const screenSub = (d) => {
   if (!isOnline(d)) return '离线 · 联网后生效'
   return '在线' + (d.resolution ? ` · ${d.resolution.w}×${d.resolution.h}` : '')
@@ -824,7 +830,6 @@ const capMask = (d) => {
 }
 // TV 主题：视觉主题 + 显示的信息（计时器的核心信息一直显示）
 const themeName = computed(() => (TV_THEMES.find((t) => t.key === form.tvTheme.key) || {}).name || '')
-const themeSummary = computed(() => `${themeName.value} · 显示 ${form.tvTheme.dims.length} 项信息`)
 const shownDims = computed(() => TV_DIMS.filter((d) => form.tvTheme.dims.includes(d.key)))
 function toggleDim(d) {
   if (d.fixed) return toast('级别、倒计时和盲注是计时器的核心，一直显示')
@@ -833,64 +838,105 @@ function toggleDim(d) {
 // 驻场荷官
 const toggleDealer = (d) => toggleList(form.dealers, d.id)
 const dealerPicked = computed(() => form.dealers.map((id) => dealerList.value.find((d) => d.id === id)).filter(Boolean))
-const dealerSummary = computed(() => (dealerPicked.value.length ? dealerPicked.value.map((d) => d.name).join('、') : '从荷官名册里添加，只作信息展示'))
+// 名牌墙：选中的荷官 + 最后一张「添加荷官」
+const dwIdx = ref(0)
+const dwItems = computed(() => dealerPicked.value.concat([{ id: 'add', add: true }]))
+const onDw = (e) => { dwIdx.value = e.detail.current }
+function tapDw(i, d) {
+  if (i !== dwIdx.value) { dwIdx.value = i; return }
+  if (d.add) dealersOpen.value = true
+}
+function removeDealer(d) {
+  uni.showModal({
+    title: `把「${d.name}」移出驻场名单？`,
+    content: '只是这场比赛不再展示，荷官名册里的信息不受影响。',
+    confirmText: '移出',
+    confirmColor: '#DC0000',
+    success: ({ confirm }) => {
+      if (!confirm) return
+      toggleList(form.dealers, d.id)
+      dwIdx.value = Math.min(dwIdx.value, Math.max(0, dwItems.value.length - 1))
+    }
+  })
+}
 // 比赛标签：预设 + 自定义，选中的排在前面
 const tagInput = ref(false)
 const tagDraft = ref('')
-const tagChoices = computed(() => form.tags.concat(TAG_PRESETS.filter((t) => !form.tags.includes(t))))
+// 审核中的标签：每秒刷新一次状态，审核完自动变成已通过
+const nowTick = ref(Date.now())
+let reviewTimer = null
+onUnload(() => clearInterval(reviewTimer))
+function watchReview() {
+  clearInterval(reviewTimer)
+  if (!form.tags.some((t) => tagStatus(t) === 'pending')) return
+  reviewTimer = setInterval(() => {
+    nowTick.value = Date.now()
+    if (!form.tags.some((t) => tagStatus(t, nowTick.value) === 'pending')) {
+      clearInterval(reviewTimer)
+      toast('自定义标签已通过审核')
+    }
+  }, 1000)
+}
+// 标签：选中的（带审核状态）排在前面，后面是没选的预设
+const tagChips = computed(() => {
+  const now = nowTick.value
+  const picked = form.tags.map(tagOf).map((t) => ({ text: t.text, on: true, state: tagStatus(t, now) }))
+  const rest = TAG_PRESETS.filter((p) => !picked.some((t) => t.text === p)).map((p) => ({ text: p, on: false, state: 'approved' }))
+  return picked.concat(rest)
+})
 function toggleTag(t) {
-  const i = form.tags.indexOf(t)
+  const i = form.tags.findIndex((x) => tagOf(x).text === t.text)
   if (i >= 0) return form.tags.splice(i, 1)
   if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
-  form.tags.push(t)
+  form.tags.push(newTag(t.text))
 }
 function startTag() {
   if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
   tagDraft.value = ''
   tagInput.value = true
 }
+// 自定义标签：本地先检查（不通过的直接说明原因，不加入）；通过的进入审核
 function commitTag() {
   if (!tagInput.value) return // 「完成」和失去焦点都会触发，只处理一次
   tagInput.value = false
   const t = tagDraft.value.trim()
   tagDraft.value = ''
   if (!t) return
-  if (form.tags.includes(t)) return toast('已经有这个标签了')
+  if (form.tags.some((x) => tagOf(x).text === t)) return toast('已经有这个标签了')
   if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
-  form.tags.push(t)
+  const problem = tagProblem(t)
+  if (problem) return uni.showModal({ title: `「${t}」没有通过审核`, content: problem + '，换一个说法试试。', showCancel: false, confirmText: '知道了' })
+  form.tags.push(newTag(t))
+  if (!TAG_PRESETS.includes(t)) {
+    toast(`「${t}」已提交审核，约 ${Math.round(TAG_REVIEW_MS / 1000)} 秒`)
+    watchReview()
+  }
 }
 // 介绍与规程：介绍和各段落合计不超过上限（主办方 1000 字）；每个输入框的上限 = 自己现有的字数 + 还剩的字数
 const introMax = computed(() => (isHost.value ? INTRO_MAX.host : INTRO_MAX.user))
 const introUsed = computed(() => form.intro.length + (isHost.value ? form.rules.reduce((n, r) => n + r.title.length + r.body.length, 0) : 0))
 const fieldMax = (text, cap = 1000) => Math.min(cap, text.length + Math.max(0, introMax.value - introUsed.value))
 let ruleSeq = 1
-function addRule(sn) {
-  const room = introMax.value - introUsed.value
-  if (room <= 0) return toast(`已经写满 ${introMax.value} 字了`)
-  const title = sn ? sn.title.slice(0, room) : ''
-  const body = sn ? sn.body.slice(0, Math.max(0, room - title.length)) : ''
-  form.rules.push({ id: 'r' + Date.now() + '-' + ruleSeq++, level: sn ? sn.level : 2, title, body })
+const focusRule = ref('')
+function addRule(level) {
+  if (introMax.value - introUsed.value <= 0) return toast(`已经写满 ${introMax.value} 字了`)
+  const id = 'r' + Date.now() + '-' + ruleSeq++
+  form.rules.push({ id, level, title: '', body: '' })
+  focusRule.value = ''
+  nextTick(() => { focusRule.value = id })
 }
 function moveRule(i, step) {
   const [r] = form.rules.splice(i, 1)
   form.rules.splice(i + step, 0, r)
 }
-// 工作台预设的赛事配置方案：一键套用（日期不变，共同主持不变）
-function applyPreset(pr) {
-  Object.assign(form, proDefaults(), clone(pr.data), { coverImage: '' })
-  form.rules = form.rules.map((r) => ({ ...r, id: 'r' + Date.now() + '-' + ruleSeq++ }))
-  tplOpen.value = false
-  toast(`已套用预设「${pr.name}」`)
-}
-const presetCover = (pr) => coverStyle(pr.data.cover, 'wide')
-// 把当前盲注结构（比如工作台预设）另存到自己的方案存档里，之后可以再改
+// 把当前盲注结构另存为一份新模板（复制一份到方案存档里），之后可以单独改
 function saveSchemeAs() {
   const src = currentScheme.value
   if (!src) return
   if (schemes.value.length >= maxSlots.value) return toast(`最多保存 ${maxSlots.value} 个方案，先长按删除一个`)
   const used = schemes.value.map((s) => s.name)
-  let name = src.preset ? src.name : src.name + ' 副本'
-  for (let k = 2; used.includes(name); k++) name = (src.preset ? src.name : src.name + ' 副本') + ' ' + k
+  let name = src.name + ' 副本'
+  for (let k = 2; used.includes(name); k++) name = src.name + ' 副本 ' + k
   const copy = { id: 'b' + Date.now(), name: name.slice(0, 8), rows: clone(src.rows).map(({ k, ...r }) => r) }
   schemes.value = schemes.value.concat([copy])
   persistSchemes()
@@ -1002,9 +1048,12 @@ function buildMatch() {
       .map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' }))),
     participants: [meP],
     createdAt: Date.now(),
+    // 创建者的身份：广场上主办方创建的比赛带 V 标识
+    creatorRole: isHost.value ? 'host' : 'player',
+    creator: { name: me.nickname, char: me.char, bg: '#F1E4D3', fg: '#8A1C1C', role: isHost.value ? 'host' : 'player' },
     // 主办方专业配置：标签、TV 主题和信息、现场大屏、驻场荷官（快照）、规程段落
     ...(isHost.value ? {
-      tags: form.tags.slice(),
+      tags: form.tags.map(tagOf),
       tvTheme: clone(form.tvTheme),
       screens: form.screens.slice(),
       dealers: dealerPicked.value.map(dealerSnapshot),
@@ -1189,22 +1238,15 @@ function onPublish() {
 .rule-act { width: 48rpx; height: 48rpx; margin-left: 6rpx; flex: none; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }
 .rule-body { display: block; width: 100%; min-height: 72rpx; margin-top: 12rpx; font-size: 26rpx; line-height: 1.6; color: #D1D5DB; }
 .rule-body-static { white-space: pre-wrap; }
-.snips { margin-top: 16rpx; display: flex; flex-wrap: wrap; align-items: center; }
-.snips-t { margin-right: 12rpx; font-size: 22rpx; color: #6B7280; }
-.snip { height: 52rpx; margin: 6rpx 12rpx 6rpx 0; padding: 0 18rpx; border-radius: 999rpx; background: #262A34; border: 1rpx dashed #4A4D57; display: flex; align-items: center; font-size: 22rpx; color: #E5E7EB; }
-.snip-t { margin-left: 4rpx; }
+.rule-adds { margin-top: 16rpx; display: flex; }
+.rule-add { height: 64rpx; margin-right: 16rpx; padding: 0 24rpx; border-radius: 999rpx; border: 2rpx dashed rgba(220, 0, 0, .5); display: flex; align-items: center; }
+.rule-add-2 { border-color: #4A4D57; }
+.rule-add-t { margin-left: 6rpx; font-size: 24rpx; color: #E5E7EB; }
 
-/* 主办方 · 专业赛制配置 */
+/* 主办方专属 */
 .pro-badge { margin-left: 12rpx; height: 36rpx; padding: 0 12rpx; border-radius: 999rpx; background: rgba(244, 183, 64, .14); display: flex; align-items: center; }
 .pro-badge-t { margin-left: 4rpx; font-size: 20rpx; color: #F4B740; }
-.pro-list { margin-top: 20rpx; padding: 4rpx 0; }
-.pro-row { min-height: 112rpx; padding: 16rpx 24rpx; box-sizing: border-box; display: flex; align-items: center; }
-.pro-ic { width: 64rpx; height: 64rpx; flex: none; border-radius: 18rpx; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
-.pro-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; display: flex; flex-direction: column; }
-.pro-t { font-size: 28rpx; font-weight: 500; color: #FFFFFF; }
-.pro-s { margin-top: 4rpx; font-size: 22rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pro-avs { display: flex; margin-right: 12rpx; }
-.pro-av { position: relative; width: 44rpx; height: 44rpx; margin-left: -12rpx; border-radius: 50%; border: 3rpx solid #1F222A; display: flex; align-items: center; justify-content: center; font-size: 20rpx; font-weight: 600; }
+.lb-act { font-size: 24rpx; color: #FF6B6B; }
 .tags { margin-top: 16rpx; display: flex; flex-wrap: wrap; }
 .tg { height: 60rpx; margin: 0 14rpx 14rpx 0; padding: 0 22rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
 .tg-on { background: #2A1216; border-color: rgba(220, 0, 0, .55); }
@@ -1214,6 +1256,50 @@ function onPublish() {
 .tg-add-t { margin-left: 6rpx; margin-right: 0; color: #9CA3AF; }
 .tg-input { width: 220rpx; border-color: #DC0000; }
 .tg-in { width: 100%; height: 56rpx; font-size: 24rpx; color: #FFFFFF; }
+.tg-pending { background: rgba(255, 197, 58, .08); border-color: rgba(255, 197, 58, .45); }
+.tg-rejected { background: rgba(255, 107, 107, .08); border-color: rgba(255, 107, 107, .4); }
+.tg-rejected .tg-t { text-decoration: line-through; color: #9CA3AF; }
+.tg-st { margin-left: 4rpx; font-size: 20rpx; color: #FFC53A; }
+.tg-st-bad { color: #FF6B6B; }
+.tg-pending .tg-t { margin-left: 6rpx; }
+.tg-hint { display: block; margin-top: 2rpx; font-size: 22rpx; color: #6B7280; }
+.add-box { margin-top: 16rpx; height: 104rpx; border: 2rpx dashed #3A3D46; display: flex; align-items: center; justify-content: center; }
+.add-box-t { margin-left: 10rpx; font-size: 26rpx; color: #9CA3AF; }
+.scap-inline { margin: 16rpx 0 0; }
+.scap-x { position: relative; width: 52rpx; height: 52rpx; flex: none; border-radius: 50%; background: rgba(10, 10, 12, .45); display: flex; align-items: center; justify-content: center; }
+.tvp-inline { margin-top: 16rpx; }
+.dims-inline { margin-top: 18rpx; }
+/* 驻场荷官名牌墙：倾斜的封面流（中间一张展开，两侧的只露出竖排名字） */
+.dw { margin: 16rpx -32rpx 0; padding: 12rpx 0; background: linear-gradient(180deg, #0E0F13, #15161C); }
+.dw-sw { height: 420rpx; }
+.dw-card { height: 100%; padding: 14rpx 0; box-sizing: border-box; transform: scale(.84); opacity: .55; transition: transform .35s ease, opacity .35s ease; }
+.dw-cur { transform: scale(1); opacity: 1; }
+.dw-skew { position: relative; height: 100%; margin: 0 26rpx; overflow: hidden; border-radius: 10rpx; transform: skewX(-10deg); background: #1F222A; box-shadow: 0 20rpx 40rpx rgba(0, 0, 0, .5); }
+.dw-cur .dw-skew { box-shadow: 0 0 0 3rpx rgba(255, 255, 255, .85), 0 24rpx 50rpx rgba(0, 0, 0, .55); }
+.dw-unskew { position: absolute; left: -16%; right: -16%; top: 0; bottom: 0; transform: skewX(10deg); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.dw-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.dw-ph { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; }
+.dw-ph-c { position: absolute; right: 14%; top: 4%; font-size: 260rpx; font-weight: 900; line-height: 1; color: rgba(255, 255, 255, .14); }
+.dw-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .78)); }
+.dw-title { position: absolute; right: 18%; top: 22rpx; font-size: 28rpx; font-weight: 600; letter-spacing: 2rpx; color: #FFFFFF; text-shadow: 0 2rpx 10rpx rgba(0, 0, 0, .55); }
+.dw-info { position: absolute; left: 18%; right: 18%; bottom: 22rpx; }
+.dw-name { display: block; font-size: 40rpx; font-weight: 800; color: #FFFFFF; text-shadow: 0 2rpx 12rpx rgba(0, 0, 0, .6); }
+.dw-stats { margin-top: 8rpx; display: flex; align-items: flex-end; }
+.dw-st { margin-right: 24rpx; display: flex; flex-direction: column; align-items: center; }
+.dw-st-v { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 34rpx; line-height: 1; color: #FFFFFF; }
+.dw-st-k { margin-top: 2rpx; font-size: 16rpx; color: rgba(255, 255, 255, .7); }
+.dw-tags { flex: 1; min-width: 0; padding-bottom: 2rpx; font-size: 20rpx; color: rgba(255, 255, 255, .8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-btn { position: absolute; right: 16%; bottom: 0; height: 64rpx; padding: 0 26rpx 0 34rpx; background: #FFFFFF; transform: skewX(-10deg); display: flex; align-items: center; }
+.dw-btn-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 700; letter-spacing: 4rpx; color: #0B0C10; }
+.dw-vname { position: absolute; left: 50%; top: 50%; font-size: 40rpx; font-weight: 300; letter-spacing: 6rpx; color: rgba(255, 255, 255, .85); transform: translate(-50%, -50%) rotate(-78deg); white-space: nowrap; opacity: 0; transition: opacity .3s ease; }
+.dw-card .dw-info, .dw-card .dw-btn, .dw-card .dw-title { opacity: 0; transition: opacity .3s ease; }
+.dw-cur .dw-info, .dw-cur .dw-btn, .dw-cur .dw-title { opacity: 1; }
+.dw-card .dw-vname { opacity: 1; }
+.dw-cur .dw-vname { opacity: 0; }
+.dw-add .dw-skew { background: #17181D; box-shadow: inset 0 0 0 2rpx #3A3D46; }
+.dw-add-t { margin-top: 12rpx; font-size: 28rpx; font-weight: 600; color: #E5E7EB; }
+.dw-add-s { margin-top: 6rpx; font-size: 20rpx; color: #6B7280; }
+.dw-hint { display: block; margin-top: 12rpx; font-size: 22rpx; color: #6B7280; }
 
 /* 专业配置的弹层 */
 .sheet-pro { max-height: 86vh; display: flex; flex-direction: column; }
@@ -1258,24 +1344,15 @@ function onPublish() {
 .dlr { display: flex; align-items: center; padding: 18rpx 8rpx; border-bottom: 1rpx solid #2E313A; }
 .dlr-av { width: 80rpx; height: 80rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30rpx; font-weight: 700; }
 .dlr-on .dlr-av { box-shadow: 0 0 0 4rpx #DC0000; }
+.dlr-av { overflow: hidden; }
+.dlr-img { width: 100%; height: 100%; }
 .dlr-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; }
 .dlr-top { display: flex; align-items: baseline; }
 .dlr-n { font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
 .dlr-title { margin-left: 12rpx; font-size: 22rpx; color: #F4B740; }
 .dlr-s { display: block; margin-top: 6rpx; font-size: 22rpx; color: #9CA3AF; }
 
-/* 工作台预设 + 12 格方案存档（3×4，多了就滚动） */
-.pre { margin: 0 0 20rpx; }
-.pre-md { padding: 0 8rpx; }
-.pre-t { display: block; margin-bottom: 12rpx; font-size: 22rpx; color: #F4B740; }
-.pre-scroll { white-space: nowrap; }
-.pre-row { display: inline-flex; }
-.pre-c { width: 218rpx; height: 112rpx; margin-right: 16rpx; padding: 16rpx 14rpx; box-sizing: border-box; border-radius: 22rpx; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(244, 183, 64, .28); display: inline-flex; flex-direction: column; justify-content: center; white-space: normal; }
-.pre-on { background: #2A1216; box-shadow: inset 0 0 0 3rpx #DC0000; }
-.pre-c-tpl { width: 240rpx; height: 176rpx; padding: 12rpx; justify-content: flex-start; }
-.pre-cover { width: 100%; height: 72rpx; border-radius: 14rpx; background-size: cover; background-position: right center; }
-.pre-n { margin-top: 6rpx; font-size: 26rpx; font-weight: 600; color: #FFFFFF; }
-.pre-d { margin-top: 4rpx; font-size: 19rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 12 格方案存档（3×4，多了就滚动） */
 .tiles-scroll { max-height: none; }
 .tiles-scroll-host { max-height: 760rpx; }
 .saveas { margin-top: 16rpx; height: 72rpx; border-radius: 999rpx; border: 1rpx dashed rgba(220, 0, 0, .5); display: flex; align-items: center; justify-content: center; }
