@@ -12,11 +12,12 @@
       <text class="lb">比赛封面</text>
       <view class="cv">
         <image v-if="form.coverImage" class="cv-fill" :src="form.coverImage" mode="aspectFill" />
-        <view v-else class="cv-fill cv-art" :style="coverStyle(form.cover, 'banner')"></view>
+        <view v-else-if="form.cover" class="cv-fill cv-art" :style="coverStyle(form.cover, 'banner')"></view>
+        <view v-else class="cv-fill cv-ph"><z-icon name="photo" :size="26" color="#4B5060" /><text class="cv-ph-t">选一张下面的插画，或者上传自己的封面</text></view>
       </view>
       <view class="cv-cap">
-        <text class="cv-name">{{ form.coverImage ? '自定义封面' : coverInfo.name }}</text>
-        <text class="cv-line">{{ form.coverImage ? '点下面的场景可以换回插画' : coverInfo.line }}</text>
+        <text class="cv-name">{{ form.coverImage ? '自定义封面' : form.cover ? coverInfo.name : '未选择封面' }}</text>
+        <text class="cv-line">{{ form.coverImage ? '点下面的场景可以换回插画' : form.cover ? coverInfo.line : '也可以点底部的「方案」，一键填好整张表' }}</text>
       </view>
       <view class="strip">
         <view
@@ -41,10 +42,27 @@
         <text class="count">{{ form.name.length }}/20</text>
       </view>
 
+      <block v-if="isHost">
+        <!-- 比赛标签（主办方）：2 个预设 + 自定义；自定义的要审核，通过后才公开显示 -->
+        <view class="lb-row lb-gap"><view class="lb-v"><text class="lb">比赛标签</text><view class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
+        <view class="tags">
+          <view v-for="t in tagChips" :key="t.text" class="tg" :class="['tg-' + t.state, { 'tg-on': t.on }]" hover-class="press" @tap="toggleTag(t)">
+            <z-icon v-if="t.state === 'pending'" name="hourglass" :size="12" color="#FFC53A" />
+            <text class="tg-t">{{ t.text }}</text>
+            <text v-if="t.state === 'pending'" class="tg-st">审核中</text>
+            <text v-else-if="t.state === 'rejected'" class="tg-st tg-st-bad">未通过</text>
+            <z-icon v-else-if="t.on" name="check" :size="12" :stroke="2.5" color="#FF6B6B" />
+          </view>
+          <view v-if="tagInput" class="tg tg-input"><input v-model="tagDraft" class="tg-in" :maxlength="TAG_MAX_LEN" focus confirm-type="done" placeholder="最多 6 个字" placeholder-class="ph" @confirm="commitTag" @blur="commitTag" /></view>
+          <view v-else class="tg tg-add" hover-class="press" @tap="startTag"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="tg-t tg-add-t">自定义</text></view>
+        </view>
+        <text class="tg-hint">自定义标签提交后要审核，通过后才会公开显示</text>
+      </block>
+
       <!-- 盲注结构 / 日期 / 人数上限 -->
       <view class="row3">
         <view class="col-blind">
-          <text class="lb">盲注结构</text>
+          <view class="lb-v"><text class="lb">盲注结构</text><view v-if="isHost" class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view>
           <view class="fd field" hover-class="press-soft" @tap="picker = true">
             <view class="field-main">
               <text class="field-v">{{ currentScheme ? currentScheme.name : '未选择' }}</text>
@@ -56,14 +74,14 @@
         <view class="col-date">
           <text class="lb">日期</text>
           <view class="fd field field-col" hover-class="press-soft" @tap="openDate">
-            <text class="field-s">{{ dateText.day }}</text>
-            <text class="field-v">{{ dateText.time }}</text>
+            <text class="field-s" :class="{ 'field-ph': form.dayIdx < 0 }">{{ dateText.day }}</text>
+            <text class="field-v" :class="{ 'field-ph': form.hour < 0 }">{{ dateText.time }}</text>
           </view>
         </view>
         <view class="col-cap">
           <text class="lb">人数上限</text>
           <view class="fd field field-cap" hover-class="press-soft" @tap="openCap">
-            <text class="cap-v">{{ form.cap }}</text>
+            <text class="cap-v" :class="{ 'cap-ph': !form.cap }">{{ form.cap || '--' }}</text>
             <text class="cap-u">人</text>
           </view>
         </view>
@@ -80,10 +98,42 @@
         <z-icon name="chevron-right" :size="16" color="#6B7280" />
       </view>
 
+      <block v-if="isHost">
+        <!-- 现场大屏：每台电视一个灰色图标，横着排、放不下就换行；第一行以外的折叠起来，点「展开更多」再显示。点图标选中，选中的亮起来 -->
+        <view class="lb-row lb-gap"><view class="lb-v"><text class="lb">现场大屏</text><view class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view><text class="count">已选 {{ form.screens.length }} 台</text></view>
+        <view v-if="loadedDevices && !devices.length" class="fd add-box" hover-class="press-soft" @tap="toDevices">
+          <z-icon name="device-tv" :size="18" color="#9CA3AF" /><text class="add-box-t">还没有绑定大屏，去设备管理添加</text>
+        </view>
+        <view class="tvis">
+          <view v-for="d in shownDevices" :key="d.id" class="tvi" :class="{ 'tvi-on': form.screens.includes(d.id), 'tvi-off': !isOnline(d) }" hover-class="press" @tap="toggleScreen(d)">
+            <view class="tvi-ic">
+              <z-icon name="device-tv" :size="30" :stroke="1.6" :color="form.screens.includes(d.id) ? '#FFFFFF' : '#4B5060'" />
+              <view class="tvi-dot" :class="{ 'tvi-dot-on': isOnline(d) }"></view>
+            </view>
+            <text class="tvi-n">{{ d.name.slice(0, 5) }}</text>
+          </view>
+        </view>
+        <view v-if="devices.length > PER_ROW" class="tvi-more" hover-class="press" @tap="screensMore = !screensMore">
+          <text class="tvi-more-t">{{ screensMore ? '收起' : '展开更多（还有 ' + (devices.length - PER_ROW) + ' 台' + (hiddenPicked ? '，已选 ' + hiddenPicked + ' 台' : '') + '）' }}</text>
+          <z-icon :name="screensMore ? 'chevron-up' : 'chevron-down'" :size="14" color="#9CA3AF" />
+        </view>
+
+        <!-- 房间 TV 主题（主办方）：左边是所选主题的封面，右边是竖着排的主题缩略图（可滚动；图里已经有主题名） -->
+        <view class="lb-row lb-gap"><view class="lb-v"><text class="lb">房间 TV 主题</text><view class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view><text class="count">{{ theme ? theme.name + ' · ' + theme.desc : '未选择' }}</text></view>
+        <view class="tvt">
+          <view class="tvt-cover"><image v-if="theme" class="tvt-img" :src="theme.cover" mode="aspectFill" /><view v-else class="tvt-ph"><text class="tvt-ph-t">在右边选一个主题</text></view></view>
+          <scroll-view scroll-y class="tvt-list" :scroll-into-view="theme ? 'th-' + theme.key : ''">
+            <view v-for="t in TV_THEMES" :id="'th-' + t.key" :key="t.key" class="tvt-i" :class="{ 'tvt-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
+              <image class="tvt-thumb" :src="t.cover" mode="aspectFill" />
+            </view>
+          </scroll-view>
+        </view>
+      </block>
+
       <!-- 比赛介绍：弹层打开时换成静态文字，避免原生 textarea 盖住弹层。
            主办方上限 1000 字（介绍和各段落合计），可以按一级 / 二级标题分段写规程 -->
       <view class="lb-row lb-gap">
-        <text class="lb">{{ isHost ? '比赛介绍与规程' : '比赛介绍' }}</text>
+        <view class="lb-v"><text class="lb">{{ isHost ? '比赛介绍与规程' : '比赛介绍' }}</text><view v-if="isHost" class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view>
         <text v-if="isHost" class="count" :class="{ 'count-full': introUsed >= introMax }">{{ introUsed }}/{{ introMax }}</text>
       </view>
       <view class="fd intro-box">
@@ -109,8 +159,39 @@
         </view>
       </block>
 
+      <!-- 开关 -->
+      <view class="fd sw-row">
+        <view class="sw-text">
+          <text class="sw-title">赛事公开</text>
+          <text class="sw-sub">{{ form.isPublic ? '公开后会出现在广场，所有人都能报名' : '不出现在广场，只有收到邀请的人能加入' }}</text>
+        </view>
+        <view class="sw" :class="{ 'sw-on': form.isPublic }" @tap="form.isPublic = !form.isPublic"><view class="sw-knob"></view></view>
+      </view>
+      <view class="more"><text class="lb">更多设置</text><view class="more-line"></view></view>
+      <block v-if="isHost">
+        <!-- 驻场荷官：头像添加式（和共同主持一样）；点 × 移出，点「添加」从工作台荷官名册里选 -->
+        <view class="host-head"><view class="lb-v"><text class="lb">驻场荷官</text><view class="vb"><z-icon name="letter-v" :size="8" :stroke="3.6" color="#FFFFFF" /></view></view><text class="host-sum">{{ dealerPicked.length ? dealerPicked.length + ' 位 · 只作信息展示' : '只作信息展示，不关联账号' }}</text></view>
+        <scroll-view class="hosts" scroll-x :show-scrollbar="false">
+          <view class="hosts-row">
+            <view v-for="d in dealerPicked" :key="d.id" class="host">
+              <view class="host-av dav" :style="'background:' + d.bg + ';color:' + d.fg">
+                <image v-if="d.photo" class="dav-img" :src="d.photo" mode="aspectFill" />
+                <text v-else>{{ d.char }}</text>
+                <view class="host-x" @tap.stop="toggleDealer(d)"><z-icon name="x" :size="10" :stroke="3" color="#E5E7EB" /></view>
+              </view>
+              <text class="host-n">{{ d.name }}</text>
+              <text class="host-s dav-title">{{ d.title }}</text>
+            </view>
+            <view class="host" hover-class="press" @tap="dealersOpen = true">
+              <view class="host-av host-add"><z-icon name="user-plus" :size="20" color="#E5E7EB" /></view>
+              <text class="host-n host-n-add">添加</text>
+            </view>
+          </view>
+        </scroll-view>
+      </block>
+
       <!-- 共同主持 -->
-      <view class="host-head">
+      <view class="host-head lb-gap">
         <text class="lb">共同主持</text>
         <text class="host-sum">{{ hostSummary }}</text>
       </view>
@@ -137,15 +218,6 @@
         </view>
       </scroll-view>
 
-      <!-- 开关 -->
-      <view class="fd sw-row">
-        <view class="sw-text">
-          <text class="sw-title">赛事公开</text>
-          <text class="sw-sub">{{ form.isPublic ? '公开后会出现在广场，所有人都能报名' : '不出现在广场，只有收到邀请的人能加入' }}</text>
-        </view>
-        <view class="sw" :class="{ 'sw-on': form.isPublic }" @tap="form.isPublic = !form.isPublic"><view class="sw-knob"></view></view>
-      </view>
-      <view class="more"><text class="lb">更多设置</text><view class="more-line"></view></view>
       <view class="fd sw-row sw-row-tight">
         <view class="sw-text">
           <text class="sw-title">加入房间自动通过</text>
@@ -153,77 +225,6 @@
         </view>
         <view class="sw" :class="{ 'sw-on': form.autoApprove }" @tap="form.autoApprove = !form.autoApprove"><view class="sw-knob"></view></view>
       </view>
-
-      <!-- 主办方专属：只有认证主办方看得到；选中的内容直接显示在页面上 -->
-      <block v-if="isHost">
-        <view class="more"><text class="lb">主办方专属</text><view class="pro-badge"><z-icon name="crown" :size="11" color="#F4B740" /><text class="pro-badge-t">主办方</text></view><view class="more-line"></view></view>
-
-        <!-- 现场大屏：每台电视一个灰色图标，横着排、放不下就换行；第一行以外的折叠起来，点「展开更多」再显示。点图标选中，选中的亮起来 -->
-        <view class="lb-row lb-row-first"><text class="lb">现场大屏</text><text class="count">已选 {{ form.screens.length }} 台</text></view>
-        <view v-if="loadedDevices && !devices.length" class="fd add-box" hover-class="press-soft" @tap="toDevices">
-          <z-icon name="device-tv" :size="18" color="#9CA3AF" /><text class="add-box-t">还没有绑定大屏，去设备管理添加</text>
-        </view>
-        <view class="tvis">
-          <view v-for="d in shownDevices" :key="d.id" class="tvi" :class="{ 'tvi-on': form.screens.includes(d.id), 'tvi-off': !isOnline(d) }" hover-class="press" @tap="toggleScreen(d)">
-            <view class="tvi-ic">
-              <z-icon name="device-tv" :size="30" :stroke="1.6" :color="form.screens.includes(d.id) ? '#FFFFFF' : '#4B5060'" />
-              <view class="tvi-dot" :class="{ 'tvi-dot-on': isOnline(d) }"></view>
-            </view>
-            <text class="tvi-n">{{ d.name.slice(0, 5) }}</text>
-          </view>
-        </view>
-        <view v-if="devices.length > PER_ROW" class="tvi-more" hover-class="press" @tap="screensMore = !screensMore">
-          <text class="tvi-more-t">{{ screensMore ? '收起' : '展开更多（还有 ' + (devices.length - PER_ROW) + ' 台' + (hiddenPicked ? '，已选 ' + hiddenPicked + ' 台' : '') + '）' }}</text>
-          <z-icon :name="screensMore ? 'chevron-up' : 'chevron-down'" :size="14" color="#9CA3AF" />
-        </view>
-
-        <!-- 房间 TV 主题：左边是所选主题的封面，右边是竖着排的主题列表（可滚动） -->
-        <view class="lb-row lb-gap"><text class="lb">房间 TV 主题</text><text class="count">{{ theme.name }} · {{ theme.desc }}</text></view>
-        <view class="tvt">
-          <view class="tvt-cover"><image class="tvt-img" :src="theme.cover" mode="aspectFill" /></view>
-          <scroll-view scroll-y class="tvt-list" :scroll-into-view="'th-' + theme.key">
-            <view v-for="t in TV_THEMES" :id="'th-' + t.key" :key="t.key" class="tvt-i" :class="{ 'tvt-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
-              <image class="tvt-thumb" :src="t.cover" mode="aspectFill" />
-              <text class="tvt-n">{{ t.name }}</text>
-            </view>
-          </scroll-view>
-        </view>
-
-        <!-- 驻场荷官：头像添加式（和共同主持一样）；点 × 移出，点「添加」从工作台荷官名册里选 -->
-        <view class="host-head lb-gap"><text class="lb">驻场荷官</text><text class="host-sum">{{ dealerPicked.length ? dealerPicked.length + ' 位 · 只作信息展示' : '只作信息展示，不关联账号' }}</text></view>
-        <scroll-view class="hosts" scroll-x :show-scrollbar="false">
-          <view class="hosts-row">
-            <view v-for="d in dealerPicked" :key="d.id" class="host">
-              <view class="host-av dav" :style="'background:' + d.bg + ';color:' + d.fg">
-                <image v-if="d.photo" class="dav-img" :src="d.photo" mode="aspectFill" />
-                <text v-else>{{ d.char }}</text>
-                <view class="host-x" @tap.stop="toggleDealer(d)"><z-icon name="x" :size="10" :stroke="3" color="#E5E7EB" /></view>
-              </view>
-              <text class="host-n">{{ d.name }}</text>
-              <text class="host-s dav-title">{{ d.title }}</text>
-            </view>
-            <view class="host" hover-class="press" @tap="dealersOpen = true">
-              <view class="host-av host-add"><z-icon name="user-plus" :size="20" color="#E5E7EB" /></view>
-              <text class="host-n host-n-add">添加</text>
-            </view>
-          </view>
-        </scroll-view>
-
-        <!-- 比赛标签：2 个预设 + 自定义；自定义的要审核，通过后才公开显示 -->
-        <view class="lb-row lb-gap"><text class="lb">比赛标签</text><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
-        <view class="tags">
-          <view v-for="t in tagChips" :key="t.text" class="tg" :class="['tg-' + t.state, { 'tg-on': t.on }]" hover-class="press" @tap="toggleTag(t)">
-            <z-icon v-if="t.state === 'pending'" name="hourglass" :size="12" color="#FFC53A" />
-            <text class="tg-t">{{ t.text }}</text>
-            <text v-if="t.state === 'pending'" class="tg-st">审核中</text>
-            <text v-else-if="t.state === 'rejected'" class="tg-st tg-st-bad">未通过</text>
-            <z-icon v-else-if="t.on" name="check" :size="12" :stroke="2.5" color="#FF6B6B" />
-          </view>
-          <view v-if="tagInput" class="tg tg-input"><input v-model="tagDraft" class="tg-in" :maxlength="TAG_MAX_LEN" focus confirm-type="done" placeholder="最多 6 个字" placeholder-class="ph" @confirm="commitTag" @blur="commitTag" /></view>
-          <view v-else class="tg tg-add" hover-class="press" @tap="startTag"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="tg-t tg-add-t">自定义</text></view>
-        </view>
-        <text class="tg-hint">自定义标签提交后要审核，通过后才会公开显示</text>
-      </block>
     </view>
 
     <!-- 底部：方案 + 去发布。分享统一放在发布后的比赛邀请页 -->
@@ -492,11 +493,13 @@ const pvMask = 'background-image:linear-gradient(180deg,rgba(38,42,52,.96),rgba(
 const certState = useCertState()
 const isHost = computed(() => certState.value === 'verified')
 const maxSlots = computed(() => (isHost.value ? SLOTS.host : SLOTS.user))
-const proDefaults = () => ({ tags: [], tvTheme: { key: 'flip' }, screens: [], dealers: [], rules: [] })
+const proDefaults = () => ({ tags: [], tvTheme: { key: '' }, screens: [], dealers: [], rules: [] })
 const schemes = ref(loadList(KEY_SCHEMES, blindSchemeSeeds))
 const templates = ref(loadList(KEY_TEMPLATES, matchTemplateSeeds))
-const form = reactive({ ...clone(createDraft), ...proDefaults(), dayIdx: nextFriday, blindId: schemes.value.length ? schemes.value[0].id : '', coverImage: '' })
-const hosts = ref(clone(coHostSeeds))
+// 有比赛方案，新建比赛时所有字段都空着：可以一项项填，也可以点底部的「方案」一键填好
+const emptyForm = () => ({ cover: '', coverImage: '', name: '', blindId: '', dayIdx: -1, hour: -1, minute: 0, cap: 0, intro: '', isPublic: true, autoApprove: true, location: null, ...proDefaults() })
+const form = reactive(emptyForm())
+const hosts = ref([])
 
 const picker = ref(false)
 const editor = ref(false)
@@ -526,12 +529,13 @@ function uploadCover() {
 }
 
 const dateText = computed(() => {
-  const d = days[form.dayIdx] || days[0]
-  return { day: `${d.md} ${d.wk}`, time: `${p2(form.hour)}:${p2(form.minute)}` }
+  const d = days[form.dayIdx]
+  return { day: d ? `${d.md} ${d.wk}` : '选择日期', time: form.hour >= 0 ? `${p2(form.hour)}:${p2(form.minute)}` : '--:--' }
 })
 const dateVal = ref([0, 0, 0])
 function openDate() {
-  dateVal.value = [form.dayIdx, form.hour, Math.round(form.minute / 5)]
+  // 没选过时，滚轮先停在下周五 19:00
+  dateVal.value = [form.dayIdx >= 0 ? form.dayIdx : nextFriday, form.hour >= 0 ? form.hour : 19, Math.round(form.minute / 5)]
   dateOpen.value = true
 }
 function onDateChange(e) { dateVal.value = e.detail.value }
@@ -545,7 +549,7 @@ function confirmDate() {
 const capVal = ref([0])
 const capHint = computed(() => `约 ${Math.ceil(caps[capVal.value[0]] / 9)} 桌，每桌 9 人`)
 function openCap() {
-  capVal.value = [Math.max(0, form.cap - 2)]
+  capVal.value = [Math.max(0, (form.cap || 27) - 2)]
   capOpen.value = true
 }
 function onCapChange(e) { capVal.value = e.detail.value }
@@ -792,8 +796,8 @@ const shownDevices = computed(() => (screensMore.value ? devices.value : devices
 const hiddenPicked = computed(() => devices.value.slice(PER_ROW).filter((d) => form.screens.includes(d.id)).length)
 const toggleScreen = (d) => toggleList(form.screens, d.id)
 // TV 主题：封面是大屏效果图
-const theme = computed(() => TV_THEMES.find((t) => t.key === form.tvTheme.key) || TV_THEMES[0])
-const themeName = computed(() => theme.value.name)
+const theme = computed(() => TV_THEMES.find((t) => t.key === form.tvTheme.key) || null)
+const themeName = computed(() => (theme.value ? theme.value.name : ''))
 // 驻场荷官
 const toggleDealer = (d) => toggleList(form.dealers, d.id)
 const dealerPicked = computed(() => form.dealers.map((id) => dealerList.value.find((d) => d.id === id)).filter(Boolean))
@@ -1016,7 +1020,7 @@ function buildMatch() {
     // 主办方专业配置：标签、TV 主题和信息、现场大屏、驻场荷官（快照）、规程段落
     ...(isHost.value ? {
       tags: form.tags.map(tagOf),
-      tvTheme: clone(form.tvTheme),
+      tvTheme: form.tvTheme.key ? clone(form.tvTheme) : null,
       screens: form.screens.slice(),
       dealers: dealerPicked.value.map(dealerSnapshot),
       rules: form.rules.filter((r) => r.title.trim() || r.body.trim()).map((r) => ({ level: r.level, title: r.title.trim(), body: r.body.trim() }))
@@ -1028,8 +1032,11 @@ const publishing = ref(false)
 // 分享统一在比赛邀请页做，这一页不再提供分享
 function onPublish() {
   if (publishing.value) return
+  if (!form.cover && !form.coverImage) return toast('先选一张比赛封面')
   if (!form.name.trim()) return toast('先给比赛起个名字')
   if (!currentScheme.value) return toast('先选一个盲注方案')
+  if (form.dayIdx < 0 || form.hour < 0) return toast('先选择开赛日期和时间')
+  if (!form.cap) return toast('先设置人数上限')
   if (!form.location) return toast('先选择比赛地点')
   publishing.value = true
   const match = buildMatch()
@@ -1205,11 +1212,17 @@ function onPublish() {
 .rule-add-2 { border-color: #4A4D57; }
 .rule-add-t { margin-left: 6rpx; font-size: 24rpx; color: #E5E7EB; }
 
-/* 主办方专属 */
-.pro-badge { margin-left: 12rpx; height: 36rpx; padding: 0 12rpx; border-radius: 999rpx; background: rgba(244, 183, 64, .14); display: flex; align-items: center; }
-.pro-badge-t { margin-left: 4rpx; font-size: 20rpx; color: #F4B740; }
+/* 主办方功能 */
 .lb-act { font-size: 24rpx; color: #FF6B6B; }
-.lb-row-first { margin-top: 20rpx; }
+/* 主办方功能：字段名后面的 V 标识 */
+.lb-v { display: flex; align-items: center; }
+.vb { margin-left: 10rpx; width: 28rpx; height: 28rpx; border-radius: 50%; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.cv-ph { display: flex; flex-direction: column; align-items: center; justify-content: center; background: #1F222A; border: 2rpx dashed #3A3D46; box-sizing: border-box; }
+.cv-ph-t { margin-top: 12rpx; font-size: 24rpx; color: #6B7280; }
+.field-ph { color: #6B7280 !important; }
+.cap-ph { color: #6B7280; }
+.tvt-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; border: 2rpx dashed #3A3D46; box-sizing: border-box; border-radius: 20rpx; }
+.tvt-ph-t { font-size: 24rpx; color: #6B7280; }
 .dav { position: relative; }
 .dav-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 50%; }
 .dav-title { color: #F4B740; }
@@ -1245,11 +1258,9 @@ function onPublish() {
 .tvt-cover { width: 434rpx; height: 244rpx; flex: none; border-radius: 20rpx; overflow: hidden; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); }
 .tvt-img { width: 100%; height: 100%; }
 .tvt-list { flex: 1; min-width: 0; height: 244rpx; margin-left: 16rpx; }
-.tvt-i { margin-bottom: 12rpx; padding: 8rpx; border-radius: 16rpx; background: #1F222A; display: flex; align-items: center; box-sizing: border-box; }
+.tvt-i { margin-bottom: 12rpx; padding: 6rpx; border-radius: 16rpx; background: #1F222A; box-sizing: border-box; }
 .tvt-on { background: #2A1216; box-shadow: inset 0 0 0 3rpx #DC0000; }
-.tvt-thumb { width: 88rpx; height: 50rpx; flex: none; border-radius: 8rpx; }
-.tvt-n { margin-left: 12rpx; flex: 1; min-width: 0; font-size: 24rpx; color: #E5E7EB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tvt-on .tvt-n { color: #FFFFFF; font-weight: 600; }
+.tvt-thumb { display: block; width: 100%; height: 118rpx; border-radius: 10rpx; }
 .add-box { margin-top: 16rpx; height: 104rpx; border: 2rpx dashed #3A3D46; display: flex; align-items: center; justify-content: center; }
 .add-box-t { margin-left: 10rpx; font-size: 26rpx; color: #9CA3AF; }
 .tg-hint { display: block; margin-top: 2rpx; font-size: 22rpx; color: #6B7280; }
