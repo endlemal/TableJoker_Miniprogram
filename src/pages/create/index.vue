@@ -189,40 +189,25 @@
           </scroll-view>
         </view>
 
-        <!-- 驻场荷官：中间一张展开；两侧紧贴着折叠成窄条的荷官（模糊的照片 + 竖排名字），点窄条就展开它，也可以左右滑动 -->
-        <view class="lb-row lb-gap"><text class="lb">驻场荷官</text><text class="lb-act" @tap="dealersOpen = true">{{ dealerPicked.length ? '添加 / 调整' : '添加' }}</text></view>
-        <view class="dw" @touchstart="dwStart" @touchend="dwEnd" @touchcancel="dwEnd">
-          <view class="dw-row" :style="dwRowStyle">
-            <view v-for="(d, i) in dwItems" :key="d.id" class="dw-card" :class="{ 'dw-cur': i === dwIdx, 'dw-add': d.add }" :style="'width:' + (i === dwIdx ? DW.wa : DW.wc) + 'px'" @tap="tapDw(i, d)">
-              <view class="dw-skew" :style="d.add ? '' : 'background:' + (d.tone || d.bg)">
-                <view class="dw-unskew">
-                  <block v-if="d.add">
-                    <z-icon name="plus" :size="24" color="#9CA3AF" />
-                    <text class="dw-add-t">添加荷官</text>
-                    <text class="dw-add-s">从工作台荷官名册选择</text>
-                  </block>
-                  <block v-else>
-                    <image v-if="d.photo" class="dw-img" :src="d.photo" mode="aspectFill" />
-                    <view v-else class="dw-ph" :style="'background:linear-gradient(160deg, ' + (d.tone || '#2A2D36') + ' 0%, #0E0F13 100%)'"><text class="dw-ph-c">{{ d.char }}</text></view>
-                    <view class="dw-shade"></view>
-                    <text class="dw-title">{{ d.title }}</text>
-                    <text class="dw-vname">{{ d.name }}</text>
-                    <view class="dw-info">
-                      <text class="dw-name">{{ d.name }}</text>
-                      <view class="dw-stats">
-                        <view class="dw-st"><text class="dw-st-v">{{ d.years }}</text><text class="dw-st-k">年经验</text></view>
-                        <view class="dw-st"><text class="dw-st-v">{{ i + 1 }}</text><text class="dw-st-k">号名牌</text></view>
-                        <text class="dw-tags">{{ (d.tags || []).join(' · ') }}</text>
-                      </view>
-                    </view>
-                    <view class="dw-btn" hover-class="press" @tap.stop="removeDealer(d)"><z-icon name="x" :size="12" :stroke="3" color="#0B0C10" /><text class="dw-btn-t">移出</text></view>
-                  </block>
-                </view>
+        <!-- 驻场荷官：头像添加式（和共同主持一样）；点 × 移出，点「添加」从工作台荷官名册里选 -->
+        <view class="host-head lb-gap"><text class="lb">驻场荷官</text><text class="host-sum">{{ dealerPicked.length ? dealerPicked.length + ' 位 · 只作信息展示' : '只作信息展示，不关联账号' }}</text></view>
+        <scroll-view class="hosts" scroll-x :show-scrollbar="false">
+          <view class="hosts-row">
+            <view v-for="d in dealerPicked" :key="d.id" class="host">
+              <view class="host-av dav" :style="'background:' + d.bg + ';color:' + d.fg">
+                <image v-if="d.photo" class="dav-img" :src="d.photo" mode="aspectFill" />
+                <text v-else>{{ d.char }}</text>
+                <view class="host-x" @tap.stop="toggleDealer(d)"><z-icon name="x" :size="10" :stroke="3" color="#E5E7EB" /></view>
               </view>
+              <text class="host-n">{{ d.name }}</text>
+              <text class="host-s dav-title">{{ d.title }}</text>
+            </view>
+            <view class="host" hover-class="press" @tap="dealersOpen = true">
+              <view class="host-av host-add"><z-icon name="user-plus" :size="20" color="#E5E7EB" /></view>
+              <text class="host-n host-n-add">添加</text>
             </view>
           </view>
-        </view>
-        <text class="dw-hint">只作信息展示，不关联账号，也没有控场操作；点两侧的窄条展开，也可以左右滑动</text>
+        </scroll-view>
 
         <!-- 比赛标签：2 个预设 + 自定义；自定义的要审核，通过后才公开显示 -->
         <view class="lb-row lb-gap"><text class="lb">比赛标签</text><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
@@ -298,7 +283,7 @@
             <!-- 按住左侧把手上下拖动，调整这一行的位置。只拦 touchmove（挡住列表滚动），不拦 touchstart，以免小程序里的点击失效 -->
             <view class="ed-grip" @touchstart="dragStart(i, $event)" @touchmove.stop.prevent="dragMove" @touchend="dragEnd" @touchcancel="dragEnd"><z-icon name="grip-vertical" :size="16" color="#6B7280" /></view>
             <block v-if="r.t === 'L'">
-              <text class="ed-no">{{ levelNo[i] }}</text>
+              <view class="ed-no ed-no-tap" hover-class="press" @tap="openNote(i)"><text>{{ levelNo[i] }}</text><view v-if="noteMark(i)" class="ed-note-dot" :class="{ 'ed-note-dot-c': hasNote(r) }"></view></view>
               <input
                 v-for="f in cellKeys"
                 :key="f"
@@ -313,7 +298,7 @@
             </block>
             <block v-else-if="r.t === 'B'">
               <view class="ed-no"><z-icon name="coffee" :size="16" color="#C9A24A" /></view>
-              <view class="ed-span ed-span-b"><text>休息</text></view>
+              <view class="ed-span ed-span-b" hover-class="press" @tap="openNote(i)"><text>休息</text><view class="ed-span-i"><z-icon name="info-circle" :size="14" color="#C9A24A" /><text v-if="hasNote(r)" class="ed-span-n">已写说明</text></view></view>
               <input
                 class="ed-cell"
                 :class="{ 'ed-cell-on': focusCell === r.k + 'min' }"
@@ -326,7 +311,7 @@
             </block>
             <block v-else>
               <view class="ed-no"><z-icon name="scissors" :size="16" color="#C86A6A" /></view>
-              <view class="ed-span ed-span-c"><text>截止买入</text></view>
+              <view class="ed-span ed-span-c" hover-class="press" @tap="openNote(i)"><text>截止买入</text><view class="ed-span-i"><z-icon name="info-circle" :size="14" color="#C86A6A" /><text v-if="hasNote(r)" class="ed-span-n">已写说明</text></view></view>
               <view></view>
             </block>
             <view v-if="i > 0" class="ed-del" hover-class="press" @tap="draft.rows.splice(i, 1)"><z-icon name="x" :size="12" :stroke="2.5" color="#B86A6A" /></view>
@@ -402,6 +387,22 @@
       </view>
     </view>
 
+    <!-- 盲注结构：给某一级写说明（比赛邀请页点这一级时弹出）；不写就用平台预设 -->
+    <view v-if="noteEdit.open" class="ov ov-note">
+      <view class="mask" @tap="noteEdit.open = false" @touchmove.stop.prevent="noop"></view>
+      <view class="note-card">
+        <text class="note-t">{{ noteEdit.title }} · 说明</text>
+        <text class="note-s">玩家在比赛邀请页点这一级时会看到。{{ noteEdit.preset ? '不写就用平台预设：' : '' }}</text>
+        <text v-if="noteEdit.preset" class="note-preset">{{ noteEdit.preset }}</text>
+        <textarea v-model="noteEdit.text" class="note-in" maxlength="80" :placeholder="noteEdit.preset ? '写下这一级在你的比赛里的安排（选填）' : '写下这一级的作用，比如：进入决赛桌'" placeholder-class="ph" />
+        <text class="note-count">{{ noteEdit.text.length }}/80</text>
+        <view class="note-acts">
+          <view class="note-btn" hover-class="press" @tap="clearNote"><text class="note-btn-t">{{ noteEdit.preset ? '用平台预设' : '不写说明' }}</text></view>
+          <view class="note-btn note-ok" hover-class="press" @tap="saveNote"><text class="note-btn-t">保存</text></view>
+        </view>
+      </view>
+    </view>
+
     <!-- 比赛方案（中央悬浮窗） -->
     <view v-if="tplOpen" class="ov">
       <view class="mask" @tap="tplOpen = false" @touchmove.stop.prevent="noop"></view>
@@ -444,6 +445,7 @@ import { listDealers, dealerSnapshot } from '@/common/dealers.js'
 import { TV_THEMES } from '@/mock/remote.js'
 import { SLOTS, INTRO_MAX, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN } from '@/mock/pro.js'
 import { tagOf, newTag, tagStatus, tagProblem, TAG_REVIEW_MS } from '@/common/tags.js'
+import { specialOf, NOTE_PRESETS } from '@/common/blind-notes.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
@@ -507,7 +509,7 @@ onLoad((q) => {
   if (q && q.open === 'schemes') setTimeout(() => { tplOpen.value = true }, 350)
   if (isHost.value) loadDevices()
 })
-const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || dealersOpen.value)
+const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || dealersOpen.value || noteEdit.open)
 
 const coverInfo = computed(() => coverScenes.find((c) => c.key === form.cover) || coverScenes[0])
 function pickScene(key) {
@@ -795,39 +797,6 @@ const themeName = computed(() => theme.value.name)
 // 驻场荷官
 const toggleDealer = (d) => toggleList(form.dealers, d.id)
 const dealerPicked = computed(() => form.dealers.map((id) => dealerList.value.find((d) => d.id === id)).filter(Boolean))
-// 荷官栏：中间一张展开（宽 430rpx），其余折叠成 84rpx 的窄条紧贴两侧；整行平移，让展开的那张始终在正中
-const DW = { wa: uni.upx2px(430), wc: uni.upx2px(84), gap: uni.upx2px(10), cx: uni.getSystemInfoSync().windowWidth / 2 }
-const dwIdx = ref(0)
-const dwItems = computed(() => dealerPicked.value.concat([{ id: 'add', add: true }]))
-const dwRowStyle = computed(() => `transform:translateX(${(DW.cx - (dwIdx.value * (DW.wc + DW.gap) + DW.wa / 2)).toFixed(1)}px)`)
-function tapDw(i, d) {
-  if (i !== dwIdx.value) { dwIdx.value = i; return }
-  if (d.add) dealersOpen.value = true
-}
-// 左右滑动：松手时按方向展开相邻的一张（不拦 touchstart，以免小程序里的点击失效）
-let dwX = null
-function dwStart(e) { dwX = e.touches[0].clientX }
-function dwEnd(e) {
-  if (dwX === null) return
-  const t = (e.changedTouches && e.changedTouches[0]) || null
-  const dx = t ? t.clientX - dwX : 0
-  dwX = null
-  if (Math.abs(dx) < 40) return
-  dwIdx.value = Math.max(0, Math.min(dwItems.value.length - 1, dwIdx.value + (dx < 0 ? 1 : -1)))
-}
-function removeDealer(d) {
-  uni.showModal({
-    title: `把「${d.name}」移出驻场名单？`,
-    content: '只是这场比赛不再展示，荷官名册里的信息不受影响。',
-    confirmText: '移出',
-    confirmColor: '#DC0000',
-    success: ({ confirm }) => {
-      if (!confirm) return
-      toggleList(form.dealers, d.id)
-      dwIdx.value = Math.min(dwIdx.value, Math.max(0, dwItems.value.length - 1))
-    }
-  })
-}
 // 比赛标签：预设 + 自定义，选中的排在前面
 const tagInput = ref(false)
 const tagDraft = ref('')
@@ -911,6 +880,31 @@ function saveSchemeAs() {
   persistSchemes()
   form.blindId = copy.id
   toast(`已另存为「${copy.name}」`)
+}
+
+/* ---------- 盲注结构：特殊级别的说明 ---------- */
+// 休息、截止买入、前注开启的那一级有平台预设；主办方也可以给任意一级写说明，比赛邀请页点这一级时弹出
+const noteEdit = reactive({ open: false, idx: -1, title: '', preset: '', text: '' })
+const hasNote = (r) => !!String((r && r.note) || '').trim()
+const noteMark = (i) => hasNote(draft.rows[i]) || !!specialOf(draft.rows, i)
+function openNote(i) {
+  const r = draft.rows[i]
+  const sp = specialOf(draft.rows.map((x, k) => (k === i ? { ...x, note: '' } : x)), i)
+  noteEdit.idx = i
+  noteEdit.title = r.t === 'L' ? `第 ${levelNo.value[i]} 级${sp && sp.kind === 'ante' ? '（前注开启）' : ''}` : r.t === 'B' ? '休息' : '截止买入'
+  noteEdit.preset = sp && sp.kind !== 'note' ? NOTE_PRESETS[sp.kind].text : ''
+  noteEdit.text = String(r.note || '')
+  noteEdit.open = true
+}
+function saveNote() {
+  const r = draft.rows[noteEdit.idx]
+  if (r) r.note = noteEdit.text.trim()
+  noteEdit.open = false
+}
+function clearNote() {
+  const r = draft.rows[noteEdit.idx]
+  if (r) r.note = ''
+  noteEdit.open = false
 }
 
 /* ---------- 盲注结构：按住左侧把手上下拖动调整顺序 ---------- */
@@ -1000,7 +994,6 @@ function buildMatch() {
   const meP = { name: me.nickname, c: me.char, bg: '#F1E4D3', fg: '#8A1C1C' }
   return {
     id: matchId,
-    server: '周五桌游夜',
     cover: form.cover,
     coverImage: form.coverImage,
     name: form.name.trim(),
@@ -1217,6 +1210,9 @@ function onPublish() {
 .pro-badge-t { margin-left: 4rpx; font-size: 20rpx; color: #F4B740; }
 .lb-act { font-size: 24rpx; color: #FF6B6B; }
 .lb-row-first { margin-top: 20rpx; }
+.dav { position: relative; }
+.dav-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; border-radius: 50%; }
+.dav-title { color: #F4B740; }
 .tags { margin-top: 16rpx; display: flex; flex-wrap: wrap; }
 .tg { height: 60rpx; margin: 0 14rpx 14rpx 0; padding: 0 22rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
 .tg-on { background: #2A1216; border-color: rgba(220, 0, 0, .55); }
@@ -1257,41 +1253,6 @@ function onPublish() {
 .add-box { margin-top: 16rpx; height: 104rpx; border: 2rpx dashed #3A3D46; display: flex; align-items: center; justify-content: center; }
 .add-box-t { margin-left: 10rpx; font-size: 26rpx; color: #9CA3AF; }
 .tg-hint { display: block; margin-top: 2rpx; font-size: 22rpx; color: #6B7280; }
-/* 驻场荷官名牌墙：倾斜的封面流（中间一张展开，两侧的只露出竖排名字） */
-.dw { height: 400rpx; margin: 16rpx -32rpx 0; padding: 20rpx 0; overflow: hidden; background: linear-gradient(180deg, #0E0F13, #15161C); }
-.dw-row { display: flex; height: 100%; transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
-.dw-card { flex: none; height: 100%; margin-right: 10rpx; transition: width .45s cubic-bezier(.2, .8, .2, 1); }
-.dw-skew { position: relative; height: 100%; overflow: hidden; border-radius: 10rpx; transform: skewX(-10deg); background: #1F222A; box-shadow: 0 16rpx 30rpx rgba(0, 0, 0, .45); }
-/* 折叠的窄条：照片模糊、压暗，只露出竖排名字 */
-.dw-card .dw-img { filter: blur(5px) brightness(.62) saturate(1.2); transform: scale(1.25); transition: filter .45s ease, transform .45s ease; }
-.dw-cur .dw-img { filter: none; transform: none; }
-.dw-card .dw-add-t, .dw-card .dw-add-s { opacity: 0; transition: opacity .3s ease; white-space: nowrap; }
-.dw-cur .dw-add-t, .dw-cur .dw-add-s { opacity: 1; }
-.dw-cur .dw-skew { box-shadow: 0 0 0 3rpx rgba(255, 255, 255, .85), 0 24rpx 50rpx rgba(0, 0, 0, .55); }
-.dw-unskew { position: absolute; left: -16%; right: -16%; top: 0; bottom: 0; transform: skewX(10deg); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.dw-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-.dw-ph { position: absolute; left: 0; top: 0; right: 0; bottom: 0; overflow: hidden; }
-.dw-ph-c { position: absolute; right: 14%; top: 4%; font-size: 260rpx; font-weight: 900; line-height: 1; color: rgba(255, 255, 255, .14); }
-.dw-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 62%; background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .78)); }
-.dw-title { position: absolute; right: 18%; top: 22rpx; font-size: 28rpx; font-weight: 600; letter-spacing: 2rpx; color: #FFFFFF; text-shadow: 0 2rpx 10rpx rgba(0, 0, 0, .55); }
-.dw-info { position: absolute; left: 18%; right: 18%; bottom: 22rpx; }
-.dw-name { display: block; font-size: 40rpx; font-weight: 800; color: #FFFFFF; text-shadow: 0 2rpx 12rpx rgba(0, 0, 0, .6); }
-.dw-stats { margin-top: 8rpx; display: flex; align-items: flex-end; }
-.dw-st { margin-right: 24rpx; display: flex; flex-direction: column; align-items: center; }
-.dw-st-v { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 34rpx; line-height: 1; color: #FFFFFF; }
-.dw-st-k { margin-top: 2rpx; font-size: 16rpx; color: rgba(255, 255, 255, .7); }
-.dw-tags { flex: 1; min-width: 0; padding-bottom: 2rpx; font-size: 20rpx; color: rgba(255, 255, 255, .8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dw-btn { position: absolute; right: 16%; bottom: 0; height: 64rpx; padding: 0 26rpx 0 34rpx; background: #FFFFFF; transform: skewX(-10deg); display: flex; align-items: center; }
-.dw-btn-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 700; letter-spacing: 4rpx; color: #0B0C10; }
-.dw-vname { position: absolute; left: 50%; top: 50%; font-size: 34rpx; font-weight: 300; letter-spacing: 6rpx; color: rgba(255, 255, 255, .85); transform: translate(-50%, -50%) rotate(-78deg); white-space: nowrap; opacity: 0; transition: opacity .3s ease; }
-.dw-card .dw-info, .dw-card .dw-btn, .dw-card .dw-title { opacity: 0; transition: opacity .3s ease; }
-.dw-cur .dw-info, .dw-cur .dw-btn, .dw-cur .dw-title { opacity: 1; }
-.dw-card .dw-vname { opacity: 1; }
-.dw-cur .dw-vname { opacity: 0; }
-.dw-add .dw-skew { background: #17181D; box-shadow: inset 0 0 0 2rpx #3A3D46; }
-.dw-add-t { margin-top: 12rpx; font-size: 28rpx; font-weight: 600; color: #E5E7EB; }
-.dw-add-s { margin-top: 6rpx; font-size: 20rpx; color: #6B7280; }
-.dw-hint { display: block; margin-top: 12rpx; font-size: 22rpx; color: #6B7280; }
 
 /* 专业配置的弹层 */
 .sheet-pro { max-height: 86vh; display: flex; flex-direction: column; }
@@ -1365,6 +1326,22 @@ function onPublish() {
 .ed-span { grid-column: 3 / 6; height: 64rpx; padding-left: 20rpx; border-radius: 14rpx; display: flex; align-items: center; font-size: 26rpx; font-weight: 500; }
 .ed-span-b { background: #24231F; color: #C9A24A; }
 .ed-span-c { background: #272124; color: #C86A6A; }
+.ed-span-i { margin-left: auto; margin-right: 14rpx; display: flex; align-items: center; }
+.ed-span-n { margin-left: 6rpx; font-size: 20rpx; }
+.ed-no-tap { position: relative; display: flex; align-items: center; justify-content: center; height: 64rpx; }
+.ed-note-dot { position: absolute; right: 2rpx; top: 6rpx; width: 12rpx; height: 12rpx; border-radius: 50%; background: #C9A24A; }
+.ed-note-dot-c { background: #FF4D4D; }
+.ov-note { z-index: 220; }
+.note-card { position: absolute; left: 48rpx; right: 48rpx; top: 22%; padding: 36rpx 32rpx 28rpx; border-radius: 40rpx; background: #262A34; border: 1rpx solid #3A3D46; }
+.note-t { display: block; font-size: 32rpx; font-weight: 600; color: #FFFFFF; }
+.note-s { display: block; margin-top: 10rpx; font-size: 23rpx; color: #9CA3AF; }
+.note-preset { display: block; margin-top: 8rpx; padding: 14rpx 18rpx; border-radius: 16rpx; background: #1F222A; font-size: 23rpx; line-height: 1.6; color: #C9CDD4; }
+.note-in { width: 100%; height: 180rpx; margin-top: 18rpx; padding: 18rpx; box-sizing: border-box; border-radius: 20rpx; background: #1F222A; font-size: 26rpx; line-height: 1.6; color: #FFFFFF; }
+.note-count { display: block; margin-top: 8rpx; text-align: right; font-size: 22rpx; color: #6B7280; }
+.note-acts { margin-top: 16rpx; display: flex; }
+.note-btn { flex: 1; height: 84rpx; margin-right: 16rpx; border-radius: 999rpx; background: #35383F; display: flex; align-items: center; justify-content: center; }
+.note-ok { margin-right: 0; background: #DC0000; }
+.note-btn-t { font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
 .ed-del { width: 52rpx; height: 52rpx; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }
 .ed-adds { display: flex; justify-content: center; padding: 20rpx 24rpx 0; border-top: 1px solid #2A2D36; }
 .ed-add { height: 64rpx; margin: 0 8rpx; padding: 0 22rpx; border-radius: 999rpx; border: 2rpx solid #35383F; display: flex; align-items: center; }

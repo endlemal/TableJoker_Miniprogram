@@ -21,7 +21,8 @@
       <view class="inviter">
         <view class="av av-28" :style="'background:' + m.inviter.bg + ';color:' + m.inviter.fg"><text>{{ m.inviter.c }}</text><view v-if="byHost" class="av-v"><z-icon name="letter-v" :size="7" :stroke="3.4" color="#FFFFFF" /></view></view>
         <text class="inviter-t"><text class="inviter-n">{{ m.inviter.name }}</text> 邀请你参加</text>
-        <view class="srv"><z-icon name="dice" :size="13" color="#F2A7A7" /><text class="srv-t">{{ m.server }}</text></view>
+        <!-- 动态热度：按实时报名人数和浏览量（去掉了写死的「周五桌游夜」） -->
+        <z-heat :signed="signedCount" :cap="m.cap" :views="views" />
       </view>
       <text class="title" :class="{ 'font-sys': !displayOk }">{{ m.name }}</text>
       <view class="chips">
@@ -35,7 +36,7 @@
           <z-icon :name="m.autoApprove ? 'bolt' : 'user-check'" :size="13" :color="m.autoApprove ? '#3FCF84' : '#FFC53A'" />
           <text class="chip-t" :style="{ color: m.autoApprove ? '#3FCF84' : '#FFC53A' }">{{ m.autoApprove ? '自动通过' : '需审核' }}</text>
         </view>
-        <view v-for="t in shownTags" :key="t.text" class="chip chip-tag" :class="{ 'chip-pending': t.pending }"><text>{{ t.text }}</text><text v-if="t.pending" class="chip-st">审核中</text></view>
+        <view v-for="t in shownTags" :key="t.text" class="chip chip-tag" :class="{ 'chip-pending': t.pending }"><text>#{{ t.text }}</text><text v-if="t.pending" class="chip-st">审核中</text></view>
       </view>
 
       <!-- 关键信息板：站牌风格，和房间页的翻牌钟一致 -->
@@ -104,28 +105,37 @@
         <text v-if="r.body" class="rl-b">{{ r.body }}</text>
       </view>
 
-      <!-- 盲注结构 -->
+      <!-- 盲注结构：休息、截止买入、前注开启的那一级（以及主办方写了说明的级别）可以点开，弹出气泡说明这一级的作用 -->
       <view class="sec"><text class="st">盲注结构</text><text class="sm">{{ m.blindName }}，共 {{ levelCount }} 级</text></view>
       <view class="tt">
         <view class="tr thd"><text class="tc">级别</text><text class="tc">盲注</text><text class="tc">前注</text><text class="tc">时长</text></view>
-        <view v-for="r in shownRows" :key="r.key" class="tr" :class="{ 'tr-last': r.last }">
-          <block v-if="r.t === 'L'">
-            <text class="tc">{{ r.no }}</text>
-            <text class="tc">{{ r.blinds }}</text>
-            <text class="tc">{{ r.ante }}</text>
-            <view class="tc tc-dur"><text>{{ r.min }}</text><text class="tc-u">分</text></view>
-          </block>
-          <block v-else-if="r.t === 'B'">
-            <view class="tx tx-b"><z-icon name="coffee" :size="14" color="#FFC53A" /><text class="tx-t">休息</text></view>
-            <view class="tc tc-dur"><text>{{ r.min }}</text><text class="tc-u">分</text></view>
-          </block>
-          <view v-else class="tx tx-c"><z-icon name="scissors" :size="14" color="#FF5646" /><text class="tx-t">截止买入，之后不再接受报名和复活</text></view>
-        </view>
+        <block v-for="r in shownRows" :key="r.key">
+          <view class="tr" :class="{ 'tr-last': r.last && popKey !== r.key, 'tr-sp': r.sp, 'tr-on': popKey === r.key }" @tap="tapRow(r)">
+            <block v-if="r.t === 'L'">
+              <view class="tc tc-no"><text>{{ r.no }}</text><view v-if="r.sp" class="tc-i"><z-icon name="info-circle" :size="11" :color="popKey === r.key ? '#FFFFFF' : '#FF8A8A'" /></view></view>
+              <text class="tc">{{ r.blinds }}</text>
+              <text class="tc" :class="{ 'tc-ante': r.sp && r.sp.kind === 'ante' }">{{ r.ante }}</text>
+              <view class="tc tc-dur"><text>{{ r.min }}</text><text class="tc-u">分</text></view>
+            </block>
+            <block v-else-if="r.t === 'B'">
+              <view class="tx tx-b"><z-icon name="coffee" :size="14" color="#FFC53A" /><text class="tx-t">休息</text><z-icon name="info-circle" :size="12" color="#C9A24A" /></view>
+              <view class="tc tc-dur"><text>{{ r.min }}</text><text class="tc-u">分</text></view>
+            </block>
+            <view v-else class="tx tx-c"><z-icon name="scissors" :size="14" color="#FF5646" /><text class="tx-t">截止买入，之后不再接受报名和复活</text><z-icon name="info-circle" :size="12" color="#FF8A8A" /></view>
+          </view>
+          <view v-if="popKey === r.key" class="bp" @tap="popKey = ''">
+            <view class="bp-arrow"></view>
+            <view class="bp-h"><text class="bp-t">{{ r.sp.title }}</text><text class="bp-src">{{ r.sp.custom ? '主办方说明' : '平台说明' }}</text></view>
+            <text class="bp-d">{{ r.sp.text }}</text>
+          </view>
+        </block>
       </view>
       <view v-if="hiddenRows > 0" class="tt-more" hover-class="press-soft" @tap="expanded = !expanded">
         <text class="tt-more-t">{{ expanded ? '收起' : '展开全部 ' + levelCount + ' 级' }}</text>
         <z-icon :name="expanded ? 'chevron-up' : 'chevron-down'" :size="14" color="#9CA3AF" />
       </view>
+      <!-- 记分牌面额图例：默认紧凑显示，可以折叠 -->
+      <z-chip-legend :chips="chips" />
 
       <!-- 主持人：只显示已接受邀请的共同主持 -->
       <view class="sec"><text class="st">主持人</text></view>
@@ -137,26 +147,41 @@
         </view>
       </view>
 
-      <!-- 驻场荷官：主办方从荷官名册里添加，只作信息展示 -->
+      <!-- 驻场荷官：倾斜的封面流，中间一张展开，其余折叠成窄条；只作展示和引流 -->
       <block v-if="(m.dealers || []).length">
-        <view class="sec"><text class="st">驻场荷官</text><text class="sec-n">{{ m.dealers.length }} 位</text></view>
-        <view class="hosts">
-          <view v-for="d in m.dealers" :key="d.id" class="host">
-            <view class="av av-44 av-photo" :style="'background:' + d.bg + ';color:' + d.fg"><image v-if="d.photo" class="av-img" :src="d.photo" mode="aspectFill" /><text v-else>{{ d.char }}</text></view>
-            <text class="host-n">{{ d.name }}</text>
-            <text class="host-r host-r-dealer">{{ d.title }}</text>
-          </view>
-        </view>
+        <view class="sec"><text class="st">驻场荷官</text><text class="sec-n">{{ m.dealers.length }} 位 · 现场为你发牌</text></view>
+        <z-dealer-bar :dealers="m.dealers" />
       </block>
 
-      <!-- 已报名 -->
+      <!-- 已报名：头像墙带状态（待审核 / 待签到 / 已签到），点开是名单抽屉 -->
       <view class="sec"><text class="st">已报名</text><text class="sm">{{ signedCount }}/{{ m.cap }}</text></view>
-      <view class="people">
-        <view class="stack">
-          <view v-for="(p, i) in shownPeople" :key="i" class="av av-30" :class="{ 'av-on': i > 0 }" :style="'background:' + p.bg + ';color:' + p.fg"><text>{{ p.c }}</text></view>
-          <view v-if="morePeople > 0" class="av av-30 av-on av-more"><text>+{{ morePeople }}</text></view>
+      <view class="rw" hover-class="press-soft" @tap="openRoster">
+        <view class="rw-grid">
+          <view v-for="p in rosterWall" :key="p.key" class="rw-av" :class="'rw-' + p.status" :style="'background:' + p.bg + ';color:' + p.fg">
+            <text>{{ p.c }}</text>
+            <view v-if="p.status === 'checked'" class="rw-badge rw-badge-ok"><z-icon name="check" :size="8" :stroke="4" color="#FFFFFF" /></view>
+            <view v-else-if="p.status === 'pending'" class="rw-badge rw-badge-wait"><z-icon name="hourglass" :size="8" :stroke="3" color="#3A2A00" /></view>
+          </view>
+          <view v-if="rosterMore > 0" class="rw-av rw-more"><text>+{{ rosterMore }}</text></view>
+          <text v-if="!roster.length" class="rw-empty">还没有人报名，分享给朋友吧</text>
         </view>
-        <text class="people-t">{{ isFull ? '名额已满' : '还剩 ' + (m.cap - signedCount) + ' 个位置' }}</text>
+        <view class="rw-sum">
+          <view v-for="s in rosterSummary" :key="s.key" class="rw-s"><view class="rw-dot" :style="'background:' + s.color"></view><text class="rw-s-t">{{ s.label }} {{ s.n }}</text></view>
+          <view class="rw-open"><text class="rw-open-t">{{ isHost ? '名单与签到' : '查看名单' }}</text><z-icon name="chevron-right" :size="14" color="#9CA3AF" /></view>
+        </view>
+      </view>
+      <!-- 我的签到码：已报名的玩家到场后出示给主办方扫码 -->
+      <view v-if="myEntry && myEntry.status !== 'pending' && !isHost" class="mk">
+        <image class="mk-qr" :src="myQr" mode="aspectFit" />
+        <view class="mk-main">
+          <text class="mk-t">{{ myEntry.status === 'checked' ? '已签到入座' : '我的签到码' }}</text>
+          <text class="mk-code">{{ myCode }}</text>
+          <text class="mk-s">{{ myEntry.status === 'checked' ? myEntry.seat : '到场后出示给主办方扫码签到' }}</text>
+        </view>
+      </view>
+      <view v-else-if="myEntry && myEntry.status === 'pending' && !isHost" class="mk mk-wait">
+        <z-icon name="hourglass" :size="18" color="#FFC53A" />
+        <text class="mk-wait-t">报名待审核，通过后会显示你的签到码</text>
       </view>
     </view>
 
@@ -165,6 +190,7 @@
       <view class="bar-note"><text>{{ justCreated ? '比赛已发布，分享给朋友来报名吧' : '你是这场比赛的主办方' }}</text></view>
       <view class="bar-row">
         <button class="bar-share bar-share-wide" open-type="share" hover-class="press"><z-icon name="share" :size="18" color="#FFFFFF" /><text class="bar-share-t">去分享</text></button>
+        <view class="bar-share bar-poster" hover-class="press" @tap="openPoster"><z-icon name="photo" :size="19" color="#FFFFFF" /></view>
         <view class="bar-main" hover-class="press" @tap="enterRoom"><z-icon name="door-enter" :size="19" color="#FFFFFF" /><text class="bar-main-t">进入房间</text></view>
       </view>
     </view>
@@ -176,6 +202,7 @@
         <text v-else>{{ noteText }}</text>
       </view>
       <view class="bar-row">
+        <view v-if="m.isPublic" class="bar-share bar-poster" hover-class="press" @tap="openPoster"><z-icon name="photo" :size="19" color="#FFFFFF" /></view>
         <button v-if="m.isPublic" class="bar-share" open-type="share" hover-class="press"><z-icon name="share" :size="20" color="#FFFFFF" /></button>
         <view class="bar-main" :class="{ 'bar-wait': joinStatus === 'pending' || blocked }" hover-class="press" @tap="onMain">
           <z-icon :name="mainIcon" :size="19" :color="joinStatus === 'pending' || blocked ? '#9CA3AF' : '#FFFFFF'" />
@@ -207,23 +234,88 @@
         </view>
       </view>
     </view>
+    <!-- 名单抽屉：按状态筛选；主办方可以一键通过、扫码核销、在大屏上打开签到墙 -->
+    <view v-if="rosterOpen" class="ov">
+      <view class="mask" @tap="rosterOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="sheet-r">
+        <view class="grab"></view>
+        <view class="sr-head"><text class="sr-title">报名名单</text><text class="sr-sub">{{ roster.length }} 人</text></view>
+        <view v-if="isHost" class="sr-acts">
+          <view class="sr-act" :class="{ 'sr-act-dis': !pendingCount }" hover-class="press" @tap="approveAll"><z-icon name="checks" :size="18" color="#FFFFFF" /><text class="sr-act-t">一键通过{{ pendingCount ? '（' + pendingCount + '）' : '' }}</text></view>
+          <view class="sr-act" hover-class="press" @tap="scanCheckin"><z-icon name="scan" :size="18" color="#FFFFFF" /><text class="sr-act-t">扫码核销</text></view>
+          <view class="sr-act" hover-class="press" @tap="openTvWall"><z-icon name="device-tv" :size="18" color="#FFFFFF" /><text class="sr-act-t">TV 签到墙</text></view>
+        </view>
+        <view class="sr-tabs">
+          <view v-for="t in rosterTabs" :key="t.key" class="sr-tab" :class="{ 'sr-tab-on': rosterTab === t.key }" hover-class="press" @tap="rosterTab = t.key"><text>{{ t.label }} {{ t.n }}</text></view>
+        </view>
+        <scroll-view scroll-y class="sr-list">
+          <view v-for="p in rosterShown" :key="p.key" class="sr-row">
+            <view class="sr-av" :style="'background:' + p.bg + ';color:' + p.fg"><text>{{ p.c }}</text></view>
+            <view class="sr-main">
+              <view class="sr-top"><text class="sr-n">{{ p.name }}</text><text v-if="p.mine" class="sr-me">我</text></view>
+              <text class="sr-s">{{ p.status === 'checked' ? '已签到 · ' + p.seat : p.status === 'pending' ? (p.message ? '留言：' + p.message : '等待审核') : '已报名，待签到' }}</text>
+            </view>
+            <view v-if="isHost && p.status === 'pending'" class="sr-btn" hover-class="press" @tap="approveOne(p)"><text class="sr-btn-t">通过</text></view>
+            <view v-else-if="isHost && p.status === 'signed'" class="sr-btn sr-btn-2" hover-class="press" @tap="manualCheckin(p)"><text class="sr-btn-t">核销</text></view>
+            <view v-else class="sr-pill" :style="'color:' + ROSTER_STATUS[p.status].color + ';background:' + ROSTER_STATUS[p.status].color + '1F'"><text>{{ ROSTER_STATUS[p.status].label }}</text></view>
+          </view>
+          <text v-if="!rosterShown.length" class="sr-empty">这里还没有人</text>
+        </scroll-view>
+      </view>
+    </view>
+
+    <!-- 9:16 分享海报预览 -->
+    <view v-if="posterOpen" class="ov ov-c">
+      <view class="mask" @tap="posterOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="pst">
+        <image v-if="posterSrc" class="pst-img" :src="posterSrc" mode="aspectFit" />
+        <view v-else class="pst-img pst-loading"><text>正在生成海报…</text></view>
+        <view class="pst-acts">
+          <view class="pst-btn pst-btn-2" hover-class="press" @tap="posterOpen = false"><text class="pst-btn-t">关闭</text></view>
+          <view class="pst-btn" :class="{ 'pst-btn-dis': !posterSrc }" hover-class="press" @tap="savePoster"><z-icon name="download" :size="16" color="#FFFFFF" /><text class="pst-btn-t">保存到相册</text></view>
+        </view>
+      </view>
+    </view>
+    <!-- 画转发卡片和海报用的 canvas，放在屏幕外 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <canvas id="share-cv" type="2d" class="cv-off"></canvas>
+    <!-- #endif -->
+    <SciFiScannerModal />
+    <z-subscribe :show="subOpen" @close="onSubClose" @done="onSubDone" />
+    <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
   </view>
 </template>
 
 <script setup>
 import { requireLogin, getAuth } from '@/common/auth.js'
-import { ref, computed } from 'vue'
-import { onLoad, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
+import { ref, reactive, computed, getCurrentInstance } from 'vue'
+import { onLoad, onReady, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
+import ZPop from '@/components/z-pop/z-pop.vue'
+import ZHeat from '@/components/z-heat/z-heat.vue'
+import ZSubscribe from '@/components/z-subscribe/z-subscribe.vue'
+import ZDealerBar from '@/components/z-dealer-bar/z-dealer-bar.vue'
+import ZChipLegend from '@/components/z-chip-legend/z-chip-legend.vue'
+import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
+import { openScanner } from '@/common/scanner.js'
+import { addView, heatOf } from '@/common/heat.js'
+import { rosterOf, approve, checkIn, codeOf, checkinPayload, parseCheckin, ROSTER_STATUS } from '@/common/roster.js'
+import { specialOf } from '@/common/blind-notes.js'
+import { chipsOf } from '@/common/chips.js'
+import { qrSvgUri } from '@/common/qr.js'
+import { drawCard, drawPoster } from '@/common/share-canvas.js'
+import { SCENE_TINT } from '@/common/cover-art.js'
+import { listDevices, isOnline, castToDevice } from '@/common/devices.js'
+import { stopOn } from '@/common/posters.js'
+import { castFields } from '@/common/screens.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
 import { getMatch, getJoin, setJoin } from '@/common/store.js'
-import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
 import { me, coverScenes, makeDemoMatch } from '@/mock/data.js'
 import { findPublicMatch } from '@/mock/plaza.js'
 import { TV_THEMES } from '@/mock/remote.js'
-import { tagOf, tagStatus } from '@/common/tags.js'
+import { tagOf, tagStatus, publicTags } from '@/common/tags.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
 const nav = getNavMetrics()
@@ -250,6 +342,7 @@ onLoad((q) => {
   const query = q || {}
   const found = query.id ? getMatch(query.id) || findPublicMatch(query.id) : null
   if (found) m.value = { participants: [], hosts: [], ...found }
+  views.value = addView(m.value)
   // 从创建比赛页发布后进来：房间码卡片亮一下
   if (query.created === '1') {
     justCreated.value = true
@@ -268,7 +361,11 @@ onPageScroll(({ scrollTop }) => {
   const on = scrollTop > 150
   if (on !== scrolled.value) scrolled.value = on
 })
-onShareAppMessage(() => ({ title: `${m.value.name}，等你入座`, path: '/pages/invite/index?id=' + m.value.id }))
+// 转发卡片：标题、卡片图都来自真实的比赛数据；卡片图进页面时先画好，转发时再按最新的报名人数重画（3 秒内画好就用新的）
+onShareAppMessage(() => {
+  const base = { title: shareTitle.value, path: '/pages/invite/index?id=' + m.value.id }
+  return { ...base, ...(cardPath ? { imageUrl: cardPath } : {}), promise: renderImage('card').then((p) => { cardPath = p; return { ...base, imageUrl: p } }).catch(() => base) }
+})
 
 // 比赛名称是用户输入的，子集里缺字时整行改用系统粗体
 const displayOk = computed(() => fitsDisplay(m.value.name))
@@ -315,8 +412,8 @@ const durationText = computed(() => {
 const allRows = computed(() => {
   let n = 0
   return m.value.blindRows.map((r, i) => (r.t === 'L'
-    ? { key: i, t: 'L', no: p2(++n), blinds: `${fmtNum(r.sb)}/${fmtNum(r.bb)}`, ante: r.ante ? fmtNum(r.ante) : '—', min: r.min }
-    : { key: i, t: r.t, min: r.min || 0 }))
+    ? { key: i, t: 'L', no: p2(++n), blinds: `${fmtNum(r.sb)}/${fmtNum(r.bb)}`, ante: r.ante ? fmtNum(r.ante) : '—', min: r.min, sp: specialOf(m.value.blindRows, i) }
+    : { key: i, t: r.t, min: r.min || 0, sp: specialOf(m.value.blindRows, i) }))
 })
 // 收起时只显示到第 6 级
 const cutIndex = computed(() => {
@@ -361,11 +458,226 @@ const proLine = computed(() => {
   return parts.join(' · ')
 })
 
+/* ---------- 提示条 ---------- */
+const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
+let popTimer = null
+function popMsg(text, icon = 'check', tone = 'red') {
+  clearTimeout(popTimer)
+  Object.assign(pop, { show: true, text, icon, tone })
+  popTimer = setTimeout(() => { pop.show = false }, 2600)
+}
+const buzz = () => { try { uni.vibrateShort({ type: 'light' }) } catch (e) {} }
+const instance = getCurrentInstance()
+
+/* ---------- 动态热度：实时报名人数 + 浏览量 ---------- */
+const views = ref(0)
+
+/* ---------- 盲注结构：特殊级别点开弹出说明；记分牌面额 ---------- */
+const popKey = ref('')
+function tapRow(r) {
+  if (!r.sp) return
+  popKey.value = popKey.value === r.key ? '' : r.key
+}
+const chips = computed(() => chipsOf(m.value))
+
+/* ---------- 报名名单与现场签到 ---------- */
+const rosterVer = ref(0) // 审批、签到之后加一，名单重新读取
+const roster = computed(() => (rosterVer.value, joinStatus.value, rosterOf(m.value, me)))
+const rosterWall = computed(() => roster.value.slice(0, 14))
+const rosterMore = computed(() => Math.max(0, roster.value.length - 14))
+const countOf = (k) => roster.value.filter((p) => p.status === k).length
+const pendingCount = computed(() => countOf('pending'))
+const rosterSummary = computed(() => ['pending', 'signed', 'checked'].map((k) => ({ key: k, label: ROSTER_STATUS[k].label, color: ROSTER_STATUS[k].color, n: countOf(k) })).filter((s) => s.n))
+const rosterOpen = ref(false)
+const rosterTab = ref('all')
+const rosterTabs = computed(() => [{ key: 'all', label: '全部', n: roster.value.length }].concat(['pending', 'signed', 'checked'].map((k) => ({ key: k, label: ROSTER_STATUS[k].label, n: countOf(k) }))))
+const rosterShown = computed(() => (rosterTab.value === 'all' ? roster.value : roster.value.filter((p) => p.status === rosterTab.value)))
+const myEntry = computed(() => roster.value.find((p) => p.mine) || null)
+const myCode = computed(() => codeOf(m.value.id, 'me'))
+const myQr = computed(() => qrSvgUri(checkinPayload(m.value.id, 'me')))
+function openRoster() {
+  rosterTab.value = isHost.value && pendingCount.value ? 'pending' : 'all'
+  rosterOpen.value = true
+}
+function afterApprove(keys) {
+  // 演示：主办方和玩家在同一台手机上时，「我」的报名也跟着通过
+  if (keys.includes('me')) {
+    setJoin(m.value.id, { ...(getJoin(m.value.id) || {}), status: 'signed' })
+    joinStatus.value = 'signed'
+  }
+  rosterVer.value += 1
+}
+function approveAll() {
+  const keys = roster.value.filter((p) => p.status === 'pending').map((p) => p.key)
+  if (!keys.length) return toast('没有待审核的报名')
+  approve(m.value.id, keys)
+  afterApprove(keys)
+  popMsg(`已通过 ${keys.length} 条报名，会通知他们`)
+}
+function approveOne(p) {
+  approve(m.value.id, [p.key])
+  afterApprove([p.key])
+  popMsg(`已通过「${p.name}」的报名`)
+}
+function doCheckin(p) {
+  const seat = checkIn(m.value.id, p.key, roster.value)
+  rosterVer.value += 1
+  buzz()
+  popMsg(`「${p.name}」已签到，${seat}`, 'armchair')
+}
+function manualCheckin(p) {
+  uni.showModal({
+    title: `给「${p.name}」签到？`,
+    content: '玩家没带签到码时可以手动核销，会按顺序分配座位。',
+    confirmText: '签到',
+    confirmColor: '#DC0000',
+    success: ({ confirm }) => { if (confirm) doCheckin(p) }
+  })
+}
+// 扫码核销：扫玩家的签到码（TJCK:比赛:玩家:四位码），校验通过后签到并分配座位
+async function scanCheckin() {
+  const sample = roster.value.find((p) => p.status === 'signed')
+  const res = await openScanner({
+    title: '扫码核销',
+    hint: '对准玩家出示的签到码',
+    validate: (t) => {
+      const r = parseCheckin(t, m.value.id)
+      if (r.error) return r.error
+      const p = roster.value.find((x) => x.key === r.key)
+      if (!p) return '名单里没有这位玩家'
+      if (p.status === 'checked') return `「${p.name}」已经签到过了（${p.seat}）`
+      if (p.status === 'pending') return `「${p.name}」的报名还没通过`
+      return true
+    },
+    demo: sample ? checkinPayload(m.value.id, sample.key) : 'TJCK:none'
+  })
+  if (!res || res.manual) return
+  const r = parseCheckin(res.result, m.value.id)
+  const p = roster.value.find((x) => x.key === r.key)
+  if (p) doCheckin(p)
+}
+// TV 签到墙：在这场比赛的现场大屏（没选就用所有在线的大屏）上打开签到墙，玩家扫大屏上的码直接加入
+async function openTvWall() {
+  const all = await listDevices()
+  const ids = m.value.screens || []
+  const targets = all.filter((d) => isOnline(d) && (!ids.length || ids.includes(d.id)))
+  if (!targets.length) return toast(all.length ? '比赛用的大屏都不在线' : '还没有绑定大屏')
+  uni.showLoading({ title: '正在打开签到墙' })
+  try {
+    for (const d of targets) {
+      await stopOn(d.id)
+      await castToDevice(d.id, castFields({ cat: 'checkin' }, []))
+    }
+  } finally {
+    uni.hideLoading()
+  }
+  popMsg(`已在 ${targets.length} 台大屏打开签到墙，玩家扫码就能加入`, 'device-tv')
+}
+
+/* ---------- 报名成功：订阅消息授权（开赛提醒、审核通过、座位分配） ---------- */
+const subOpen = ref(false)
+let afterSub = null
+function askSubscribe(next) {
+  afterSub = next || null
+  subOpen.value = true
+}
+function runAfterSub(delay) {
+  const f = afterSub
+  afterSub = null
+  if (f) setTimeout(f, delay)
+}
+function onSubClose() {
+  subOpen.value = false
+  runAfterSub(0)
+}
+function onSubDone(res) {
+  subOpen.value = false
+  toast(res.demo || res.accepted.length ? '已开启比赛提醒' : '没有开启提醒')
+  runAfterSub(700)
+}
+
+/* ---------- 分享：转发卡片（5:4）和 9:16 海报 ---------- */
+const shareData = computed(() => {
+  const x = m.value
+  return {
+    name: x.name,
+    date: dateLabel.value,
+    time: clockText.value,
+    place: x.location ? x.location.name : '',
+    blinds: startBlinds.value,
+    signed: signedCount.value,
+    cap: x.cap,
+    heat: heatOf({ signed: signedCount.value, cap: x.cap, views: views.value }),
+    tint: SCENE_TINT[scene.value.key] || '#1F222A',
+    tags: publicTags(x.tags),
+    creator: (x.creator && x.creator.name) || x.inviter.name,
+    creatorChar: (x.creator && x.creator.char) || x.inviter.c,
+    byHost: byHost.value,
+    qr: 'tj://match/' + x.id
+  }
+})
+const shareTitle = computed(() => `${m.value.name}｜${dateLabel.value} ${clockText.value} 开赛，${isFull.value ? '名额已满' : '还剩 ' + (m.value.cap - signedCount.value) + ' 个位置'}`)
+async function renderImage(kind) {
+  const W = kind === 'poster' ? 720 : 500
+  const H = kind === 'poster' ? 1280 : 400
+  const draw = kind === 'poster' ? drawPoster : drawCard
+  // #ifdef MP-WEIXIN
+  const node = await new Promise((resolve) => uni.createSelectorQuery().in(instance.proxy).select('#share-cv').fields({ node: true, size: true }).exec((r) => resolve(r && r[0] && r[0].node)))
+  if (!node) throw new Error('no canvas')
+  node.width = W
+  node.height = H
+  draw(node.getContext('2d'), shareData.value, W, H)
+  return await new Promise((resolve, reject) => uni.canvasToTempFilePath({ canvas: node, fileType: 'jpg', quality: 0.92, success: (r) => resolve(r.tempFilePath), fail: reject }))
+  // #endif
+  // #ifndef MP-WEIXIN
+  const c = document.createElement('canvas')
+  c.width = W
+  c.height = H
+  draw(c.getContext('2d'), shareData.value, W, H)
+  return c.toDataURL('image/jpeg', 0.92)
+  // #endif
+}
+let cardPath = ''
+onReady(() => { renderImage('card').then((p) => { cardPath = p }).catch(() => {}) })
+const posterOpen = ref(false)
+const posterSrc = ref('')
+async function openPoster() {
+  posterOpen.value = true
+  posterSrc.value = ''
+  try {
+    posterSrc.value = await renderImage('poster')
+  } catch (e) {
+    posterOpen.value = false
+    toast('海报生成失败，请重试')
+  }
+}
+function savePoster() {
+  if (!posterSrc.value) return
+  // #ifdef MP-WEIXIN
+  uni.saveImageToPhotosAlbum({
+    filePath: posterSrc.value,
+    success: () => popMsg('海报已保存到相册', 'download'),
+    fail: (e) => {
+      if (!/auth|deny/i.test((e && e.errMsg) || '')) return
+      uni.showModal({ title: '需要相册权限', content: '在设置里允许保存到相册后再试一次。', confirmText: '去设置', success: ({ confirm }) => { if (confirm) uni.openSetting() } })
+    }
+  })
+  // #endif
+  // #ifndef MP-WEIXIN
+  const a = document.createElement('a')
+  a.href = posterSrc.value
+  a.download = `${m.value.name}-分享海报.jpg`
+  a.click()
+  popMsg('海报已下载', 'download')
+  // #endif
+}
+
 /* ---------- 底部按钮 ---------- */
 const direct = computed(() => m.value.isPublic && m.value.autoApprove)
 const blocked = computed(() => isFull.value && joinStatus.value !== 'pending')
 const mainText = computed(() => {
   if (joinStatus.value === 'pending') return '等待主持人通过'
+  if (joinStatus.value === 'signed') return '进入房间'
   if (isFull.value) return '已满员'
   return direct.value ? '立即进入' : '报名加入'
 })
@@ -379,23 +691,24 @@ const noteText = computed(() => {
 function onMain() {
   if (joinStatus.value === 'pending') return toast('主持人还没处理你的报名')
   if (isFull.value) return toast('名额已满')
-  if (direct.value) return uni.navigateTo({ url: '/pages/room/index?id=' + m.value.id })
+  const enter = () => uni.navigateTo({ url: '/pages/room/index?id=' + m.value.id })
+  if (joinStatus.value === 'signed') return enter()
+  if (direct.value) {
+    // 立即进入：先记为已报名，问一次要不要开启比赛提醒，再进房间
+    setJoin(m.value.id, { status: 'signed', at: Date.now() })
+    joinStatus.value = 'signed'
+    return askSubscribe(enter)
+  }
   message.value = ''
   joinOpen.value = true
 }
 function submitJoin() {
-  const done = () => {
-    setJoin(m.value.id, { status: 'pending', message: message.value.trim(), at: Date.now() })
-    joinStatus.value = 'pending'
-    joinOpen.value = false
-    toast('已提交报名')
-  }
-  // 审核结果通过订阅消息通知；没配模板时直接提交
-  if (SUBSCRIBE_TMPL_ID && typeof uni.requestSubscribeMessage === 'function') {
-    uni.requestSubscribeMessage({ tmplIds: [SUBSCRIBE_TMPL_ID], complete: done })
-  } else {
-    done()
-  }
+  setJoin(m.value.id, { status: 'pending', message: message.value.trim(), at: Date.now() })
+  joinStatus.value = 'pending'
+  joinOpen.value = false
+  toast('已提交报名')
+  // 报名成功：一次申请开赛提醒、审核通过、座位分配三条订阅消息
+  setTimeout(() => askSubscribe(), 500)
 }
 function withdraw() {
   setJoin(m.value.id, null)
@@ -567,6 +880,84 @@ function leave() {
   background: #35383F; display: flex; align-items: center; justify-content: center;
 }
 .bar-share::after { border: none; }
+/* 盲注结构：特殊级别的气泡说明 */
+.tr-sp { position: relative; }
+.tr-on { background: rgba(220, 0, 0, .14); }
+.tc-no { display: flex; align-items: center; justify-content: center; }
+.tc-i { margin-left: 4rpx; display: flex; }
+.tc-ante { color: #FF8A8A; }
+.bp { position: relative; margin: 2rpx 12rpx 12rpx; padding: 18rpx 22rpx 20rpx; border-radius: 18rpx; background: #2A1216; box-shadow: inset 0 0 0 2rpx rgba(220, 0, 0, .45); animation: bp-in .2s ease-out; }
+@keyframes bp-in { from { opacity: 0; transform: translateY(-8rpx); } to { opacity: 1; transform: none; } }
+.bp-arrow { position: absolute; left: 60rpx; top: -10rpx; width: 20rpx; height: 20rpx; background: #2A1216; transform: rotate(45deg); box-shadow: -2rpx -2rpx 0 0 rgba(220, 0, 0, .45); }
+.bp-h { display: flex; align-items: center; justify-content: space-between; }
+.bp-t { font-size: 26rpx; font-weight: 700; color: #FFFFFF; }
+.bp-src { font-size: 20rpx; color: #FF8A8A; }
+.bp-d { display: block; margin-top: 8rpx; font-size: 24rpx; line-height: 1.6; color: #E5E7EB; }
+/* 已报名：头像墙 */
+.rw { margin-top: 24rpx; padding: 24rpx; border-radius: 28rpx; background: #1F222A; }
+.rw-grid { display: flex; flex-wrap: wrap; }
+.rw-av { position: relative; width: 72rpx; height: 72rpx; margin: 0 14rpx 14rpx 0; box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26rpx; font-weight: 500; }
+.rw-pending { box-shadow: 0 0 0 3rpx #FFC53A; opacity: .75; }
+.rw-checked { box-shadow: 0 0 0 3rpx #4CB582; }
+.rw-badge { position: absolute; right: -4rpx; bottom: -4rpx; width: 26rpx; height: 26rpx; box-sizing: border-box; border-radius: 50%; border: 3rpx solid #1F222A; display: flex; align-items: center; justify-content: center; }
+.rw-badge-ok { background: #4CB582; }
+.rw-badge-wait { background: #FFC53A; }
+.rw-more { background: #35383F; color: #E5E7EB; font-size: 22rpx; }
+.rw-empty { padding: 12rpx 0 20rpx; font-size: 24rpx; color: #9CA3AF; }
+.rw-sum { display: flex; align-items: center; flex-wrap: wrap; }
+.rw-s { margin-right: 22rpx; display: flex; align-items: center; }
+.rw-dot { width: 14rpx; height: 14rpx; margin-right: 8rpx; border-radius: 50%; }
+.rw-s-t { font-size: 22rpx; color: #9CA3AF; }
+.rw-open { margin-left: auto; display: flex; align-items: center; }
+.rw-open-t { font-size: 24rpx; color: #E5E7EB; }
+/* 我的签到码 */
+.mk { margin-top: 20rpx; padding: 22rpx; border-radius: 28rpx; background: #F3EEE6; display: flex; align-items: center; }
+.mk-qr { width: 168rpx; height: 168rpx; flex: none; border-radius: 12rpx; background: #FFFFFF; }
+.mk-main { margin-left: 24rpx; display: flex; flex-direction: column; }
+.mk-t { font-size: 24rpx; color: #4B5060; }
+.mk-code { margin-top: 4rpx; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 64rpx; letter-spacing: 10rpx; line-height: 1.1; color: #0B0C10; }
+.mk-s { margin-top: 4rpx; font-size: 22rpx; color: #6B7280; }
+.mk-wait { background: rgba(255, 197, 58, .1); }
+.mk-wait-t { margin-left: 12rpx; font-size: 24rpx; color: #FFC53A; }
+/* 名单抽屉 */
+.sheet-r { position: absolute; left: 0; right: 0; bottom: 0; max-height: 84vh; padding: 16rpx 32rpx calc(28rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: #262A34; border-radius: 48rpx 48rpx 0 0; display: flex; flex-direction: column; animation: ov-up .22s ease-out; }
+.sr-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18rpx; }
+.sr-title { font-size: 32rpx; font-weight: 600; color: #FFFFFF; }
+.sr-sub { font-size: 24rpx; color: #9CA3AF; }
+.sr-acts { display: flex; margin-bottom: 18rpx; }
+.sr-act { flex: 1; height: 84rpx; margin-right: 14rpx; border-radius: 20rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.sr-act:last-child { margin-right: 0; background: #35383F; }
+.sr-act-dis { opacity: .45; }
+.sr-act-t { margin-left: 8rpx; font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
+.sr-tabs { display: flex; margin-bottom: 8rpx; }
+.sr-tab { height: 56rpx; margin-right: 12rpx; padding: 0 20rpx; border-radius: 999rpx; background: #1F222A; display: flex; align-items: center; font-size: 22rpx; color: #9CA3AF; }
+.sr-tab-on { background: #FFFFFF; color: #0B0C10; font-weight: 600; }
+.sr-list { max-height: 760rpx; }
+.sr-row { display: flex; align-items: center; padding: 18rpx 0; border-bottom: 1rpx solid #2E313A; }
+.sr-av { width: 72rpx; height: 72rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26rpx; font-weight: 500; }
+.sr-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; }
+.sr-top { display: flex; align-items: center; }
+.sr-n { font-size: 28rpx; font-weight: 500; color: #FFFFFF; }
+.sr-me { margin-left: 10rpx; padding: 0 10rpx; border-radius: 8rpx; background: rgba(220, 0, 0, .2); font-size: 20rpx; color: #FF8A8A; }
+.sr-s { display: block; margin-top: 4rpx; font-size: 22rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-btn { height: 56rpx; padding: 0 24rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; }
+.sr-btn-2 { background: #35383F; }
+.sr-btn-t { font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
+.sr-pill { height: 44rpx; padding: 0 16rpx; border-radius: 999rpx; display: flex; align-items: center; font-size: 22rpx; }
+.sr-empty { display: block; padding: 40rpx 0; text-align: center; font-size: 24rpx; color: #9CA3AF; }
+/* 9:16 海报预览 */
+.ov-c { display: flex; align-items: center; justify-content: center; }
+.pst { position: relative; width: 560rpx; display: flex; flex-direction: column; align-items: center; }
+.pst-img { width: 504rpx; height: 896rpx; border-radius: 24rpx; background: #1F222A; box-shadow: 0 30rpx 60rpx rgba(0, 0, 0, .5); }
+.pst-loading { display: flex; align-items: center; justify-content: center; font-size: 26rpx; color: #9CA3AF; }
+.pst-acts { margin-top: 28rpx; width: 100%; display: flex; }
+.pst-btn { flex: 1; height: 88rpx; margin-left: 16rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.pst-btn-2 { margin-left: 0; flex: none; width: 180rpx; background: #35383F; }
+.pst-btn-dis { opacity: .5; }
+.pst-btn-t { margin-left: 8rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
+.bar-poster { margin-right: 20rpx; background: #35383F; }
+.cv-off { position: fixed; left: -2000px; top: 0; width: 720px; height: 1280px; }
+
 .bar-share-wide { width: auto; padding: 0 36rpx; border-radius: 999rpx; }
 .bar-share-t { margin-left: 8rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
 /* 主办方视图：房间码 */
@@ -589,6 +980,7 @@ function leave() {
 .bar-main-t-wait { color: #9CA3AF; }
 
 /* 报名弹层 */
+@keyframes ov-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .ov { position: fixed; z-index: 100; left: 0; top: 0; right: 0; bottom: 0; }
 .mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, .6); }
 .sheet-j {
