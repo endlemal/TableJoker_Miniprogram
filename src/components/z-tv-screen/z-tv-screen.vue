@@ -1,10 +1,10 @@
 <template>
   <view class="tvs" :class="'tvs-' + kind">
-    <swiper v-if="kind === 'poster' && posterImages.length" :key="posterKey" class="tvs-bg" circular :autoplay="!loading" :disable-touch="true" :interval="posterInterval" :duration="700">
-      <swiper-item v-for="im in posterImages" :key="im.id">
+    <view v-if="kind === 'poster' && posterImages.length" class="tvs-bg">
+      <view v-for="(im, i) in posterImages" :key="im.id" class="tvs-poster" :class="{ 'tvs-poster-on': i === posterIndex }" :aria-hidden="i !== posterIndex">
         <z-fit-img :src="posterImageSrc(im, fit)" :mode="fit" :w="posterImageSize(im).w" :h="posterImageSize(im).h" :scale="centerScale" />
-      </swiper-item>
-    </swiper>
+      </view>
+    </view>
     <view v-else-if="kind !== 'sleep' && kind !== 'off'" class="tvs-bg"><z-fit-img :src="cover.src" mode="aspectFill" :w="cover.w" :h="cover.h" :bg="cover.tint" /></view>
 
     <view v-if="kind === 'theme'" class="tvs-fill tvs-theme">
@@ -48,7 +48,7 @@
 
 <script setup>
 // 一台大屏的画面：按投放分类画出电视上会显示的样子（计时器主题、海报、签到墙、赛事列表、休眠、离线）
-import { computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { contentCover, currentRoom } from '@/common/screens.js'
@@ -65,6 +65,7 @@ const props = defineProps({
   previewWidth: { type: Number, default: 0 },
   online: { type: Boolean, default: true },
   loading: { type: Boolean, default: false },
+  playing: { type: Boolean, default: true },
   badge: { type: String, default: '' },
   color: { type: String, default: '#FFFFFF' }
 })
@@ -77,6 +78,17 @@ const posterImages = computed(() => group.value ? group.value.images || [] : [])
 const fit = computed(() => posterFit(group.value))
 const posterKey = computed(() => `${props.content.groupId}-${fit.value}-${props.resolution.w}x${props.resolution.h}`)
 const posterInterval = computed(() => Math.max(1, Number(group.value && group.value.dwell) || 8) * 1000)
+const posterIndex = ref(0)
+let posterTimer = null
+// 普通画面层只自动轮播，不注册滑动手势；触摸直接冒泡给遥控页。
+watch(posterKey, () => { posterIndex.value = 0 })
+watch([kind, posterKey, posterInterval, () => posterImages.value.length, () => props.loading, () => props.playing], () => {
+  clearInterval(posterTimer)
+  if (posterIndex.value >= posterImages.value.length) posterIndex.value = 0
+  if (kind.value !== 'poster' || props.loading || !props.playing || posterImages.value.length < 2) return
+  posterTimer = setInterval(() => { posterIndex.value = (posterIndex.value + 1) % posterImages.value.length }, posterInterval.value)
+}, { immediate: true })
+onUnmounted(() => clearInterval(posterTimer))
 const centerScale = computed(() => props.previewWidth / screenResolution(props.resolution).w)
 const avatars = topPlayers.concat(topPlayers.slice(0, 2))
 const p2 = (n) => (n < 10 ? '0' : '') + n
@@ -86,6 +98,8 @@ const matches = hostMatches.slice(0, 3).map((m) => { const d = new Date(m.startA
 <style>
 .tvs { position: relative; width: 100%; height: 100%; overflow: hidden; background: #050507; }
 .tvs-bg { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
+.tvs-poster { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity .7s ease; }
+.tvs-poster-on { opacity: 1; }
 .tvs-fill { position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .tvs-theme { background: rgba(4, 6, 10, .55); }
 .tvs-lv { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 20rpx; letter-spacing: 2rpx; color: #FFB547; }

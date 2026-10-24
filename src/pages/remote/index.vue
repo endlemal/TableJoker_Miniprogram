@@ -14,7 +14,7 @@
       <view class="rc-help-btn" hover-class="rc-press" @tap.stop="openHelp"><z-icon name="help-circle" :size="18" color="rgba(255,255,255,.8)" /></view>
     </view>
 
-    <!-- 大屏区域只展示设备当前画面，画面内部不接管设备切换手势 -->
+    <!-- 大屏画面和外部区域的左右滑动都交给页面切换设备 -->
     <view class="rc-stage-head" :style="'top:' + (L.flowTop - px(56)) + 'px'">
       <view class="rc-live-label"><view class="rc-live-dot" :class="{ 'rc-live-dot-off': !cur || !online(cur) }"></view><text>设备当前画面</text></view>
       <view class="rc-screen-nav">
@@ -29,8 +29,8 @@
         <text class="rc-empty-t">{{ devices.length ? '没有符合筛选的大屏' : '还没有绑定大屏' }}</text>
         <view class="rc-chip-btn" hover-class="rc-press" @tap.stop="devices.length ? setFilter('all') : toDevices()"><text class="rc-chip-btn-t">{{ devices.length ? '查看全部大屏' : '去设备管理' }}</text></view>
       </view>
-      <view v-for="(d, i) in queue" :key="d.id" class="rc-scr" :class="{ 'rc-scr-cur': i === ci }" :style="scrStyle(d, i)" @touchstart="blockPageSwipe" @mousedown="blockPageSwipe" @tap.stop="tapScreen(i)">
-        <z-tv-screen :content="screenContent(d)" :groups="groups" :device-id="d.id" :last-scene="d.coverScene" :resolution="screenResolutionOf(d)" :preview-width="screenBox(d).w" :online="online(d)" :loading="!!casting[d.id]" :color="selCat.color" />
+      <view v-for="(d, i) in queue" :key="d.id" class="rc-scr" :class="{ 'rc-scr-cur': i === ci }" :style="scrStyle(d, i)" @tap.stop="tapScreen(i)">
+        <z-tv-screen :content="screenContent(d)" :groups="groups" :device-id="d.id" :last-scene="d.coverScene" :resolution="screenResolutionOf(d)" :preview-width="screenBox(d).w" :online="online(d)" :loading="!!casting[d.id]" :playing="pageActive && !helpOpen" :color="selCat.color" />
         <view v-if="allMode && online(d)" class="rc-scr-chk"><z-icon name="check" :size="12" :stroke="3" color="#FFFFFF" /></view>
       </view>
     </view>
@@ -193,21 +193,7 @@
       </view>
     </view>
 
-    <!-- 操作说明 -->
-    <view v-if="helpOpen" class="rc-help">
-      <view class="rc-help-mask" @tap.stop="closeHelp"></view>
-      <view class="rc-help-card">
-        <view class="rc-help-x" hover-class="rc-press" @tap.stop="closeHelp"><z-icon name="x" :size="16" color="rgba(255,255,255,.7)" /></view>
-        <text class="rc-help-t">遥控切屏怎么用</text>
-        <scroll-view scroll-y class="rc-help-list">
-          <view v-for="h in HELP" :key="h.title" class="rc-help-i">
-            <view class="rc-help-ic"><z-icon :name="h.icon" :size="18" color="#FFFFFF" /></view>
-            <view class="rc-help-main"><text class="rc-help-it">{{ h.title }}</text><text class="rc-help-id">{{ h.text }}</text></view>
-          </view>
-        </scroll-view>
-        <view class="rc-help-ok" hover-class="rc-press" @tap.stop="closeHelp"><text class="rc-help-ok-t">知道了</text></view>
-      </view>
-    </view>
+    <z-remote-guide v-if="helpOpen" :items="HELP" :top-inset="nav.statusBar + nav.navH + px(24)" :bottom-inset="safeB + px(24)" @done="closeHelp" />
 
     <z-pop :show="pop.show" :text="pop.text" :icon="pop.icon" :tone="pop.tone" />
   </view>
@@ -221,10 +207,11 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import ZTvScreen from '@/components/z-tv-screen/z-tv-screen.vue'
+import ZRemoteGuide from '@/components/z-remote-guide/z-remote-guide.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri } from '@/common/svg.js'
 import { coverArt } from '@/common/cover-art.js'
-import { requireLogin } from '@/common/auth.js'
+import { getAuth, requireLogin } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline, castToDevice } from '@/common/devices.js'
 import { listGroups, playOn, stopOn } from '@/common/posters.js'
@@ -269,6 +256,7 @@ const L = (() => {
 })()
 const busy = ref(false)
 const refreshing = ref(false)
+const pageActive = ref(false)
 
 /* ---------- 提示条 ---------- */
 const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
@@ -313,7 +301,7 @@ function ago(t) {
   return Math.round(m / 1440) + ' 天前'
 }
 
-/* ---------- 空白区域切换设备，画面内部、罗盘和系统返回边缘各自保留手势 ---------- */
+/* ---------- 画面和外部区域切换设备，罗盘及系统返回边缘保留各自手势 ---------- */
 const overlayOpen = () => !!(picker.value || listShown.value || helpOpen.value || filterOpen.value || cpop.show)
 
 /* ---------- 筛选：按大屏正在显示的内容 ---------- */
@@ -367,7 +355,7 @@ function go(step) {
   ci.value = next
   buzz()
 }
-const tapScreen = (i) => { if (i !== ci.value) go(i - ci.value) }
+const tapScreen = (i) => { if (Date.now() >= ignorePageTapUntil && i !== ci.value) go(i - ci.value) }
 let sw = null
 let blockedSwipeStart = null
 let lastPageTouchAt = 0
@@ -907,22 +895,33 @@ const capSub = (d) => (online(d) ? contentText(liveOf(d, groups.value), groups.v
 
 /* ---------- 说明 ---------- */
 const helpOpen = ref(false)
-const openHelp = () => { helpOpen.value = true }
+const openHelp = () => { onSwipeCancel(); dialCancel(); castCancel(); helpOpen.value = true }
 const closeHelp = () => { helpOpen.value = false }
+let guideShownTo = ''
+function showFirstVisitHelp() {
+  const userId = (getAuth() || {}).userId
+  if (!userId || guideShownTo === userId) return
+  const key = 'zz_remote_guide:' + userId
+  try { if (uni.getStorageSync(key)) return } catch (e) {}
+  guideShownTo = userId
+  openHelp()
+  try { uni.setStorageSync(key, 1) } catch (e) {}
+}
 const toDevices = () => uni.navigateTo({ url: '/pages/devices/index' })
 const toPosters = () => { closePicker(); uni.navigateTo({ url: '/pages/posters/index' }) }
 
 /* ---------- 页面 ---------- */
 let tickTimer = null
+let pageAuthorized = false
 onLoad(() => {
-  if (!requireLogin() || !requireHost()) return
-  // 页面已提供可见的操作提示，说明按需打开，不阻断首次使用
-  try {
-    uni.setStorageSync('zz_remote_help', 1)
-  } catch (e) {}
+  pageAuthorized = requireLogin() && requireHost()
 })
 onShow(async () => {
+  if (!pageAuthorized) return
+  pageActive.value = true
   try { await load(); initializeSelection() } catch (e) { toast('大屏加载失败，请刷新重试') }
+  if (!pageActive.value) return
+  showFirstVisitHelp()
   clearInterval(tickTimer)
   tickTimer = setInterval(async () => {
     // 演示服务在读取时续心跳；同时更新设备与海报状态，待投放选择保持不变。
@@ -930,8 +929,8 @@ onShow(async () => {
     tick.value += 1
   }, 15000)
 })
-onHide(() => { clearInterval(tickTimer); castCancel(); dialCancel(); onSwipeCancel() })
-onUnload(() => { clearInterval(tickTimer); clearTimeout(ackTimer); clearTimeout(popTimer); clearTimeout(cpopTimer); castCancel() })
+onHide(() => { pageActive.value = false; clearInterval(tickTimer); castCancel(); dialCancel(); onSwipeCancel() })
+onUnload(() => { pageActive.value = false; clearInterval(tickTimer); clearTimeout(ackTimer); clearTimeout(popTimer); clearTimeout(cpopTimer); castCancel() })
 </script>
 
 <style>
@@ -1143,19 +1142,7 @@ onUnload(() => { clearInterval(tickTimer); clearTimeout(ackTimer); clearTimeout(
 .rc-cpop-d { margin-top: 12rpx; font-size: 24rpx; line-height: 1.7; color: rgba(255, 255, 255, .78); text-align: center; }
 
 /* 操作说明 */
-.rc-help { position: absolute; z-index: 90; left: 0; top: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
-.rc-help-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, .62); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.rc-help-card { position: relative; width: 640rpx; box-sizing: border-box; padding: 44rpx 32rpx 32rpx; border-radius: 40rpx; background: rgba(22, 24, 32, .94); box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .14); }
-.rc-help-x { position: absolute; right: 24rpx; top: 24rpx; width: 56rpx; height: 56rpx; border-radius: 50%; background: rgba(255, 255, 255, .08); display: flex; align-items: center; justify-content: center; }
-.rc-help-t { display: block; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 40rpx; letter-spacing: 2rpx; color: #FFFFFF; text-align: center; }
-.rc-help-list { margin-top: 24rpx; max-height: 760rpx; }
-.rc-help-i { display: flex; padding: 18rpx 0; }
-.rc-help-ic { width: 60rpx; height: 60rpx; flex: none; border-radius: 18rpx; background: rgba(255, 255, 255, .1); display: flex; align-items: center; justify-content: center; }
-.rc-help-main { flex: 1; min-width: 0; margin-left: 20rpx; display: flex; flex-direction: column; }
-.rc-help-it { font-size: 28rpx; font-weight: 700; color: #FFFFFF; }
-.rc-help-id { margin-top: 6rpx; font-size: 23rpx; line-height: 1.65; color: rgba(255, 255, 255, .7); }
-.rc-help-ok { margin-top: 24rpx; height: 88rpx; border-radius: 999rpx; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
-.rc-help-ok-t { font-size: 28rpx; font-weight: 700; color: #0B0C10; }
+
 
 @media (prefers-reduced-motion: reduce) {
   .rc-bub, .rc-spinner { animation: none; }
