@@ -35,6 +35,7 @@
           <z-icon :name="m.autoApprove ? 'bolt' : 'user-check'" :size="13" :color="m.autoApprove ? '#3FCF84' : '#FFC53A'" />
           <text class="chip-t" :style="{ color: m.autoApprove ? '#3FCF84' : '#FFC53A' }">{{ m.autoApprove ? '自动通过' : '需审核' }}</text>
         </view>
+        <view v-for="t in m.tags || []" :key="t" class="chip chip-tag"><text>{{ t }}</text></view>
       </view>
 
       <!-- 关键信息板：站牌风格，和房间页的翻牌钟一致 -->
@@ -83,6 +84,7 @@
         <text v-if="justCreated" class="rmc-new-tag">刚刚发布</text>
         <view class="rmc-copy" hover-class="press" @tap="copyRoomCode"><z-icon name="copy" :size="16" color="#FFFFFF" /><text class="rmc-copy-t">复制</text></view>
       </view>
+      <view v-if="isHost && proLine" class="rmc-pro"><z-icon name="device-tv" :size="13" color="#9CA3AF" /><text class="rmc-pro-t">{{ proLine }}</text></view>
 
       <!-- 地点：在开赛时间下方，点「导航」用微信内置地图打开 -->
       <view v-if="m.location" class="loc" hover-class="press-soft" @tap="openMap">
@@ -97,6 +99,10 @@
       <!-- 比赛介绍 -->
       <view class="sec"><text class="st">比赛介绍</text></view>
       <text class="intro">{{ m.intro || '主持人还没有写介绍' }}</text>
+      <view v-for="(r, i) in m.rules || []" :key="i" class="rl" :class="r.level === 1 ? 'rl-h1' : 'rl-h2'">
+        <view v-if="r.title" class="rl-head"><view v-if="r.level === 1" class="rl-bar"></view><text class="rl-t">{{ r.title }}</text></view>
+        <text v-if="r.body" class="rl-b">{{ r.body }}</text>
+      </view>
 
       <!-- 盲注结构 -->
       <view class="sec"><text class="st">盲注结构</text><text class="sm">{{ m.blindName }}，共 {{ levelCount }} 级</text></view>
@@ -130,6 +136,18 @@
           <text class="host-r" :class="{ 'host-r-owner': h.role === 'owner' }">{{ h.role === 'owner' ? '发起人' : '共同主持' }}</text>
         </view>
       </view>
+
+      <!-- 驻场荷官：主办方从荷官名册里添加，只作信息展示 -->
+      <block v-if="(m.dealers || []).length">
+        <view class="sec"><text class="st">驻场荷官</text><text class="sec-n">{{ m.dealers.length }} 位</text></view>
+        <view class="hosts">
+          <view v-for="d in m.dealers" :key="d.id" class="host">
+            <view class="av av-44" :style="'background:' + d.bg + ';color:' + d.fg"><text>{{ d.char }}</text></view>
+            <text class="host-n">{{ d.name }}</text>
+            <text class="host-r host-r-dealer">{{ d.title }}</text>
+          </view>
+        </view>
+      </block>
 
       <!-- 已报名 -->
       <view class="sec"><text class="st">已报名</text><text class="sm">{{ signedCount }}/{{ m.cap }}</text></view>
@@ -204,6 +222,7 @@ import { getMatch, getJoin, setJoin } from '@/common/store.js'
 import { SUBSCRIBE_TMPL_ID } from '@/common/config.js'
 import { me, coverScenes, makeDemoMatch } from '@/mock/data.js'
 import { findPublicMatch } from '@/mock/plaza.js'
+import { TV_THEMES } from '@/mock/remote.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
 const nav = getNavMetrics()
@@ -322,6 +341,17 @@ function copyRoomCode() {
   uni.setClipboardData({ data: m.value.roomCode, success: () => toast('房间码已复制') })
 }
 const enterRoom = () => uni.navigateTo({ url: '/pages/room/index?id=' + m.value.id })
+// 主办方视图：现场配置一行（现场大屏、TV 主题、显示几项信息）
+const proLine = computed(() => {
+  const x = m.value || {}
+  const parts = []
+  if ((x.screens || []).length) parts.push(`现场大屏 ${x.screens.length} 台`)
+  if (x.tvTheme) {
+    const t = TV_THEMES.find((k) => k.key === x.tvTheme.key)
+    parts.push(`TV 主题「${t ? t.name : x.tvTheme.key}」· 显示 ${(x.tvTheme.dims || []).length} 项信息`)
+  }
+  return parts.join(' · ')
+})
 
 /* ---------- 底部按钮 ---------- */
 const direct = computed(() => m.value.isPublic && m.value.autoApprove)
@@ -494,6 +524,19 @@ function leave() {
 .host-n { margin-top: 20rpx; max-width: 128rpx; font-size: 24rpx; color: #E5E7EB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .host-r { margin-top: 4rpx; font-size: 22rpx; color: #6B7280; }
 .host-r-owner { color: #F4B740; }
+.host-r-dealer { color: #9CA3AF; }
+.sec-n { font-size: 24rpx; color: #6B7280; }
+.chip-tag { background: #2A1216; color: #FF8A8A; }
+/* 规程 */
+.rl { margin-top: 28rpx; }
+.rl-h2 { margin-top: 20rpx; padding-left: 24rpx; }
+.rl-head { display: flex; align-items: center; }
+.rl-bar { width: 8rpx; height: 32rpx; margin-right: 14rpx; border-radius: 4rpx; background: #DC0000; }
+.rl-t { font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
+.rl-h2 .rl-t { font-size: 27rpx; color: #E5E7EB; }
+.rl-b { display: block; margin-top: 10rpx; font-size: 27rpx; line-height: 1.75; color: #D1D5DB; white-space: pre-wrap; }
+.rmc-pro { margin-top: 12rpx; padding: 0 8rpx; display: flex; align-items: center; }
+.rmc-pro-t { margin-left: 8rpx; font-size: 22rpx; color: #9CA3AF; }
 .people { margin-top: 24rpx; display: flex; align-items: center; }
 .stack { display: flex; }
 .people-t { margin-left: 24rpx; font-size: 26rpx; color: #9CA3AF; }

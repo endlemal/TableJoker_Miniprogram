@@ -80,13 +80,35 @@
         <z-icon name="chevron-right" :size="16" color="#6B7280" />
       </view>
 
-      <!-- 比赛介绍：弹层打开时换成静态文字，避免原生 textarea 盖住弹层 -->
-      <text class="lb lb-gap">比赛介绍</text>
-      <view class="fd intro-box">
-        <textarea v-if="!overlayOpen" v-model="form.intro" class="intro" maxlength="300" placeholder="说说赛制、休息安排和注意事项" placeholder-class="ph" />
-        <text v-else class="intro intro-static">{{ form.intro || '说说赛制、休息安排和注意事项' }}</text>
-        <text class="count count-abs">{{ form.intro.length }}/300</text>
+      <!-- 比赛介绍：弹层打开时换成静态文字，避免原生 textarea 盖住弹层。
+           主办方上限 1000 字（介绍和各段落合计），可以按一级 / 二级标题分段写规程 -->
+      <view class="lb-row lb-gap">
+        <text class="lb">{{ isHost ? '比赛介绍与规程' : '比赛介绍' }}</text>
+        <text v-if="isHost" class="count" :class="{ 'count-full': introUsed >= introMax }">{{ introUsed }}/{{ introMax }}</text>
       </view>
+      <view class="fd intro-box">
+        <textarea v-if="!overlayOpen" v-model="form.intro" class="intro" :maxlength="fieldMax(form.intro)" placeholder="说说赛制、休息安排和注意事项" placeholder-class="ph" />
+        <text v-else class="intro intro-static">{{ form.intro || '说说赛制、休息安排和注意事项' }}</text>
+        <text v-if="!isHost" class="count count-abs">{{ form.intro.length }}/{{ introMax }}</text>
+      </view>
+      <block v-if="isHost">
+        <view v-for="(r, i) in form.rules" :key="r.id" class="fd rule" :class="r.level === 1 ? 'rule-h1' : 'rule-h2'">
+          <view class="rule-top">
+            <view class="rule-lv" hover-class="press" @tap="r.level = r.level === 1 ? 2 : 1"><text>{{ r.level === 1 ? '一级标题' : '二级标题' }}</text></view>
+            <input v-model="r.title" class="rule-title" :maxlength="fieldMax(r.title, 20)" placeholder="段落标题" placeholder-class="ph" />
+            <view v-if="i > 0" class="rule-act" hover-class="press" @tap="moveRule(i, -1)"><z-icon name="arrow-up" :size="14" color="#9CA3AF" /></view>
+            <view v-if="i < form.rules.length - 1" class="rule-act" hover-class="press" @tap="moveRule(i, 1)"><z-icon name="arrow-down" :size="14" color="#9CA3AF" /></view>
+            <view class="rule-act" hover-class="press" @tap="form.rules.splice(i, 1)"><z-icon name="x" :size="13" :stroke="2.5" color="#B86A6A" /></view>
+          </view>
+          <textarea v-if="!overlayOpen" v-model="r.body" class="rule-body" auto-height :maxlength="fieldMax(r.body)" placeholder="正文" placeholder-class="ph" />
+          <text v-else class="rule-body rule-body-static">{{ r.body || '正文' }}</text>
+        </view>
+        <view class="snips">
+          <text class="snips-t">插入段落</text>
+          <view v-for="sn in RULE_SNIPPETS" :key="sn.key" class="snip" hover-class="press" @tap="addRule(sn)"><text>{{ sn.title }}</text></view>
+          <view class="snip" hover-class="press" @tap="addRule(null)"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="snip-t">空白段落</text></view>
+        </view>
+      </block>
 
       <!-- 共同主持 -->
       <view class="host-head">
@@ -132,6 +154,40 @@
         </view>
         <view class="sw" :class="{ 'sw-on': form.autoApprove }" @tap="form.autoApprove = !form.autoApprove"><view class="sw-knob"></view></view>
       </view>
+
+      <!-- 主办方 · 专业赛制配置：只有认证主办方看得到 -->
+      <block v-if="isHost">
+        <view class="more"><text class="lb">专业赛制配置</text><view class="pro-badge"><z-icon name="crown" :size="11" color="#F4B740" /><text class="pro-badge-t">主办方</text></view><view class="more-line"></view></view>
+        <view class="fd pro-list">
+          <view class="pro-row" hover-class="press-soft" @tap="openScreens">
+            <view class="pro-ic"><z-icon name="device-tv" :size="18" color="#FFFFFF" /></view>
+            <view class="pro-main"><text class="pro-t">现场大屏</text><text class="pro-s">{{ screensSummary }}</text></view>
+            <z-icon name="chevron-right" :size="16" color="#6B7280" />
+          </view>
+          <view class="pro-row" hover-class="press-soft" @tap="themeOpen = true">
+            <view class="pro-ic"><z-icon name="palette" :size="18" color="#FFFFFF" /></view>
+            <view class="pro-main"><text class="pro-t">房间 TV 主题</text><text class="pro-s">{{ themeSummary }}</text></view>
+            <z-icon name="chevron-right" :size="16" color="#6B7280" />
+          </view>
+          <view class="pro-row" hover-class="press-soft" @tap="dealersOpen = true">
+            <view class="pro-ic"><z-icon name="user-check" :size="18" color="#FFFFFF" /></view>
+            <view class="pro-main"><text class="pro-t">驻场荷官</text><text class="pro-s">{{ dealerSummary }}</text></view>
+            <view v-if="dealerPicked.length" class="pro-avs">
+              <view v-for="(d, k) in dealerPicked.slice(0, 3)" :key="d.id" class="pro-av" :style="'background:' + d.bg + ';color:' + d.fg + ';z-index:' + (3 - k)"><text>{{ d.char }}</text></view>
+            </view>
+            <z-icon name="chevron-right" :size="16" color="#6B7280" />
+          </view>
+        </view>
+        <view class="lb-row lb-gap"><text class="lb">比赛标签</text><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
+        <view class="tags">
+          <view v-for="t in tagChoices" :key="t" class="tg" :class="{ 'tg-on': form.tags.includes(t) }" hover-class="press" @tap="toggleTag(t)">
+            <text class="tg-t">{{ t }}</text>
+            <z-icon v-if="form.tags.includes(t)" name="check" :size="12" :stroke="2.5" color="#FF6B6B" />
+          </view>
+          <view v-if="tagInput" class="tg tg-input"><input v-model="tagDraft" class="tg-in" :maxlength="TAG_MAX_LEN" focus confirm-type="done" placeholder="最多 6 个字" placeholder-class="ph" @confirm="commitTag" @blur="commitTag" /></view>
+          <view v-else class="tg tg-add" hover-class="press" @tap="startTag"><z-icon name="plus" :size="12" color="#9CA3AF" /><text class="tg-t tg-add-t">自定义</text></view>
+        </view>
+      </block>
     </view>
 
     <!-- 底部：方案 + 去发布。分享统一放在发布后的比赛邀请页 -->
@@ -155,21 +211,30 @@
         <view class="grab"></view>
         <view class="sh-head">
           <text class="sh-title">盲注方案</text>
-          <text class="sh-sub">{{ schemes.length }}/{{ MAX_SCHEMES }}</text>
+          <text class="sh-sub">{{ schemes.length }}/{{ maxSlots }}</text>
         </view>
-        <view class="tiles">
+        <view v-if="isHost" class="pre">
+          <text class="pre-t">工作台预设</text>
+          <scroll-view scroll-x class="pre-scroll"><view class="pre-row">
+            <view v-for="pr in BLIND_PRESETS" :key="pr.id" class="pre-c" :class="{ 'pre-on': form.blindId === pr.id }" hover-class="press-soft" @tap="chooseScheme(pr.id)">
+              <text class="pre-n">{{ pr.name }}</text><text class="pre-d">{{ pr.desc }}</text>
+            </view>
+          </view></scroll-view>
+        </view>
+        <scroll-view scroll-y class="tiles-scroll" :class="{ 'tiles-scroll-host': isHost }"><view class="tiles">
           <view v-for="t in schemeTiles" :key="t.id" class="tile" :class="{ 'tile-on': t.on }" hover-class="press-soft" @tap="chooseScheme(t.id)" @longpress="schemeActions(t)">
             <text class="tile-name">{{ t.name }}</text>
             <view class="tile-flaps"><text class="mf">{{ t.start[0] }}</text><text class="mf-sl">/</text><text class="mf">{{ t.start[1] }}</text></view>
             <text class="tile-meta" :class="{ 'tile-meta-on': t.on }">{{ t.on ? '使用中' : t.count + ' 级' }}</text>
           </view>
-          <view v-if="schemes.length < MAX_SCHEMES" class="tile tile-new" hover-class="press" @tap="openEditor('')">
+          <view v-if="schemes.length < maxSlots" class="tile tile-new" hover-class="press" @tap="openEditor('')">
             <z-icon name="plus" :size="22" color="#FF4D4D" />
             <text class="tile-new-t">新建方案</text>
           </view>
           <view v-for="n in schemeEmpty" :key="'e' + n" class="tile tile-empty"></view>
-        </view>
-        <text class="sh-hint">{{ schemes.length >= MAX_SCHEMES ? '已存满 5 个，长按方案可以删除' : '没有合适的就新建一个，长按方案可以编辑或删除' }}</text>
+        </view></scroll-view>
+        <view v-if="isHost && currentScheme" class="saveas" hover-class="press" @tap="saveSchemeAs"><z-icon name="copy" :size="14" color="#FF6B6B" /><text class="saveas-t">把「{{ currentScheme.name }}」另存为新模板</text></view>
+        <text class="sh-hint">{{ schemes.length >= maxSlots ? '已存满 ' + maxSlots + ' 个，长按方案可以删除' : '没有合适的就新建一个，长按方案可以编辑或删除' }}</text>
       </view>
     </view>
 
@@ -273,27 +338,107 @@
       </view>
     </view>
 
+    <!-- 现场大屏：抽屉栏里多选开赛时显示计时器的大屏 -->
+    <view v-if="screensOpen" class="ov">
+      <view class="mask" @tap="screensOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="sheet sheet-pro">
+        <view class="grab"></view>
+        <view class="sh-head"><text class="sh-title">现场大屏</text><text class="sh-sub">已选 {{ form.screens.length }} 台</text></view>
+        <scroll-view scroll-y class="pro-scroll">
+          <view v-for="d in devices" :key="d.id" class="scap" :class="{ 'scap-on': form.screens.includes(d.id), 'scap-off': !isOnline(d) }" hover-class="press-soft" @tap="toggleScreen(d)">
+            <view class="scap-cv"><z-fit-img :src="capCover(d).src" mode="aspectFill" :w="capCover(d).w" :h="capCover(d).h" :bg="capCover(d).tint" /></view>
+            <view class="scap-mask" :style="capMask(d)"></view>
+            <view class="scap-ic" :class="isOnline(d) ? 'scap-ic-on' : 'scap-ic-off'"><z-icon :name="isOnline(d) ? 'device-tv' : 'device-tv-off'" :size="18" :color="isOnline(d) ? '#4CB582' : '#FF8A8A'" /></view>
+            <view class="scap-main"><text class="scap-n">{{ d.name }}</text><text class="scap-s">{{ screenSub(d) }}</text></view>
+            <view class="chk" :class="{ 'chk-on': form.screens.includes(d.id) }"><z-icon v-if="form.screens.includes(d.id)" name="check" :size="13" :stroke="3" color="#FFFFFF" /></view>
+          </view>
+          <view v-if="!devices.length" class="pro-empty"><text>还没有绑定大屏，</text><text class="lnk" @tap="toDevices">去设备管理添加</text></view>
+        </scroll-view>
+        <text class="sh-hint">开赛时，选中的大屏会显示这场比赛的计时器；离线的大屏联网后生效</text>
+        <view class="sh-done" hover-class="press" @tap="screensOpen = false"><text class="sh-done-t">完成</text></view>
+      </view>
+    </view>
+
+    <!-- 房间 TV 主题：视觉主题 + 显示的信息 -->
+    <view v-if="themeOpen" class="ov">
+      <view class="mask" @tap="themeOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="sheet sheet-pro">
+        <view class="grab"></view>
+        <view class="sh-head"><text class="sh-title">房间 TV 主题</text><text class="sh-sub">大屏计时器的样式和信息</text></view>
+        <view class="tvp">
+          <text class="tvp-theme">{{ themeName }}</text>
+          <text class="tvp-time">18:42</text>
+          <view class="tvp-dims">
+            <text v-for="d in shownDims" :key="d.key" class="tvp-dim">{{ d.name }}</text>
+          </view>
+        </view>
+        <view class="themes">
+          <view v-for="t in TV_THEMES" :key="t.key" class="thc" :class="{ 'thc-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
+            <text class="thc-n">{{ t.name }}</text><text class="thc-d">{{ t.desc }}</text>
+          </view>
+        </view>
+        <text class="sh-sec">显示的信息</text>
+        <view class="dims">
+          <view v-for="d in TV_DIMS" :key="d.key" class="dim" :class="{ 'dim-on': form.tvTheme.dims.includes(d.key), 'dim-fixed': d.fixed }" hover-class="press" @tap="toggleDim(d)">
+            <z-icon :name="d.fixed ? 'lock' : form.tvTheme.dims.includes(d.key) ? 'check' : 'plus'" :size="12" :stroke="2.5" :color="d.fixed ? '#6B7280' : form.tvTheme.dims.includes(d.key) ? '#FF6B6B' : '#9CA3AF'" />
+            <text class="dim-t">{{ d.name }}</text>
+          </view>
+        </view>
+        <view class="sh-done" hover-class="press" @tap="themeOpen = false"><text class="sh-done-t">完成</text></view>
+      </view>
+    </view>
+
+    <!-- 驻场荷官：从工作台的荷官名册里添加，只作信息展示 -->
+    <view v-if="dealersOpen" class="ov">
+      <view class="mask" @tap="dealersOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="sheet sheet-pro">
+        <view class="grab"></view>
+        <view class="sh-head"><text class="sh-title">驻场荷官</text><text class="sh-sub">已选 {{ form.dealers.length }} 位</text></view>
+        <scroll-view scroll-y class="pro-scroll">
+          <view v-for="d in dealerList" :key="d.id" class="dlr" :class="{ 'dlr-on': form.dealers.includes(d.id) }" hover-class="press-soft" @tap="toggleDealer(d)">
+            <view class="dlr-av" :style="'background:' + d.bg + ';color:' + d.fg"><text>{{ d.char }}</text></view>
+            <view class="dlr-main">
+              <view class="dlr-top"><text class="dlr-n">{{ d.name }}</text><text class="dlr-title">{{ d.title }}</text></view>
+              <text class="dlr-s">从业 {{ d.years }} 年 · {{ d.tags.join(' / ') }}</text>
+            </view>
+            <view class="chk" :class="{ 'chk-on': form.dealers.includes(d.id) }"><z-icon v-if="form.dealers.includes(d.id)" name="check" :size="13" :stroke="3" color="#FFFFFF" /></view>
+          </view>
+        </scroll-view>
+        <text class="sh-hint">荷官只作信息展示，不关联账号，也没有控场操作</text>
+        <view class="sh-done" hover-class="press" @tap="dealersOpen = false"><text class="sh-done-t">完成</text></view>
+      </view>
+    </view>
+
     <!-- 比赛方案（中央悬浮窗） -->
     <view v-if="tplOpen" class="ov">
       <view class="mask" @tap="tplOpen = false" @touchmove.stop.prevent="noop"></view>
       <view class="md">
         <view class="md-head">
           <text class="sh-title">比赛方案</text>
-          <text class="sh-sub md-sub">{{ templates.length }}/{{ MAX_SCHEMES }}</text>
+          <text class="sh-sub md-sub">{{ templates.length }}/{{ maxSlots }}</text>
           <view class="md-close" hover-class="press" @tap="tplOpen = false"><z-icon name="x" :size="16" color="#9CA3AF" /></view>
         </view>
-        <view class="tiles">
+        <view v-if="isHost" class="pre pre-md">
+          <text class="pre-t">工作台预设</text>
+          <scroll-view scroll-x class="pre-scroll"><view class="pre-row">
+            <view v-for="pr in MATCH_PRESETS" :key="pr.id" class="pre-c pre-c-tpl" hover-class="press-soft" @tap="applyPreset(pr)">
+              <view class="pre-cover" :style="presetCover(pr)"></view>
+              <text class="pre-n">{{ pr.name }}</text><text class="pre-d">{{ pr.data.tags.join(' · ') }}</text>
+            </view>
+          </view></scroll-view>
+        </view>
+        <scroll-view scroll-y class="tiles-scroll" :class="{ 'tiles-scroll-host': isHost }"><view class="tiles">
           <view v-for="t in templateTiles" :key="t.id" class="tile tpl" hover-class="press-soft" @tap="applyTemplate(t.id)" @longpress="templateActions(t)">
             <view class="tpl-cover" :style="t.bg"></view>
             <text class="tpl-name">{{ t.name }}</text>
             <text class="tpl-meta">{{ t.meta }}</text>
           </view>
-          <view v-if="templates.length < MAX_SCHEMES" class="tile tpl tile-new" hover-class="press" @tap="saveTemplate">
+          <view v-if="templates.length < maxSlots" class="tile tpl tile-new" hover-class="press" @tap="saveTemplate">
             <z-icon name="plus" :size="22" color="#FF4D4D" />
-            <text class="tile-new-t">存为方案</text>
+            <text class="tile-new-t">{{ isHost ? '另存为新模板' : '存为方案' }}</text>
           </view>
           <view v-for="n in templateEmpty" :key="'t' + n" class="tile tpl tile-empty"></view>
-        </view>
+        </view></scroll-view>
         <text class="sh-hint">点方案一键填好这张表（日期除外），长按可以删除</text>
       </view>
     </view>
@@ -308,7 +453,14 @@ import ZPop from '@/components/z-pop/z-pop.vue'
 import { getAuth } from '@/common/auth.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
-import { MAX_SCHEMES, loadList, saveList, saveMatch, newRoomCode } from '@/common/store.js'
+import { loadList, saveList, saveMatch, newRoomCode } from '@/common/store.js'
+import { useCertState } from '@/common/cert.js'
+import { listDevices, isOnline } from '@/common/devices.js'
+import { listDealers, dealerSnapshot } from '@/common/dealers.js'
+import { liveOf, contentCover } from '@/common/screens.js'
+import { TV_THEMES } from '@/mock/remote.js'
+import { SLOTS, INTRO_MAX, TV_DIMS, DEFAULT_DIMS, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN, RULE_SNIPPETS, BLIND_PRESETS, MATCH_PRESETS } from '@/mock/pro.js'
+import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
@@ -351,9 +503,14 @@ const nextFriday = (5 - today.getDay() + 7) % 7 || 7
 const pvMask = 'background-image:linear-gradient(180deg,rgba(38,42,52,.96),rgba(38,42,52,.5)),linear-gradient(0deg,rgba(38,42,52,.96),rgba(38,42,52,.5));'
 
 /* ---------- 表单状态 ---------- */
+// 主办方（认证后）：方案存档 12 个、介绍 1000 字，并且有专业赛制配置
+const certState = useCertState()
+const isHost = computed(() => certState.value === 'verified')
+const maxSlots = computed(() => (isHost.value ? SLOTS.host : SLOTS.user))
+const proDefaults = () => ({ tags: [], tvTheme: { key: 'flip', dims: DEFAULT_DIMS.slice() }, screens: [], dealers: [], rules: [] })
 const schemes = ref(loadList(KEY_SCHEMES, blindSchemeSeeds))
 const templates = ref(loadList(KEY_TEMPLATES, matchTemplateSeeds))
-const form = reactive({ ...clone(createDraft), dayIdx: nextFriday, blindId: schemes.value.length ? schemes.value[0].id : '', coverImage: '' })
+const form = reactive({ ...clone(createDraft), ...proDefaults(), dayIdx: nextFriday, blindId: schemes.value.length ? schemes.value[0].id : '', coverImage: '' })
 const hosts = ref(clone(coHostSeeds))
 
 const picker = ref(false)
@@ -365,8 +522,9 @@ const tplOpen = ref(false)
 onLoad((q) => {
   if (q && q.open === 'blinds') setTimeout(() => { picker.value = true }, 350)
   if (q && q.open === 'schemes') setTimeout(() => { tplOpen.value = true }, 350)
+  if (isHost.value) loadDevices()
 })
-const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value)
+const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || screensOpen.value || themeOpen.value || dealersOpen.value)
 
 const coverInfo = computed(() => coverScenes.find((c) => c.key === form.cover) || coverScenes[0])
 function pickScene(key) {
@@ -485,13 +643,15 @@ const startOf = (rows) => {
   const f = levelsOf(rows)[0]
   return f ? [fmtNum(f.sb), fmtNum(f.bb)] : ['—', '—']
 }
-const currentScheme = computed(() => schemes.value.find((s) => s.id === form.blindId))
+// 工作台预设的盲注结构可以直接调用（只有主办方有）
+const schemeById = (id) => schemes.value.find((s) => s.id === id) || (isHost.value ? BLIND_PRESETS.find((s) => s.id === id) : null)
+const currentScheme = computed(() => schemeById(form.blindId))
 const blindSummary = computed(() =>
-  currentScheme.value ? `${levelsOf(currentScheme.value.rows).length} 级，${startOf(currentScheme.value.rows).join('/')} 起` : '选择或新建方案')
+  currentScheme.value ? `${currentScheme.value.preset ? '预设 · ' : ''}${levelsOf(currentScheme.value.rows).length} 级，${startOf(currentScheme.value.rows).join('/')} 起` : '选择或新建方案')
 const schemeTiles = computed(() => schemes.value.map((s) => ({
   id: s.id, name: s.name, start: startOf(s.rows), count: levelsOf(s.rows).length, on: s.id === form.blindId
 })))
-const schemeEmpty = computed(() => Math.max(0, MAX_SCHEMES - schemes.value.length - 1))
+const schemeEmpty = computed(() => Math.max(0, maxSlots.value - schemes.value.length - 1))
 const persistSchemes = () => saveList(KEY_SCHEMES, schemes.value)
 
 function chooseScheme(id) {
@@ -525,7 +685,7 @@ const draftLevels = computed(() => levelsOf(draft.rows).length)
 
 function openEditor(id) {
   const src = id ? schemes.value.find((s) => s.id === id) : null
-  if (!src && schemes.value.length >= MAX_SCHEMES) return toast('最多保存 5 个方案，先长按删除一个')
+  if (!src && schemes.value.length >= maxSlots.value) return toast(`最多保存 ${maxSlots.value} 个方案，先长按删除一个`)
   const used = schemes.value.map((s) => s.name)
   const seed = [{ t: 'L', sb: 50, bb: 100, ante: 0, min: 20 }, { t: 'L', sb: 100, bb: 200, ante: 25, min: 20 }, { t: 'L', sb: 150, bb: 300, ante: 25, min: 20 }]
   draft.id = src ? src.id : ''
@@ -585,31 +745,33 @@ function saveScheme() {
 
 /* ---------- 比赛方案（整场设置模板） ---------- */
 const templateTiles = computed(() => templates.value.map((t) => {
-  const s = schemes.value.find((x) => x.id === t.data.blindId)
+  const s = schemeById(t.data.blindId)
   return { id: t.id, name: t.name, bg: coverStyle(t.data.cover, 'wide'), meta: `${s ? s.name : '盲注已删除'}，${t.data.cap} 人` }
 }))
-const templateEmpty = computed(() => Math.max(0, MAX_SCHEMES - templates.value.length - 1))
+const templateEmpty = computed(() => Math.max(0, maxSlots.value - templates.value.length - 1))
 const persistTemplates = () => saveList(KEY_TEMPLATES, templates.value)
 
 function applyTemplate(id) {
   const t = templates.value.find((x) => x.id === id)
   if (!t) return
-  Object.assign(form, clone(t.data), { coverImage: '' })
-  if (!schemes.value.some((s) => s.id === form.blindId)) form.blindId = schemes.value.length ? schemes.value[0].id : ''
+  Object.assign(form, proDefaults(), clone(t.data), { coverImage: '' })
+  if (!schemeById(form.blindId)) form.blindId = schemes.value.length ? schemes.value[0].id : ''
   hosts.value = clone(t.hosts || [])
   tplOpen.value = false
   toast(`已套用${t.name}`)
 }
 function saveTemplate() {
-  if (templates.value.length >= MAX_SCHEMES) return toast('最多保存 5 个方案')
+  if (templates.value.length >= maxSlots.value) return toast(`最多保存 ${maxSlots.value} 个方案`)
   const data = clone({
     cover: form.cover, name: form.name, blindId: form.blindId, hour: form.hour, minute: form.minute,
-    cap: form.cap, intro: form.intro, isPublic: form.isPublic, autoApprove: form.autoApprove, location: form.location
+    cap: form.cap, intro: form.intro, isPublic: form.isPublic, autoApprove: form.autoApprove, location: form.location,
+    // 主办方的方案连专业配置一起存
+    ...(isHost.value ? { tags: form.tags, tvTheme: form.tvTheme, screens: form.screens, dealers: form.dealers, rules: form.rules } : {})
   })
   const name = form.name.trim() || '未命名比赛'
   templates.value = templates.value.concat([{ id: 't' + Date.now(), name, data, hosts: clone(hosts.value) }])
   persistTemplates()
-  toast(`已存为方案「${name}」`)
+  toast(isHost.value ? `已另存为新模板「${name}」` : `已存为方案「${name}」`)
 }
 function templateActions(t) {
   uni.showActionSheet({
@@ -620,6 +782,120 @@ function templateActions(t) {
       toast(`已删除${t.name}`)
     }
   })
+}
+
+/* ---------- 主办方 · 专业赛制配置 ---------- */
+const screensOpen = ref(false)
+const themeOpen = ref(false)
+const dealersOpen = ref(false)
+const devices = ref([])
+const dealerList = ref(listDealers())
+async function loadDevices() { devices.value = await listDevices() }
+async function openScreens() {
+  await loadDevices()
+  screensOpen.value = true
+}
+const toDevices = () => { screensOpen.value = false; uni.navigateTo({ url: '/pages/devices/index' }) }
+function toggleList(list, id) {
+  const i = list.indexOf(id)
+  if (i >= 0) list.splice(i, 1)
+  else list.push(id)
+}
+const toggleScreen = (d) => toggleList(form.screens, d.id)
+const screensSummary = computed(() => {
+  const picked = form.screens.map((id) => devices.value.find((d) => d.id === id)).filter(Boolean)
+  return picked.length ? `${picked.length} 台：${picked.map((d) => d.name).join('、')}` : '选择开赛时显示计时器的大屏'
+})
+const screenSub = (d) => {
+  if (!isOnline(d)) return '离线 · 联网后生效'
+  return '在线' + (d.resolution ? ` · ${d.resolution.w}×${d.resolution.h}` : '')
+}
+const capCover = (d) => {
+  const c = contentCover(isOnline(d) ? liveOf(d, []) : { cat: '' }, [], d.id, d.coverScene)
+  return isOnline(d) ? c : { ...c, tint: '#24272F' }
+}
+const hexA = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+const capMask = (d) => {
+  const t = capCover(d).tint
+  return `background:linear-gradient(90deg, ${t} 0%, ${t} 34%, ${hexA(t, 0.8)} 54%, ${hexA(t, 0.2)} 80%, ${hexA(t, 0)} 96%)`
+}
+// TV 主题：视觉主题 + 显示的信息（计时器的核心信息一直显示）
+const themeName = computed(() => (TV_THEMES.find((t) => t.key === form.tvTheme.key) || {}).name || '')
+const themeSummary = computed(() => `${themeName.value} · 显示 ${form.tvTheme.dims.length} 项信息`)
+const shownDims = computed(() => TV_DIMS.filter((d) => form.tvTheme.dims.includes(d.key)))
+function toggleDim(d) {
+  if (d.fixed) return toast('级别、倒计时和盲注是计时器的核心，一直显示')
+  toggleList(form.tvTheme.dims, d.key)
+}
+// 驻场荷官
+const toggleDealer = (d) => toggleList(form.dealers, d.id)
+const dealerPicked = computed(() => form.dealers.map((id) => dealerList.value.find((d) => d.id === id)).filter(Boolean))
+const dealerSummary = computed(() => (dealerPicked.value.length ? dealerPicked.value.map((d) => d.name).join('、') : '从荷官名册里添加，只作信息展示'))
+// 比赛标签：预设 + 自定义，选中的排在前面
+const tagInput = ref(false)
+const tagDraft = ref('')
+const tagChoices = computed(() => form.tags.concat(TAG_PRESETS.filter((t) => !form.tags.includes(t))))
+function toggleTag(t) {
+  const i = form.tags.indexOf(t)
+  if (i >= 0) return form.tags.splice(i, 1)
+  if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
+  form.tags.push(t)
+}
+function startTag() {
+  if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
+  tagDraft.value = ''
+  tagInput.value = true
+}
+function commitTag() {
+  if (!tagInput.value) return // 「完成」和失去焦点都会触发，只处理一次
+  tagInput.value = false
+  const t = tagDraft.value.trim()
+  tagDraft.value = ''
+  if (!t) return
+  if (form.tags.includes(t)) return toast('已经有这个标签了')
+  if (form.tags.length >= MAX_TAGS) return toast(`最多 ${MAX_TAGS} 个标签`)
+  form.tags.push(t)
+}
+// 介绍与规程：介绍和各段落合计不超过上限（主办方 1000 字）；每个输入框的上限 = 自己现有的字数 + 还剩的字数
+const introMax = computed(() => (isHost.value ? INTRO_MAX.host : INTRO_MAX.user))
+const introUsed = computed(() => form.intro.length + (isHost.value ? form.rules.reduce((n, r) => n + r.title.length + r.body.length, 0) : 0))
+const fieldMax = (text, cap = 1000) => Math.min(cap, text.length + Math.max(0, introMax.value - introUsed.value))
+let ruleSeq = 1
+function addRule(sn) {
+  const room = introMax.value - introUsed.value
+  if (room <= 0) return toast(`已经写满 ${introMax.value} 字了`)
+  const title = sn ? sn.title.slice(0, room) : ''
+  const body = sn ? sn.body.slice(0, Math.max(0, room - title.length)) : ''
+  form.rules.push({ id: 'r' + Date.now() + '-' + ruleSeq++, level: sn ? sn.level : 2, title, body })
+}
+function moveRule(i, step) {
+  const [r] = form.rules.splice(i, 1)
+  form.rules.splice(i + step, 0, r)
+}
+// 工作台预设的赛事配置方案：一键套用（日期不变，共同主持不变）
+function applyPreset(pr) {
+  Object.assign(form, proDefaults(), clone(pr.data), { coverImage: '' })
+  form.rules = form.rules.map((r) => ({ ...r, id: 'r' + Date.now() + '-' + ruleSeq++ }))
+  tplOpen.value = false
+  toast(`已套用预设「${pr.name}」`)
+}
+const presetCover = (pr) => coverStyle(pr.data.cover, 'wide')
+// 把当前盲注结构（比如工作台预设）另存到自己的方案存档里，之后可以再改
+function saveSchemeAs() {
+  const src = currentScheme.value
+  if (!src) return
+  if (schemes.value.length >= maxSlots.value) return toast(`最多保存 ${maxSlots.value} 个方案，先长按删除一个`)
+  const used = schemes.value.map((s) => s.name)
+  let name = src.preset ? src.name : src.name + ' 副本'
+  for (let k = 2; used.includes(name); k++) name = (src.preset ? src.name : src.name + ' 副本') + ' ' + k
+  const copy = { id: 'b' + Date.now(), name: name.slice(0, 8), rows: clone(src.rows).map(({ k, ...r }) => r) }
+  schemes.value = schemes.value.concat([copy])
+  persistSchemes()
+  form.blindId = copy.id
+  toast(`已另存为「${copy.name}」`)
 }
 
 /* ---------- 盲注结构：按住左侧把手上下拖动调整顺序 ---------- */
@@ -725,7 +1001,15 @@ function buildMatch() {
     hosts: [{ ...meP, role: 'owner' }].concat(hosts.value.filter((h) => h.status === 'joined')
       .map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' }))),
     participants: [meP],
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    // 主办方专业配置：标签、TV 主题和信息、现场大屏、驻场荷官（快照）、规程段落
+    ...(isHost.value ? {
+      tags: form.tags.slice(),
+      tvTheme: clone(form.tvTheme),
+      screens: form.screens.slice(),
+      dealers: dealerPicked.value.map(dealerSnapshot),
+      rules: form.rules.filter((r) => r.title.trim() || r.body.trim()).map((r) => ({ level: r.level, title: r.title.trim(), body: r.body.trim() }))
+    } : {})
   }
 }
 const publishing = ref(false)
@@ -890,6 +1174,112 @@ function onPublish() {
 .sh-btn { padding: 16rpx 8rpx; font-size: 30rpx; color: #9CA3AF; }
 .sh-ok { color: #FF4D4D; font-weight: 500; }
 .sh-hint { display: block; margin-top: 24rpx; text-align: center; font-size: 24rpx; color: #9CA3AF; }
+
+/* 介绍与规程 */
+.lb-row { display: flex; align-items: baseline; justify-content: space-between; }
+.count-full { color: #FF6B6B; }
+.rule { margin-top: 16rpx; padding: 18rpx 20rpx 20rpx 24rpx; }
+.rule-h1 { box-shadow: inset 6rpx 0 0 #DC0000; }
+.rule-h2 { box-shadow: inset 6rpx 0 0 #4A4D57; margin-left: 32rpx; }
+.rule-top { display: flex; align-items: center; }
+.rule-lv { flex: none; height: 48rpx; padding: 0 16rpx; border-radius: 12rpx; background: #2A2D36; display: flex; align-items: center; font-size: 22rpx; color: #E5E7EB; }
+.rule-h1 .rule-lv { background: #3A1418; color: #FF8A8A; }
+.rule-title { flex: 1; min-width: 0; margin-left: 16rpx; height: 48rpx; font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
+.rule-h2 .rule-title { font-size: 26rpx; }
+.rule-act { width: 48rpx; height: 48rpx; margin-left: 6rpx; flex: none; border-radius: 12rpx; display: flex; align-items: center; justify-content: center; }
+.rule-body { display: block; width: 100%; min-height: 72rpx; margin-top: 12rpx; font-size: 26rpx; line-height: 1.6; color: #D1D5DB; }
+.rule-body-static { white-space: pre-wrap; }
+.snips { margin-top: 16rpx; display: flex; flex-wrap: wrap; align-items: center; }
+.snips-t { margin-right: 12rpx; font-size: 22rpx; color: #6B7280; }
+.snip { height: 52rpx; margin: 6rpx 12rpx 6rpx 0; padding: 0 18rpx; border-radius: 999rpx; background: #262A34; border: 1rpx dashed #4A4D57; display: flex; align-items: center; font-size: 22rpx; color: #E5E7EB; }
+.snip-t { margin-left: 4rpx; }
+
+/* 主办方 · 专业赛制配置 */
+.pro-badge { margin-left: 12rpx; height: 36rpx; padding: 0 12rpx; border-radius: 999rpx; background: rgba(244, 183, 64, .14); display: flex; align-items: center; }
+.pro-badge-t { margin-left: 4rpx; font-size: 20rpx; color: #F4B740; }
+.pro-list { margin-top: 20rpx; padding: 4rpx 0; }
+.pro-row { min-height: 112rpx; padding: 16rpx 24rpx; box-sizing: border-box; display: flex; align-items: center; }
+.pro-ic { width: 64rpx; height: 64rpx; flex: none; border-radius: 18rpx; background: #2A2D36; display: flex; align-items: center; justify-content: center; }
+.pro-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; display: flex; flex-direction: column; }
+.pro-t { font-size: 28rpx; font-weight: 500; color: #FFFFFF; }
+.pro-s { margin-top: 4rpx; font-size: 22rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pro-avs { display: flex; margin-right: 12rpx; }
+.pro-av { position: relative; width: 44rpx; height: 44rpx; margin-left: -12rpx; border-radius: 50%; border: 3rpx solid #1F222A; display: flex; align-items: center; justify-content: center; font-size: 20rpx; font-weight: 600; }
+.tags { margin-top: 16rpx; display: flex; flex-wrap: wrap; }
+.tg { height: 60rpx; margin: 0 14rpx 14rpx 0; padding: 0 22rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
+.tg-on { background: #2A1216; border-color: rgba(220, 0, 0, .55); }
+.tg-t { margin-right: 6rpx; font-size: 24rpx; color: #E5E7EB; }
+.tg-on .tg-t { color: #FFFFFF; }
+.tg-add { border-style: dashed; border-color: #4A4D57; background: transparent; }
+.tg-add-t { margin-left: 6rpx; margin-right: 0; color: #9CA3AF; }
+.tg-input { width: 220rpx; border-color: #DC0000; }
+.tg-in { width: 100%; height: 56rpx; font-size: 24rpx; color: #FFFFFF; }
+
+/* 专业配置的弹层 */
+.sheet-pro { max-height: 86vh; display: flex; flex-direction: column; }
+.pro-scroll { max-height: 760rpx; }
+.sh-sec { display: block; margin: 28rpx 0 12rpx; font-size: 24rpx; color: #9CA3AF; }
+.sh-done { margin-top: 24rpx; height: 92rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.sh-done-t { font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
+.pro-empty { padding: 40rpx 0; text-align: center; font-size: 26rpx; color: #9CA3AF; }
+.lnk { color: #FF6B6B; }
+.chk { width: 44rpx; height: 44rpx; flex: none; box-sizing: border-box; border-radius: 50%; border: 3rpx solid #4A4D57; display: flex; align-items: center; justify-content: center; }
+.chk-on { border-color: #DC0000; background: #DC0000; }
+.scap { position: relative; height: 112rpx; margin-bottom: 18rpx; padding: 0 22rpx 0 12rpx; box-sizing: border-box; border-radius: 999rpx; overflow: hidden; display: flex; align-items: center; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .08); }
+.scap-on { box-shadow: inset 0 0 0 4rpx #DC0000; }
+.scap-cv { position: absolute; left: 30%; top: 0; right: 0; bottom: 0; }
+.scap-off .scap-cv { filter: grayscale(1) brightness(.6); opacity: .75; }
+.scap-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+.scap-ic { position: relative; width: 80rpx; height: 80rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.scap-ic-on { background: rgba(12, 32, 22, .7); box-shadow: inset 0 0 0 3rpx #4CB582; }
+.scap-ic-off { background: rgba(36, 14, 16, .7); box-shadow: inset 0 0 0 3rpx rgba(255, 107, 107, .6); }
+.scap-main { position: relative; flex: 1; min-width: 0; margin: 0 16rpx 0 18rpx; display: flex; flex-direction: column; }
+.scap-n { font-size: 28rpx; font-weight: 700; color: #FFFFFF; text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, .45); }
+.scap-s { margin-top: 4rpx; font-size: 22rpx; color: rgba(242, 242, 238, .78); }
+.scap .chk { position: relative; background: rgba(10, 10, 12, .4); border-color: rgba(255, 255, 255, .6); }
+.scap .chk-on { border-color: #DC0000; background: #DC0000; }
+.tvp { position: relative; height: 300rpx; border-radius: 24rpx; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tvp-theme { position: absolute; left: 20rpx; top: 16rpx; padding: 4rpx 14rpx; border-radius: 999rpx; background: rgba(255, 181, 71, .18); font-size: 20rpx; color: #FFB547; }
+.tvp-time { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 96rpx; line-height: 1; color: #F2F2EE; }
+.tvp-dims { margin-top: 18rpx; padding: 0 24rpx; display: flex; flex-wrap: wrap; justify-content: center; }
+.tvp-dim { margin: 4rpx 6rpx; padding: 2rpx 12rpx; border-radius: 8rpx; background: rgba(255, 255, 255, .1); font-size: 18rpx; color: #E5E7EB; }
+.themes { margin-top: 20rpx; display: flex; }
+.thc { flex: 1; height: 132rpx; margin-right: 14rpx; padding: 0 16rpx; box-sizing: border-box; border-radius: 20rpx; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); display: flex; flex-direction: column; justify-content: center; }
+.thc:last-child { margin-right: 0; }
+.thc-on { box-shadow: inset 0 0 0 4rpx #DC0000; }
+.thc-n { font-size: 28rpx; font-weight: 700; color: #FFFFFF; }
+.thc-d { margin-top: 6rpx; font-size: 18rpx; line-height: 1.4; color: #9CA3AF; }
+.dims { display: flex; flex-wrap: wrap; }
+.dim { height: 60rpx; margin: 0 12rpx 12rpx 0; padding: 0 20rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
+.dim-on { background: #2A1216; border-color: rgba(220, 0, 0, .5); }
+.dim-fixed { background: #23252C; border-color: transparent; }
+.dim-t { margin-left: 8rpx; font-size: 24rpx; color: #E5E7EB; }
+.dim-fixed .dim-t { color: #9CA3AF; }
+.dlr { display: flex; align-items: center; padding: 18rpx 8rpx; border-bottom: 1rpx solid #2E313A; }
+.dlr-av { width: 80rpx; height: 80rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30rpx; font-weight: 700; }
+.dlr-on .dlr-av { box-shadow: 0 0 0 4rpx #DC0000; }
+.dlr-main { flex: 1; min-width: 0; margin: 0 16rpx 0 20rpx; }
+.dlr-top { display: flex; align-items: baseline; }
+.dlr-n { font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
+.dlr-title { margin-left: 12rpx; font-size: 22rpx; color: #F4B740; }
+.dlr-s { display: block; margin-top: 6rpx; font-size: 22rpx; color: #9CA3AF; }
+
+/* 工作台预设 + 12 格方案存档（3×4，多了就滚动） */
+.pre { margin: 0 0 20rpx; }
+.pre-md { padding: 0 8rpx; }
+.pre-t { display: block; margin-bottom: 12rpx; font-size: 22rpx; color: #F4B740; }
+.pre-scroll { white-space: nowrap; }
+.pre-row { display: inline-flex; }
+.pre-c { width: 218rpx; height: 112rpx; margin-right: 16rpx; padding: 16rpx 14rpx; box-sizing: border-box; border-radius: 22rpx; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(244, 183, 64, .28); display: inline-flex; flex-direction: column; justify-content: center; white-space: normal; }
+.pre-on { background: #2A1216; box-shadow: inset 0 0 0 3rpx #DC0000; }
+.pre-c-tpl { width: 240rpx; height: 176rpx; padding: 12rpx; justify-content: flex-start; }
+.pre-cover { width: 100%; height: 72rpx; border-radius: 14rpx; background-size: cover; background-position: right center; }
+.pre-n { margin-top: 6rpx; font-size: 26rpx; font-weight: 600; color: #FFFFFF; }
+.pre-d { margin-top: 4rpx; font-size: 19rpx; color: #9CA3AF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tiles-scroll { max-height: none; }
+.tiles-scroll-host { max-height: 760rpx; }
+.saveas { margin-top: 16rpx; height: 72rpx; border-radius: 999rpx; border: 1rpx dashed rgba(220, 0, 0, .5); display: flex; align-items: center; justify-content: center; }
+.saveas-t { margin-left: 8rpx; font-size: 24rpx; color: #FF8A8A; }
 
 /* 方案卡片 */
 .tiles { display: flex; flex-wrap: wrap; justify-content: center; }

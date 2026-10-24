@@ -1,5 +1,5 @@
 // 方案的本地存储。上线后换成接口即可，结构不变。
-export const MAX_SCHEMES = 5
+// 方案存档的上限按身份区分（普通用户 5 个、主办方 12 个），见 src/mock/pro.js 的 SLOTS
 const copy = (v) => JSON.parse(JSON.stringify(v))
 
 export function loadList(key, seeds) {
