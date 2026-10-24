@@ -103,7 +103,7 @@
       <view class="sec"><text class="st">比赛介绍</text></view>
       <text class="intro">{{ m.intro || '主持人还没有写介绍' }}</text>
       <view v-for="(r, i) in m.rules || []" :key="i" class="rl" :class="r.level === 1 ? 'rl-h1' : 'rl-h2'">
-        <view v-if="r.title" class="rl-head"><view v-if="r.level === 1" class="rl-bar"></view><text class="rl-t">{{ r.title }}</text></view>
+        <view v-if="r.title" class="rl-head"><view class="rl-bar" :class="{ 'rl-bar-h2': r.level !== 1 }"></view><text class="rl-t">{{ r.title }}</text></view>
         <text v-if="r.body" class="rl-b">{{ r.body }}</text>
       </view>
 
@@ -979,6 +979,7 @@ function leave() {
 .rl-h2 { margin-top: 20rpx; padding-left: 24rpx; }
 .rl-head { display: flex; align-items: center; }
 .rl-bar { width: 8rpx; height: 32rpx; margin-right: 14rpx; border-radius: 4rpx; background: #DC0000; }
+.rl-bar-h2 { width: 6rpx; height: 26rpx; margin-right: 12rpx; border-radius: 3rpx; background: #4A4D57; }
 .rl-t { font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
 .rl-h2 .rl-t { font-size: 27rpx; color: #E5E7EB; }
 .rl-b { display: block; margin-top: 10rpx; font-size: 27rpx; line-height: 1.75; color: #D1D5DB; white-space: pre-wrap; }
