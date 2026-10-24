@@ -70,7 +70,8 @@ export function parseJoinTarget(text) {
   const m = s.match(/^tj:\/\/match\/([\w-]+)/)
   if (m) return '/pages/invite/index?id=' + m[1]
   const id = s.match(/[?&]id=([\w-]+)/)
-  if (/pages\/invite\/index/.test(s) && id) return '/pages/invite/index?id=' + id[1]
+  // 小程序页面路径，或者票据二维码上的分享链接（…/s/invite?id=…）
+  if ((/pages\/invite\/index/.test(s) || /\/s\/invite\b/.test(s)) && id) return '/pages/invite/index?id=' + id[1]
   if (/pages\/room\/index/.test(s) || /^tjroom:\/\//.test(s)) return '/pages/room/index'
   return ''
 }

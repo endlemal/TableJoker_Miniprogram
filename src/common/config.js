@@ -5,6 +5,12 @@ export const SUBSCRIBE_TMPL_ID = ''
 // 在公众平台「订阅消息」里选好模板后填入；留空的不申请，全部留空时只做演示
 export const SUBSCRIBE_TMPLS = { start: '', approved: '', seat: '' }
 
+// 票据上的二维码：用微信「扫一扫」直接打开比赛邀请页。上线前在公众平台「开发管理 → 开发设置 →
+// 扫普通链接二维码打开小程序」添加规则：二维码规则填 SHARE_LINK_BASE，功能页面填 pages/invite/index，
+// 并把校验文件放到这个域名下。比赛邀请页会从 onLoad 的 q 参数里取出比赛 id。正式环境也可以改用服务端生成的小程序码
+export const SHARE_LINK_BASE = 'https://tablejoker.example.com/s/'
+export const shareLinkOf = (id) => `${SHARE_LINK_BASE}invite?id=${encodeURIComponent(id)}`
+
 // 平台认证：官网认证入口（示例地址）。上线前换成正式地址，并在公众平台「开发管理 → 开发设置 → 业务域名」里配置
 export const CERTIFY_WEB = {
   apply: 'https://example.com/host/certify',

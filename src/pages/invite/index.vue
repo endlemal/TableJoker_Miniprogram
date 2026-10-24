@@ -246,37 +246,53 @@
         </view>
         <view class="sj-lb"><text>给主持人留言（选填）</text><text class="sj-count">{{ message.length }}/60</text></view>
         <textarea v-model="message" class="sj-msg" maxlength="60" placeholder="比如：第一次参加，想和朋友坐一桌" placeholder-class="ph" :adjust-position="true" />
-        <text class="sj-note">主持人通过后会通知你，通过前可以随时撤回</text>
+        <text class="sj-note">主持人通过前可以随时撤回</text>
+        <!-- 报名和订阅提醒是同一次点击：点下去先弹微信的订阅授权，确认后就提交报名 -->
+        <view class="sj-remind">
+          <z-icon name="bell-ringing" :size="16" color="#FFC53A" />
+          <text class="sj-remind-t">报名后提醒你：审核结果 · 开赛前 15 分钟 · 座位分配</text>
+        </view>
         <view class="sj-ok" hover-class="press" @tap="submitJoin">
           <z-icon name="send" :size="18" color="#FFFFFF" />
-          <text class="sj-ok-t">提交报名</text>
+          <text class="sj-ok-t">提交报名并开启提醒</text>
         </view>
       </view>
     </view>
-    <!-- 名单抽屉：按状态筛选；主办方可以一键通过、扫码核销、在大屏上打开签到墙 -->
+    <!-- 名单抽屉：按状态筛选；主办方选择待审核的报名后通过，右上角扫码签到 -->
     <view v-if="rosterOpen" class="ov">
-      <view class="mask" @tap="rosterOpen = false" @touchmove.stop.prevent="noop"></view>
+      <view class="mask" @tap="closeRoster" @touchmove.stop.prevent="noop"></view>
       <view class="sheet-r">
         <view class="grab"></view>
-        <view class="sr-head"><text class="sr-title">报名名单</text><text class="sr-sub">{{ roster.length }} 人</text></view>
-        <view v-if="isHost" class="sr-acts">
-          <view class="sr-act" :class="{ 'sr-act-dis': !pendingCount }" hover-class="press" @tap="approveAll"><z-icon name="checks" :size="18" color="#FFFFFF" /><text class="sr-act-t">一键通过{{ pendingCount ? '（' + pendingCount + '）' : '' }}</text></view>
-          <view class="sr-act" hover-class="press" @tap="scanCheckin"><z-icon name="scan" :size="18" color="#FFFFFF" /><text class="sr-act-t">扫码核销</text></view>
-          <view class="sr-act" hover-class="press" @tap="openTvWall"><z-icon name="device-tv" :size="18" color="#FFFFFF" /><text class="sr-act-t">TV 签到墙</text></view>
+        <view class="sr-head">
+          <view class="sr-head-t"><text class="sr-title">报名名单</text><text class="sr-sub">{{ roster.length }} 人</text></view>
+          <!-- 扫码签到：只放一个方形图标 -->
+          <view v-if="isHost" class="sr-scan" hover-class="press" @tap="scanCheckin"><z-icon name="scan" :size="22" color="#FFFFFF" /></view>
         </view>
-        <view class="sr-tabs">
+        <!-- 分组；有待审核的报名时，右边是「选择」 -->
+        <view v-if="!selecting" class="sr-tabs">
           <view v-for="t in rosterTabs" :key="t.key" class="sr-tab" :class="{ 'sr-tab-on': rosterTab === t.key }" hover-class="press" @tap="rosterTab = t.key"><text>{{ t.label }} {{ t.n }}</text></view>
+          <view v-if="isHost && pendingCount" class="sr-sel" hover-class="press" @tap="startSelect"><text class="sr-sel-t">选择</text></view>
+        </view>
+        <!-- 选择待审核的报名：全选、通过、取消 -->
+        <view v-else class="sr-selbar">
+          <view class="sr-all" hover-class="press" @tap="toggleAll">
+            <view class="sr-ck" :class="{ 'sr-ck-on': allPicked }"><z-icon v-if="allPicked" name="check" :size="11" :stroke="3.4" color="#FFFFFF" /></view>
+            <text class="sr-all-t">全选</text>
+          </view>
+          <text class="sr-picked">已选 {{ picked.length }} 人</text>
+          <view class="sr-cancel" hover-class="press" @tap="cancelSelect"><text>取消</text></view>
+          <view class="sr-ok" :class="{ 'sr-ok-dis': !picked.length }" hover-class="press" @tap="approvePicked"><text class="sr-ok-t">通过{{ picked.length ? '（' + picked.length + '）' : '' }}</text></view>
         </view>
         <scroll-view scroll-y class="sr-list">
-          <view v-for="p in rosterShown" :key="p.key" class="sr-row">
+          <view v-for="p in rosterShown" :key="p.key" class="sr-row" @tap="tapRosterRow(p)">
+            <view v-if="selecting" class="sr-ck sr-ck-row" :class="{ 'sr-ck-on': picked.includes(p.key) }"><z-icon v-if="picked.includes(p.key)" name="check" :size="11" :stroke="3.4" color="#FFFFFF" /></view>
             <view class="sr-av" :style="'background:' + p.bg + ';color:' + p.fg"><text>{{ p.c }}</text></view>
             <view class="sr-main">
               <view class="sr-top"><text class="sr-n">{{ p.name }}</text><text v-if="p.mine" class="sr-me">我</text></view>
               <text class="sr-s">{{ p.status === 'checked' ? '已签到 · ' + p.seat : p.status === 'pending' ? (p.message ? '留言：' + p.message : '等待审核') : '已报名，待签到' }}</text>
             </view>
-            <view v-if="isHost && p.status === 'pending'" class="sr-btn" hover-class="press" @tap="approveOne(p)"><text class="sr-btn-t">通过</text></view>
-            <view v-else-if="isHost && p.status === 'signed'" class="sr-btn sr-btn-2" hover-class="press" @tap="manualCheckin(p)"><text class="sr-btn-t">核销</text></view>
-            <view v-else class="sr-pill" :style="'color:' + ROSTER_STATUS[p.status].color + ';background:' + ROSTER_STATUS[p.status].color + '1F'"><text>{{ ROSTER_STATUS[p.status].label }}</text></view>
+            <view v-if="isHost && p.status === 'signed' && !selecting" class="sr-btn sr-btn-2" hover-class="press" @tap.stop="manualCheckin(p)"><text class="sr-btn-t">核销</text></view>
+            <view v-else-if="!selecting" class="sr-pill" :style="'color:' + ROSTER_STATUS[p.status].color + ';background:' + ROSTER_STATUS[p.status].color + '1F'"><text>{{ ROSTER_STATUS[p.status].label }}</text></view>
           </view>
           <text v-if="!rosterShown.length" class="sr-empty">这里还没有人</text>
         </scroll-view>
@@ -320,16 +336,14 @@ import ZDealerBar from '@/components/z-dealer-bar/z-dealer-bar.vue'
 import ZChipLegend from '@/components/z-chip-legend/z-chip-legend.vue'
 import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
 import { openScanner } from '@/common/scanner.js'
-import { addView, heatOf } from '@/common/heat.js'
+import { addView } from '@/common/heat.js'
 import { rosterOf, approve, checkIn, codeOf, checkinPayload, parseCheckin, ROSTER_STATUS } from '@/common/roster.js'
 import { specialOf } from '@/common/blind-notes.js'
 import { chipsOf } from '@/common/chips.js'
 import { qrSvgUri } from '@/common/qr.js'
-import { drawCard, drawTicket } from '@/common/share-canvas.js'
+import { drawCard, drawTicket, ticketLayout, TICKET_W } from '@/common/share-canvas.js'
 import { SCENE_TINT } from '@/common/cover-art.js'
-import { listDevices, isOnline, castToDevice } from '@/common/devices.js'
-import { stopOn } from '@/common/posters.js'
-import { castFields } from '@/common/screens.js'
+import { shareLinkOf, SUBSCRIBE_TMPLS } from '@/common/config.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
 import { getMatch, getJoin, setJoin } from '@/common/store.js'
@@ -360,7 +374,13 @@ const clock = ref(['0', '0', '0', '0'])
 
 onLoad((q) => {
   if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
-  const query = q || {}
+  const query = { ...(q || {}) }
+  // 微信扫票据上的二维码进来（扫普通链接二维码打开小程序）：完整链接在 q 里，从中取出比赛 id
+  if (!query.id && query.q) {
+    const link = decodeURIComponent(query.q)
+    const hit = link.match(/[?&]id=([^&#]+)/)
+    if (hit) query.id = decodeURIComponent(hit[1])
+  }
   const found = query.id ? getMatch(query.id) || findPublicMatch(query.id) : null
   if (found) m.value = { participants: [], hosts: [], ...found }
   views.value = addView(m.value)
@@ -531,17 +551,41 @@ function afterApprove(keys) {
   }
   rosterVer.value += 1
 }
-function approveAll() {
-  const keys = roster.value.filter((p) => p.status === 'pending').map((p) => p.key)
-  if (!keys.length) return toast('没有待审核的报名')
+// 选择 → 全选 → 通过：只能选待审核的报名
+const selecting = ref(false)
+const picked = ref([])
+const pendingKeys = computed(() => roster.value.filter((p) => p.status === 'pending').map((p) => p.key))
+const allPicked = computed(() => pendingKeys.value.length > 0 && pendingKeys.value.every((k) => picked.value.includes(k)))
+function startSelect() {
+  selecting.value = true
+  picked.value = []
+  rosterTab.value = 'pending'
+}
+function cancelSelect() {
+  selecting.value = false
+  picked.value = []
+}
+function toggleAll() {
+  picked.value = allPicked.value ? [] : pendingKeys.value.slice()
+}
+function tapRosterRow(p) {
+  if (!selecting.value || p.status !== 'pending') return
+  const i = picked.value.indexOf(p.key)
+  if (i >= 0) picked.value.splice(i, 1)
+  else picked.value.push(p.key)
+}
+function approvePicked() {
+  if (!picked.value.length) return toast('先选择要通过的报名')
+  const keys = picked.value.slice()
   approve(m.value.id, keys)
   afterApprove(keys)
   popMsg(`已通过 ${keys.length} 条报名，会通知他们`)
+  cancelSelect()
+  if (!pendingCount.value) rosterTab.value = 'signed'
 }
-function approveOne(p) {
-  approve(m.value.id, [p.key])
-  afterApprove([p.key])
-  popMsg(`已通过「${p.name}」的报名`)
+function closeRoster() {
+  rosterOpen.value = false
+  cancelSelect()
 }
 function doCheckin(p) {
   const seat = checkIn(m.value.id, p.key, roster.value)
@@ -580,23 +624,6 @@ async function scanCheckin() {
   const p = roster.value.find((x) => x.key === r.key)
   if (p) doCheckin(p)
 }
-// TV 签到墙：在这场比赛的现场大屏（没选就用所有在线的大屏）上打开签到墙，玩家扫大屏上的码直接加入
-async function openTvWall() {
-  const all = await listDevices()
-  const ids = m.value.screens || []
-  const targets = all.filter((d) => isOnline(d) && (!ids.length || ids.includes(d.id)))
-  if (!targets.length) return toast(all.length ? '比赛用的大屏都不在线' : '还没有绑定大屏')
-  uni.showLoading({ title: '正在打开签到墙' })
-  try {
-    for (const d of targets) {
-      await stopOn(d.id)
-      await castToDevice(d.id, castFields({ cat: 'checkin' }, []))
-    }
-  } finally {
-    uni.hideLoading()
-  }
-  popMsg(`已在 ${targets.length} 台大屏打开签到墙，玩家扫码就能加入`, 'device-tv')
-}
 
 /* ---------- 报名成功：订阅消息授权（开赛提醒、审核通过、座位分配） ---------- */
 const subOpen = ref(false)
@@ -621,74 +648,107 @@ function onSubDone(res) {
 }
 
 /* ---------- 分享：转发卡片（5:4）和票据 ---------- */
-const shareData = computed(() => {
+const shareTitle = computed(() => `${m.value.name}｜${dateLabel.value} ${clockText.value} 开赛，${isFull.value ? '名额已满' : '还剩 ' + (m.value.cap - signedCount.value) + ' 个位置'}`)
+// 转发卡片：消息里已经有标题，卡片上不写标题——赛事封面、主办方头像、标签、开赛时间、荷官 / 选手头像气泡
+const cardData = computed(() => {
   const x = m.value
+  const d = new Date(x.startAt)
+  const host = x.creator || {}
+  const dealers = (x.dealers || []).map((dl) => ({ char: dl.char, bg: dl.tone || dl.bg || '#2A2D36', fg: '#FFFFFF', photo: dl.photo || '', dealer: true }))
+  const players = roster.value.filter((p) => p.status !== 'pending').map((p) => ({ char: p.c, bg: p.bg, fg: p.fg }))
   return {
-    name: x.name,
-    date: dateLabel.value,
-    time: clockText.value,
-    place: x.location ? x.location.name : '',
-    blinds: startBlinds.value,
-    signed: signedCount.value,
-    cap: x.cap,
-    heat: heatOf({ signed: signedCount.value, cap: x.cap, views: views.value }),
+    coverSrc: x.coverImage || `/static/covers/${scene.value.key}.jpg`,
     tint: SCENE_TINT[scene.value.key] || '#1F222A',
-    tags: publicTags(x.tags),
-    creator: (x.creator && x.creator.name) || x.inviter.name,
-    creatorChar: (x.creator && x.creator.char) || x.inviter.c,
+    host: host.name || x.inviter.name,
+    hostChar: host.char || x.inviter.c,
+    hostBg: x.inviter.bg,
+    hostFg: x.inviter.fg,
     byHost: byHost.value,
-    qr: 'tj://match/' + x.id
+    tags: publicTags(x.tags),
+    date: `${d.getMonth() + 1}/${d.getDate()} 周${WEEK[d.getDay()]}`,
+    time: clockText.value,
+    people: dealers.concat(players),
+    dealerCount: dealers.length,
+    playerCount: signedCount.value
   }
 })
-const shareTitle = computed(() => `${m.value.name}｜${dateLabel.value} ${clockText.value} 开赛，${isFull.value ? '名额已满' : '还剩 ' + (m.value.cap - signedCount.value) + ' 个位置'}`)
-// 票据上的信息：日期时间、地点、起始盲注；最后一行（加粗）是我的座位 / 签到码，没报名的显示还剩几个位置
+// 票据：比赛邀请。主标题是赛事标题，副标题是主办方；日期、开赛、起始盲注一行，地点和完整地址一行；
+// 不放封面主题和报名状态；票号按比赛固定（不带玩家的签到码）；二维码是比赛邀请页的链接
 const ticketData = computed(() => {
   const x = m.value
-  const base = shareData.value
   const d = new Date(x.startAt)
-  const mine = myEntry.value
-  const strong = mine && mine.status === 'checked' ? `座位 ${mine.seat}` : mine && mine.status === 'signed' ? `签到码 ${myCode.value}` : isFull.value ? '名额已满' : `报名 ${signedCount.value}/${x.cap} · 还剩 ${x.cap - signedCount.value} 席`
-  const code = mine && mine.status !== 'pending' ? myCode.value : String(1000 + (String(x.id).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 9000))
+  const host = x.creator || {}
+  const no = String(1000 + (String(x.id).split('').reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 9000))
   return {
-    series: 'TABLEJOKER',
-    year: String(d.getFullYear()),
     title: x.name,
-    highlight: base.tags[0] || '入场券',
-    subtitle: `${base.creator} ${base.byHost ? '主办' : '发起'} · ${scene.value.name}`,
-    info: [
-      { text: `${d.getFullYear()}.${p2(d.getMonth() + 1)}.${p2(d.getDate())} · ${String(WEEK[d.getDay()]).startsWith('周') ? '' : '周'}${WEEK[d.getDay()]} ${clockText.value}` },
-      { text: x.location ? x.location.name + (x.location.address ? ' · ' + x.location.address : '') : '地点待定' },
-      { text: `起始盲注 ${startBlinds.value} · ${levelCount.value} 级` },
-      { text: strong, strong: true }
-    ],
-    ticketNo: 'NO.' + code,
-    suitRank: 'A',
-    suitSymbol: scene.value.key === 'blood' ? '♥' : '♠',
-    suitTone: scene.value.key === 'blood' ? 'red' : 'black',
-    tint: base.tint,
-    qr: base.qr,
-    seed: Number(code)
+    host: host.name || x.inviter.name,
+    byHost: byHost.value,
+    dateMain: `${p2(d.getMonth() + 1)}.${p2(d.getDate())}`,
+    weekday: '周' + WEEK[d.getDay()],
+    time: clockText.value,
+    venue: x.location ? x.location.name : '地点待定',
+    address: x.location ? x.location.address || '' : '',
+    blinds: startBlinds.value,
+    levels: levelCount.value,
+    ticketNo: 'NO.' + no,
+    qr: shareLinkOf(x.id),
+    seed: Number(no)
   }
 })
-async function renderImage(kind) {
-  const W = kind === 'ticket' ? 840 : 500
-  const H = kind === 'ticket' ? 1360 : 400
-  const paint = (ctx) => (kind === 'ticket' ? drawTicket(ctx, ticketData.value, W, H) : drawCard(ctx, shareData.value, W, H))
+// 画图用的 canvas：小程序用页面里的 canvas（type="2d"），H5 新建一个
+async function getCanvas(W, H) {
   // #ifdef MP-WEIXIN
   const node = await new Promise((resolve) => uni.createSelectorQuery().in(instance.proxy).select('#share-cv').fields({ node: true, size: true }).exec((r) => resolve(r && r[0] && r[0].node)))
   if (!node) throw new Error('no canvas')
   node.width = W
   node.height = H
-  paint(node.getContext('2d'))
-  return await new Promise((resolve, reject) => uni.canvasToTempFilePath({ canvas: node, fileType: 'jpg', quality: 0.92, success: (r) => resolve(r.tempFilePath), fail: reject }))
+  return node
   // #endif
   // #ifndef MP-WEIXIN
   const c = document.createElement('canvas')
   c.width = W
   c.height = H
-  paint(c.getContext('2d'))
-  return c.toDataURL('image/jpeg', 0.92)
+  return c
   // #endif
+}
+function loadImg(canvas, src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null)
+    let img = null
+    // #ifdef MP-WEIXIN
+    img = canvas.createImage()
+    // #endif
+    // #ifndef MP-WEIXIN
+    img = new Image()
+    // #endif
+    img.onload = () => resolve(img)
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
+// 票据导出 PNG（票面以外和缺口透明）；转发卡片铺满整张图，用 JPG
+function exportCanvas(canvas, type) {
+  // #ifdef MP-WEIXIN
+  return new Promise((resolve, reject) => uni.canvasToTempFilePath({ canvas, fileType: type, quality: 0.92, success: (r) => resolve(r.tempFilePath), fail: reject }))
+  // #endif
+  // #ifndef MP-WEIXIN
+  return Promise.resolve(type === 'png' ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.92))
+  // #endif
+}
+async function renderImage(kind) {
+  if (kind === 'ticket') {
+    // 先量版面（地址有几行），再按内容的高度画
+    const probe = await getCanvas(TICKET_W, 100)
+    const L = ticketLayout(probe.getContext('2d'), ticketData.value)
+    const c = await getCanvas(TICKET_W, L.H)
+    drawTicket(c.getContext('2d'), ticketData.value, L)
+    return exportCanvas(c, 'png')
+  }
+  const c = await getCanvas(1000, 800)
+  const d = cardData.value
+  const imgs = await Promise.all([loadImg(c, d.coverSrc)].concat(d.people.slice(0, 5).map((pp) => loadImg(c, pp.photo))))
+  drawCard(c.getContext('2d'), d, { cover: imgs[0], dealers: imgs.slice(1) }, 2)
+  return exportCanvas(c, 'jpg')
 }
 let cardPath = ''
 onReady(() => { renderImage('card').then((p) => { cardPath = p }).catch(() => {}) })
@@ -722,7 +782,7 @@ function saveTicket() {
   // #ifndef MP-WEIXIN
   const a = document.createElement('a')
   a.href = ticketSrc.value
-  a.download = `${m.value.name}-票据.jpg`
+  a.download = `${m.value.name}-票据.png`
   a.click()
   popMsg('票据已下载', 'download')
   // #endif
@@ -758,13 +818,18 @@ function onMain() {
   message.value = ''
   joinOpen.value = true
 }
+// 需要审核的比赛：点「提交报名并开启提醒」时，在同一次点击里申请订阅消息（微信要求由点击触发），
+// 用户在微信的授权弹窗里确认后就提交报名——只确认一次、只点一次
 function submitJoin() {
-  setJoin(m.value.id, { status: 'pending', message: message.value.trim(), at: Date.now() })
-  joinStatus.value = 'pending'
-  joinOpen.value = false
-  toast('已提交报名')
-  // 报名成功：一次申请开赛提醒、审核通过、座位分配三条订阅消息
-  setTimeout(() => askSubscribe(), 500)
+  const done = () => {
+    setJoin(m.value.id, { status: 'pending', message: message.value.trim(), at: Date.now() })
+    joinStatus.value = 'pending'
+    joinOpen.value = false
+    toast('已提交报名')
+  }
+  const ids = Object.values(SUBSCRIBE_TMPLS).filter(Boolean)
+  if (ids.length && typeof uni.requestSubscribeMessage === 'function') uni.requestSubscribeMessage({ tmplIds: ids, complete: done })
+  else done()
 }
 function withdraw() {
   setJoin(m.value.id, null)
@@ -975,15 +1040,28 @@ function leave() {
 .mk-wait-t { margin-left: 12rpx; font-size: 24rpx; color: #FFC53A; }
 /* 名单抽屉 */
 .sheet-r { position: absolute; left: 0; right: 0; bottom: 0; max-height: 84vh; padding: 16rpx 32rpx calc(28rpx + env(safe-area-inset-bottom)); box-sizing: border-box; background: #262A34; border-radius: 48rpx 48rpx 0 0; display: flex; flex-direction: column; animation: ov-up .22s ease-out; }
-.sr-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18rpx; }
+.sr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; }
+.sr-head-t { display: flex; align-items: baseline; }
+.sr-head-t .sr-sub { margin-left: 14rpx; }
+.sr-scan { width: 80rpx; height: 80rpx; flex: none; border-radius: 22rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.sr-sel { margin-left: auto; height: 56rpx; padding: 0 24rpx; border-radius: 999rpx; box-shadow: inset 0 0 0 2rpx #FF6B6B; display: flex; align-items: center; }
+.sr-sel-t { font-size: 24rpx; font-weight: 600; color: #FF6B6B; }
+.sr-selbar { height: 76rpx; margin-bottom: 8rpx; padding: 0 10rpx 0 18rpx; border-radius: 20rpx; background: #1F222A; display: flex; align-items: center; }
+.sr-all { display: flex; align-items: center; }
+.sr-ck { width: 38rpx; height: 38rpx; flex: none; box-sizing: border-box; border-radius: 10rpx; border: 3rpx solid #6B7280; display: flex; align-items: center; justify-content: center; }
+.sr-ck-on { border-color: #DC0000; background: #DC0000; }
+.sr-ck-row { margin-right: 18rpx; }
+.sr-all-t { margin-left: 12rpx; font-size: 26rpx; color: #FFFFFF; }
+.sr-picked { margin-left: 18rpx; font-size: 24rpx; color: #9CA3AF; }
+.sr-cancel { margin-left: auto; padding: 0 22rpx; font-size: 24rpx; color: #9CA3AF; }
+.sr-ok { height: 56rpx; padding: 0 26rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; }
+.sr-ok-dis { opacity: .45; }
+.sr-ok-t { font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
+.sj-remind { margin-top: 18rpx; padding: 16rpx 20rpx; border-radius: 18rpx; background: rgba(255, 197, 58, .1); display: flex; align-items: center; }
+.sj-remind-t { margin-left: 10rpx; font-size: 23rpx; color: #FFD27A; }
 .sr-title { font-size: 32rpx; font-weight: 600; color: #FFFFFF; }
 .sr-sub { font-size: 24rpx; color: #9CA3AF; }
-.sr-acts { display: flex; margin-bottom: 18rpx; }
-.sr-act { flex: 1; height: 84rpx; margin-right: 14rpx; border-radius: 20rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
-.sr-act:last-child { margin-right: 0; background: #35383F; }
-.sr-act-dis { opacity: .45; }
-.sr-act-t { margin-left: 8rpx; font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
-.sr-tabs { display: flex; margin-bottom: 8rpx; }
+.sr-tabs { display: flex; align-items: center; margin-bottom: 8rpx; }
 .sr-tab { height: 56rpx; margin-right: 12rpx; padding: 0 20rpx; border-radius: 999rpx; background: #1F222A; display: flex; align-items: center; font-size: 22rpx; color: #9CA3AF; }
 .sr-tab-on { background: #FFFFFF; color: #0B0C10; font-weight: 600; }
 .sr-list { max-height: 760rpx; }
@@ -1002,8 +1080,8 @@ function leave() {
 /* 9:16 海报预览 */
 .ov-c { display: flex; align-items: center; justify-content: center; }
 .pst { position: relative; width: 560rpx; display: flex; flex-direction: column; align-items: center; }
-.pst-img { width: 504rpx; height: 816rpx; border-radius: 24rpx; background: #1F222A; box-shadow: 0 30rpx 60rpx rgba(0, 0, 0, .5); }
-.pst-loading { display: flex; align-items: center; justify-content: center; font-size: 26rpx; color: #9CA3AF; }
+.pst-img { width: 504rpx; height: 816rpx; }
+.pst-loading { border-radius: 24rpx; background: #1F222A; display: flex; align-items: center; justify-content: center; font-size: 26rpx; color: #9CA3AF; }
 .pst-acts { margin-top: 28rpx; width: 100%; display: flex; }
 .pst-btn { flex: 1; height: 88rpx; margin-left: 16rpx; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
 .pst-btn-2 { margin-left: 0; flex: none; width: 180rpx; background: #35383F; }
