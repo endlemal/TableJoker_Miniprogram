@@ -1,9 +1,10 @@
 // 遥控切屏 · 演示数据
-// 主办方拥有的 TV 主题（真实画面以后替换；现在用黑色矩形占位）。房间的主题在创建比赛页设置
+// 主办方拥有的 TV 主题，cover 是主题的封面（大屏效果图，原图在 design/themes/）。房间的主题在创建比赛页设置
 export const TV_THEMES = [
-  { key: 'flip', name: '翻牌钟', desc: '机械翻牌的计时钟面' },
-  { key: 'night', name: '经典暗夜', desc: '深色底，盲注和时间最醒目' },
-  { key: 'dawn', name: '轻灵晨光', desc: '浅色底，适合白天和明亮的场地' }
+  { key: 'flip', name: '翻牌钟', desc: '机械翻片，一秒一变。', cover: '/static/themes/flip.jpg' },
+  { key: 'night', name: '经典暗夜', desc: '红黑剧院，决赛现场。', cover: '/static/themes/night.jpg' },
+  { key: 'dawn', name: '轻灵晨光', desc: '雪纸、冰面，一道晨光。', cover: '/static/themes/dawn.jpg' },
+  { key: 'meridian', name: '子午线', desc: '整场赛程，一圈看完。', cover: '/static/themes/meridian.jpg' }
 ]
 export const ROOM_THEME = 'flip'
 

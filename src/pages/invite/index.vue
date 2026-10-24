@@ -349,14 +349,14 @@ const shownTags = computed(() => ((m.value && m.value.tags) || []).map(tagOf)
   .map((t) => ({ text: t.text, status: tagStatus(t) }))
   .filter((t) => t.status === 'approved' || (isHost.value && t.status === 'pending'))
   .map((t) => ({ text: t.text, pending: t.status === 'pending' })))
-// 主办方视图：现场配置一行（现场大屏、TV 主题、显示几项信息）
+// 主办方视图：现场配置一行（现场大屏、TV 主题）
 const proLine = computed(() => {
   const x = m.value || {}
   const parts = []
   if ((x.screens || []).length) parts.push(`现场大屏 ${x.screens.length} 台`)
   if (x.tvTheme) {
     const t = TV_THEMES.find((k) => k.key === x.tvTheme.key)
-    parts.push(`TV 主题「${t ? t.name : x.tvTheme.key}」· 显示 ${(x.tvTheme.dims || []).length} 项信息`)
+    parts.push(`TV 主题「${t ? t.name : x.tvTheme.key}」`)
   }
   return parts.join(' · ')
 })

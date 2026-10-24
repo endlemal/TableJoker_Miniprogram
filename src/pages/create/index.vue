@@ -158,74 +158,71 @@
       <block v-if="isHost">
         <view class="more"><text class="lb">主办方专属</text><view class="pro-badge"><z-icon name="crown" :size="11" color="#F4B740" /><text class="pro-badge-t">主办方</text></view><view class="more-line"></view></view>
 
-        <!-- 现场大屏：在抽屉栏里选，选中的大屏列在这里 -->
-        <view class="lb-row"><text class="lb">现场大屏</text><text class="lb-act" @tap="openScreens">{{ pickedScreens.length ? '调整' : '选择' }}</text></view>
-        <view v-for="d in pickedScreens" :key="d.id" class="scap scap-inline" :class="{ 'scap-off': !isOnline(d) }">
-          <view class="scap-cv"><z-fit-img :src="capCover(d).src" mode="aspectFill" :w="capCover(d).w" :h="capCover(d).h" :bg="capCover(d).tint" /></view>
-          <view class="scap-mask" :style="capMask(d)"></view>
-          <view class="scap-ic" :class="isOnline(d) ? 'scap-ic-on' : 'scap-ic-off'"><z-icon :name="isOnline(d) ? 'device-tv' : 'device-tv-off'" :size="18" :color="isOnline(d) ? '#4CB582' : '#FF8A8A'" /></view>
-          <view class="scap-main"><text class="scap-n">{{ d.name }}</text><text class="scap-s">{{ screenSub(d) }}</text></view>
-          <view class="scap-x" hover-class="press" @tap="toggleScreen(d)"><z-icon name="x" :size="14" :stroke="2.5" color="#FFFFFF" /></view>
+        <!-- 现场大屏：每台电视一个灰色图标，横着排、放不下就换行；第一行以外的折叠起来，点「展开更多」再显示。点图标选中，选中的亮起来 -->
+        <view class="lb-row lb-row-first"><text class="lb">现场大屏</text><text class="count">已选 {{ form.screens.length }} 台</text></view>
+        <view v-if="loadedDevices && !devices.length" class="fd add-box" hover-class="press-soft" @tap="toDevices">
+          <z-icon name="device-tv" :size="18" color="#9CA3AF" /><text class="add-box-t">还没有绑定大屏，去设备管理添加</text>
         </view>
-        <view v-if="!pickedScreens.length" class="fd add-box" hover-class="press-soft" @tap="openScreens">
-          <z-icon name="device-tv" :size="18" color="#9CA3AF" /><text class="add-box-t">选择开赛时显示计时器的大屏</text>
-        </view>
-
-        <!-- 房间 TV 主题：主题和显示的信息直接在这里选，上方是预览 -->
-        <view class="lb-row lb-gap"><text class="lb">房间 TV 主题</text><text class="count">显示 {{ form.tvTheme.dims.length }} 项信息</text></view>
-        <view class="tvp tvp-inline">
-          <text class="tvp-theme">{{ themeName }}</text>
-          <text class="tvp-time">18:42</text>
-          <view class="tvp-dims"><text v-for="d in shownDims" :key="d.key" class="tvp-dim">{{ d.name }}</text></view>
-        </view>
-        <view class="themes">
-          <view v-for="t in TV_THEMES" :key="t.key" class="thc" :class="{ 'thc-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
-            <text class="thc-n">{{ t.name }}</text><text class="thc-d">{{ t.desc }}</text>
+        <view class="tvis">
+          <view v-for="d in shownDevices" :key="d.id" class="tvi" :class="{ 'tvi-on': form.screens.includes(d.id), 'tvi-off': !isOnline(d) }" hover-class="press" @tap="toggleScreen(d)">
+            <view class="tvi-ic">
+              <z-icon name="device-tv" :size="30" :stroke="1.6" :color="form.screens.includes(d.id) ? '#FFFFFF' : '#4B5060'" />
+              <view class="tvi-dot" :class="{ 'tvi-dot-on': isOnline(d) }"></view>
+            </view>
+            <text class="tvi-n">{{ d.name.slice(0, 5) }}</text>
           </view>
         </view>
-        <view class="dims dims-inline">
-          <view v-for="d in TV_DIMS" :key="d.key" class="dim" :class="{ 'dim-on': form.tvTheme.dims.includes(d.key), 'dim-fixed': d.fixed }" hover-class="press" @tap="toggleDim(d)">
-            <z-icon :name="d.fixed ? 'lock' : form.tvTheme.dims.includes(d.key) ? 'check' : 'plus'" :size="12" :stroke="2.5" :color="d.fixed ? '#6B7280' : form.tvTheme.dims.includes(d.key) ? '#FF6B6B' : '#9CA3AF'" />
-            <text class="dim-t">{{ d.name }}</text>
-          </view>
+        <view v-if="devices.length > PER_ROW" class="tvi-more" hover-class="press" @tap="screensMore = !screensMore">
+          <text class="tvi-more-t">{{ screensMore ? '收起' : '展开更多（还有 ' + (devices.length - PER_ROW) + ' 台' + (hiddenPicked ? '，已选 ' + hiddenPicked + ' 台' : '') + '）' }}</text>
+          <z-icon :name="screensMore ? 'chevron-up' : 'chevron-down'" :size="14" color="#9CA3AF" />
         </view>
 
-        <!-- 驻场荷官：名牌墙（倾斜的封面流）。中间一张展开显示照片、头衔和经验，两侧的只露出竖排名字 -->
+        <!-- 房间 TV 主题：左边是所选主题的封面，右边是竖着排的主题列表（可滚动） -->
+        <view class="lb-row lb-gap"><text class="lb">房间 TV 主题</text><text class="count">{{ theme.name }} · {{ theme.desc }}</text></view>
+        <view class="tvt">
+          <view class="tvt-cover"><image class="tvt-img" :src="theme.cover" mode="aspectFill" /></view>
+          <scroll-view scroll-y class="tvt-list" :scroll-into-view="'th-' + theme.key">
+            <view v-for="t in TV_THEMES" :id="'th-' + t.key" :key="t.key" class="tvt-i" :class="{ 'tvt-on': form.tvTheme.key === t.key }" hover-class="press-soft" @tap="form.tvTheme.key = t.key">
+              <image class="tvt-thumb" :src="t.cover" mode="aspectFill" />
+              <text class="tvt-n">{{ t.name }}</text>
+            </view>
+          </scroll-view>
+        </view>
+
+        <!-- 驻场荷官：中间一张展开；两侧紧贴着折叠成窄条的荷官（模糊的照片 + 竖排名字），点窄条就展开它，也可以左右滑动 -->
         <view class="lb-row lb-gap"><text class="lb">驻场荷官</text><text class="lb-act" @tap="dealersOpen = true">{{ dealerPicked.length ? '添加 / 调整' : '添加' }}</text></view>
-        <view class="dw">
-          <swiper class="dw-sw" previous-margin="130rpx" next-margin="130rpx" :current="dwIdx" @change="onDw">
-            <swiper-item v-for="(d, i) in dwItems" :key="d.id">
-              <view class="dw-card" :class="{ 'dw-cur': i === dwIdx, 'dw-add': d.add }" @tap="tapDw(i, d)">
-                <view class="dw-skew" :style="d.add ? '' : 'background:' + (d.tone || d.bg)">
-                  <view class="dw-unskew">
-                    <block v-if="d.add">
-                      <z-icon name="plus" :size="26" color="#9CA3AF" />
-                      <text class="dw-add-t">添加荷官</text>
-                      <text class="dw-add-s">从工作台荷官名册选择</text>
-                    </block>
-                    <block v-else>
-                      <image v-if="d.photo" class="dw-img" :src="d.photo" mode="aspectFill" />
-                      <view v-else class="dw-ph" :style="'background:linear-gradient(160deg, ' + (d.tone || '#2A2D36') + ' 0%, #0E0F13 100%)'"><text class="dw-ph-c">{{ d.char }}</text></view>
-                      <view class="dw-shade"></view>
-                      <text class="dw-title">{{ d.title }}</text>
-                      <text class="dw-vname">{{ d.name }}</text>
-                      <view class="dw-info">
-                        <text class="dw-name">{{ d.name }}</text>
-                        <view class="dw-stats">
-                          <view class="dw-st"><text class="dw-st-v">{{ d.years }}</text><text class="dw-st-k">年经验</text></view>
-                          <view class="dw-st"><text class="dw-st-v">{{ i + 1 }}</text><text class="dw-st-k">号名牌</text></view>
-                          <text class="dw-tags">{{ (d.tags || []).join(' · ') }}</text>
-                        </view>
+        <view class="dw" @touchstart="dwStart" @touchend="dwEnd" @touchcancel="dwEnd">
+          <view class="dw-row" :style="dwRowStyle">
+            <view v-for="(d, i) in dwItems" :key="d.id" class="dw-card" :class="{ 'dw-cur': i === dwIdx, 'dw-add': d.add }" :style="'width:' + (i === dwIdx ? DW.wa : DW.wc) + 'px'" @tap="tapDw(i, d)">
+              <view class="dw-skew" :style="d.add ? '' : 'background:' + (d.tone || d.bg)">
+                <view class="dw-unskew">
+                  <block v-if="d.add">
+                    <z-icon name="plus" :size="24" color="#9CA3AF" />
+                    <text class="dw-add-t">添加荷官</text>
+                    <text class="dw-add-s">从工作台荷官名册选择</text>
+                  </block>
+                  <block v-else>
+                    <image v-if="d.photo" class="dw-img" :src="d.photo" mode="aspectFill" />
+                    <view v-else class="dw-ph" :style="'background:linear-gradient(160deg, ' + (d.tone || '#2A2D36') + ' 0%, #0E0F13 100%)'"><text class="dw-ph-c">{{ d.char }}</text></view>
+                    <view class="dw-shade"></view>
+                    <text class="dw-title">{{ d.title }}</text>
+                    <text class="dw-vname">{{ d.name }}</text>
+                    <view class="dw-info">
+                      <text class="dw-name">{{ d.name }}</text>
+                      <view class="dw-stats">
+                        <view class="dw-st"><text class="dw-st-v">{{ d.years }}</text><text class="dw-st-k">年经验</text></view>
+                        <view class="dw-st"><text class="dw-st-v">{{ i + 1 }}</text><text class="dw-st-k">号名牌</text></view>
+                        <text class="dw-tags">{{ (d.tags || []).join(' · ') }}</text>
                       </view>
-                      <view class="dw-btn" hover-class="press" @tap.stop="removeDealer(d)"><z-icon name="x" :size="12" :stroke="3" color="#0B0C10" /><text class="dw-btn-t">移出</text></view>
-                    </block>
-                  </view>
+                    </view>
+                    <view class="dw-btn" hover-class="press" @tap.stop="removeDealer(d)"><z-icon name="x" :size="12" :stroke="3" color="#0B0C10" /><text class="dw-btn-t">移出</text></view>
+                  </block>
                 </view>
               </view>
-            </swiper-item>
-          </swiper>
+            </view>
+          </view>
         </view>
-        <text class="dw-hint">只作信息展示，不关联账号，也没有控场操作；左右滑动翻看</text>
+        <text class="dw-hint">只作信息展示，不关联账号，也没有控场操作；点两侧的窄条展开，也可以左右滑动</text>
 
         <!-- 比赛标签：2 个预设 + 自定义；自定义的要审核，通过后才公开显示 -->
         <view class="lb-row lb-gap"><text class="lb">比赛标签</text><text class="count">{{ form.tags.length }}/{{ MAX_TAGS }}</text></view>
@@ -384,27 +381,6 @@
       </view>
     </view>
 
-    <!-- 现场大屏：抽屉栏里多选开赛时显示计时器的大屏 -->
-    <view v-if="screensOpen" class="ov">
-      <view class="mask" @tap="screensOpen = false" @touchmove.stop.prevent="noop"></view>
-      <view class="sheet sheet-pro">
-        <view class="grab"></view>
-        <view class="sh-head"><text class="sh-title">现场大屏</text><text class="sh-sub">已选 {{ form.screens.length }} 台</text></view>
-        <scroll-view scroll-y class="pro-scroll">
-          <view v-for="d in devices" :key="d.id" class="scap" :class="{ 'scap-on': form.screens.includes(d.id), 'scap-off': !isOnline(d) }" hover-class="press-soft" @tap="toggleScreen(d)">
-            <view class="scap-cv"><z-fit-img :src="capCover(d).src" mode="aspectFill" :w="capCover(d).w" :h="capCover(d).h" :bg="capCover(d).tint" /></view>
-            <view class="scap-mask" :style="capMask(d)"></view>
-            <view class="scap-ic" :class="isOnline(d) ? 'scap-ic-on' : 'scap-ic-off'"><z-icon :name="isOnline(d) ? 'device-tv' : 'device-tv-off'" :size="18" :color="isOnline(d) ? '#4CB582' : '#FF8A8A'" /></view>
-            <view class="scap-main"><text class="scap-n">{{ d.name }}</text><text class="scap-s">{{ screenSub(d) }}</text></view>
-            <view class="chk" :class="{ 'chk-on': form.screens.includes(d.id) }"><z-icon v-if="form.screens.includes(d.id)" name="check" :size="13" :stroke="3" color="#FFFFFF" /></view>
-          </view>
-          <view v-if="!devices.length" class="pro-empty"><text>还没有绑定大屏，</text><text class="lnk" @tap="toDevices">去设备管理添加</text></view>
-        </scroll-view>
-        <text class="sh-hint">开赛时，选中的大屏会显示这场比赛的计时器；离线的大屏联网后生效</text>
-        <view class="sh-done" hover-class="press" @tap="screensOpen = false"><text class="sh-done-t">完成</text></view>
-      </view>
-    </view>
-
     <!-- 驻场荷官：从工作台的荷官名册里添加，只作信息展示 -->
     <view v-if="dealersOpen" class="ov">
       <view class="mask" @tap="dealersOpen = false" @touchmove.stop.prevent="noop"></view>
@@ -465,11 +441,9 @@ import { loadList, saveList, saveMatch, newRoomCode } from '@/common/store.js'
 import { useCertState } from '@/common/cert.js'
 import { listDevices, isOnline } from '@/common/devices.js'
 import { listDealers, dealerSnapshot } from '@/common/dealers.js'
-import { liveOf, contentCover } from '@/common/screens.js'
 import { TV_THEMES } from '@/mock/remote.js'
-import { SLOTS, INTRO_MAX, TV_DIMS, DEFAULT_DIMS, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN } from '@/mock/pro.js'
+import { SLOTS, INTRO_MAX, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN } from '@/mock/pro.js'
 import { tagOf, newTag, tagStatus, tagProblem, TAG_REVIEW_MS } from '@/common/tags.js'
-import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
@@ -516,7 +490,7 @@ const pvMask = 'background-image:linear-gradient(180deg,rgba(38,42,52,.96),rgba(
 const certState = useCertState()
 const isHost = computed(() => certState.value === 'verified')
 const maxSlots = computed(() => (isHost.value ? SLOTS.host : SLOTS.user))
-const proDefaults = () => ({ tags: [], tvTheme: { key: 'flip', dims: DEFAULT_DIMS.slice() }, screens: [], dealers: [], rules: [] })
+const proDefaults = () => ({ tags: [], tvTheme: { key: 'flip' }, screens: [], dealers: [], rules: [] })
 const schemes = ref(loadList(KEY_SCHEMES, blindSchemeSeeds))
 const templates = ref(loadList(KEY_TEMPLATES, matchTemplateSeeds))
 const form = reactive({ ...clone(createDraft), ...proDefaults(), dayIdx: nextFriday, blindId: schemes.value.length ? schemes.value[0].id : '', coverImage: '' })
@@ -533,7 +507,7 @@ onLoad((q) => {
   if (q && q.open === 'schemes') setTimeout(() => { tplOpen.value = true }, 350)
   if (isHost.value) loadDevices()
 })
-const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || screensOpen.value || dealersOpen.value)
+const overlayOpen = computed(() => picker.value || editor.value || dateOpen.value || capOpen.value || tplOpen.value || dealersOpen.value)
 
 const coverInfo = computed(() => coverScenes.find((c) => c.key === form.cover) || coverScenes[0])
 function pickScene(key) {
@@ -794,57 +768,52 @@ function templateActions(t) {
   })
 }
 
-/* ---------- 主办方 · 专业赛制配置 ---------- */
-const screensOpen = ref(false)
+/* ---------- 主办方专属 ---------- */
 const dealersOpen = ref(false)
 const devices = ref([])
+const loadedDevices = ref(false)
 const dealerList = ref(listDealers())
-async function loadDevices() { devices.value = await listDevices() }
-async function openScreens() {
-  await loadDevices()
-  screensOpen.value = true
+async function loadDevices() {
+  devices.value = await listDevices()
+  loadedDevices.value = true
 }
-const toDevices = () => { screensOpen.value = false; uni.navigateTo({ url: '/pages/devices/index' }) }
+const toDevices = () => uni.navigateTo({ url: '/pages/devices/index' })
 function toggleList(list, id) {
   const i = list.indexOf(id)
   if (i >= 0) list.splice(i, 1)
   else list.push(id)
 }
+// 现场大屏：一行 5 台（每台占 20% 宽），第一行以外的折叠起来；折叠时提示里面有几台已选
+const PER_ROW = 5
+const screensMore = ref(false)
+const shownDevices = computed(() => (screensMore.value ? devices.value : devices.value.slice(0, PER_ROW)))
+const hiddenPicked = computed(() => devices.value.slice(PER_ROW).filter((d) => form.screens.includes(d.id)).length)
 const toggleScreen = (d) => toggleList(form.screens, d.id)
-const pickedScreens = computed(() => form.screens.map((id) => devices.value.find((d) => d.id === id)).filter(Boolean))
-const screenSub = (d) => {
-  if (!isOnline(d)) return '离线 · 联网后生效'
-  return '在线' + (d.resolution ? ` · ${d.resolution.w}×${d.resolution.h}` : '')
-}
-const capCover = (d) => {
-  const c = contentCover(isOnline(d) ? liveOf(d, []) : { cat: '' }, [], d.id, d.coverScene)
-  return isOnline(d) ? c : { ...c, tint: '#24272F' }
-}
-const hexA = (hex, a) => {
-  const n = parseInt(hex.slice(1), 16)
-  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
-}
-const capMask = (d) => {
-  const t = capCover(d).tint
-  return `background:linear-gradient(90deg, ${t} 0%, ${t} 34%, ${hexA(t, 0.8)} 54%, ${hexA(t, 0.2)} 80%, ${hexA(t, 0)} 96%)`
-}
-// TV 主题：视觉主题 + 显示的信息（计时器的核心信息一直显示）
-const themeName = computed(() => (TV_THEMES.find((t) => t.key === form.tvTheme.key) || {}).name || '')
-const shownDims = computed(() => TV_DIMS.filter((d) => form.tvTheme.dims.includes(d.key)))
-function toggleDim(d) {
-  if (d.fixed) return toast('级别、倒计时和盲注是计时器的核心，一直显示')
-  toggleList(form.tvTheme.dims, d.key)
-}
+// TV 主题：封面是大屏效果图
+const theme = computed(() => TV_THEMES.find((t) => t.key === form.tvTheme.key) || TV_THEMES[0])
+const themeName = computed(() => theme.value.name)
 // 驻场荷官
 const toggleDealer = (d) => toggleList(form.dealers, d.id)
 const dealerPicked = computed(() => form.dealers.map((id) => dealerList.value.find((d) => d.id === id)).filter(Boolean))
-// 名牌墙：选中的荷官 + 最后一张「添加荷官」
+// 荷官栏：中间一张展开（宽 430rpx），其余折叠成 84rpx 的窄条紧贴两侧；整行平移，让展开的那张始终在正中
+const DW = { wa: uni.upx2px(430), wc: uni.upx2px(84), gap: uni.upx2px(10), cx: uni.getSystemInfoSync().windowWidth / 2 }
 const dwIdx = ref(0)
 const dwItems = computed(() => dealerPicked.value.concat([{ id: 'add', add: true }]))
-const onDw = (e) => { dwIdx.value = e.detail.current }
+const dwRowStyle = computed(() => `transform:translateX(${(DW.cx - (dwIdx.value * (DW.wc + DW.gap) + DW.wa / 2)).toFixed(1)}px)`)
 function tapDw(i, d) {
   if (i !== dwIdx.value) { dwIdx.value = i; return }
   if (d.add) dealersOpen.value = true
+}
+// 左右滑动：松手时按方向展开相邻的一张（不拦 touchstart，以免小程序里的点击失效）
+let dwX = null
+function dwStart(e) { dwX = e.touches[0].clientX }
+function dwEnd(e) {
+  if (dwX === null) return
+  const t = (e.changedTouches && e.changedTouches[0]) || null
+  const dx = t ? t.clientX - dwX : 0
+  dwX = null
+  if (Math.abs(dx) < 40) return
+  dwIdx.value = Math.max(0, Math.min(dwItems.value.length - 1, dwIdx.value + (dx < 0 ? 1 : -1)))
 }
 function removeDealer(d) {
   uni.showModal({
@@ -1247,6 +1216,7 @@ function onPublish() {
 .pro-badge { margin-left: 12rpx; height: 36rpx; padding: 0 12rpx; border-radius: 999rpx; background: rgba(244, 183, 64, .14); display: flex; align-items: center; }
 .pro-badge-t { margin-left: 4rpx; font-size: 20rpx; color: #F4B740; }
 .lb-act { font-size: 24rpx; color: #FF6B6B; }
+.lb-row-first { margin-top: 20rpx; }
 .tags { margin-top: 16rpx; display: flex; flex-wrap: wrap; }
 .tg { height: 60rpx; margin: 0 14rpx 14rpx 0; padding: 0 22rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
 .tg-on { background: #2A1216; border-color: rgba(220, 0, 0, .55); }
@@ -1262,19 +1232,41 @@ function onPublish() {
 .tg-st { margin-left: 4rpx; font-size: 20rpx; color: #FFC53A; }
 .tg-st-bad { color: #FF6B6B; }
 .tg-pending .tg-t { margin-left: 6rpx; }
-.tg-hint { display: block; margin-top: 2rpx; font-size: 22rpx; color: #6B7280; }
+/* 现场大屏：电视图标，一行 5 台，选中的亮起来 */
+.tvis { margin-top: 12rpx; display: flex; flex-wrap: wrap; }
+.tvi { width: 20%; padding: 12rpx 0 8rpx; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+.tvi-ic { position: relative; width: 96rpx; height: 84rpx; border-radius: 22rpx; background: #1F222A; display: flex; align-items: center; justify-content: center; transition: background .2s ease, box-shadow .2s ease; }
+.tvi-on .tvi-ic { background: #2A1216; box-shadow: inset 0 0 0 3rpx #DC0000, 0 0 24rpx rgba(220, 0, 0, .45); }
+.tvi-dot { position: absolute; right: 12rpx; top: 10rpx; width: 12rpx; height: 12rpx; border-radius: 50%; background: #4B5060; }
+.tvi-dot-on { background: #4CB582; }
+.tvi-n { margin-top: 10rpx; max-width: 100%; font-size: 22rpx; color: #6B7280; white-space: nowrap; overflow: hidden; }
+.tvi-on .tvi-n { color: #FFFFFF; }
+.tvi-off .tvi-n { color: #4B5060; }
+.tvi-more { margin-top: 4rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; }
+.tvi-more-t { margin-right: 6rpx; font-size: 22rpx; color: #9CA3AF; }
+/* 房间 TV 主题：左边封面，右边竖排的主题列表 */
+.tvt { margin-top: 16rpx; height: 244rpx; display: flex; }
+.tvt-cover { width: 434rpx; height: 244rpx; flex: none; border-radius: 20rpx; overflow: hidden; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); }
+.tvt-img { width: 100%; height: 100%; }
+.tvt-list { flex: 1; min-width: 0; height: 244rpx; margin-left: 16rpx; }
+.tvt-i { margin-bottom: 12rpx; padding: 8rpx; border-radius: 16rpx; background: #1F222A; display: flex; align-items: center; box-sizing: border-box; }
+.tvt-on { background: #2A1216; box-shadow: inset 0 0 0 3rpx #DC0000; }
+.tvt-thumb { width: 88rpx; height: 50rpx; flex: none; border-radius: 8rpx; }
+.tvt-n { margin-left: 12rpx; flex: 1; min-width: 0; font-size: 24rpx; color: #E5E7EB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tvt-on .tvt-n { color: #FFFFFF; font-weight: 600; }
 .add-box { margin-top: 16rpx; height: 104rpx; border: 2rpx dashed #3A3D46; display: flex; align-items: center; justify-content: center; }
 .add-box-t { margin-left: 10rpx; font-size: 26rpx; color: #9CA3AF; }
-.scap-inline { margin: 16rpx 0 0; }
-.scap-x { position: relative; width: 52rpx; height: 52rpx; flex: none; border-radius: 50%; background: rgba(10, 10, 12, .45); display: flex; align-items: center; justify-content: center; }
-.tvp-inline { margin-top: 16rpx; }
-.dims-inline { margin-top: 18rpx; }
+.tg-hint { display: block; margin-top: 2rpx; font-size: 22rpx; color: #6B7280; }
 /* 驻场荷官名牌墙：倾斜的封面流（中间一张展开，两侧的只露出竖排名字） */
-.dw { margin: 16rpx -32rpx 0; padding: 12rpx 0; background: linear-gradient(180deg, #0E0F13, #15161C); }
-.dw-sw { height: 420rpx; }
-.dw-card { height: 100%; padding: 14rpx 0; box-sizing: border-box; transform: scale(.84); opacity: .55; transition: transform .35s ease, opacity .35s ease; }
-.dw-cur { transform: scale(1); opacity: 1; }
-.dw-skew { position: relative; height: 100%; margin: 0 26rpx; overflow: hidden; border-radius: 10rpx; transform: skewX(-10deg); background: #1F222A; box-shadow: 0 20rpx 40rpx rgba(0, 0, 0, .5); }
+.dw { height: 400rpx; margin: 16rpx -32rpx 0; padding: 20rpx 0; overflow: hidden; background: linear-gradient(180deg, #0E0F13, #15161C); }
+.dw-row { display: flex; height: 100%; transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+.dw-card { flex: none; height: 100%; margin-right: 10rpx; transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+.dw-skew { position: relative; height: 100%; overflow: hidden; border-radius: 10rpx; transform: skewX(-10deg); background: #1F222A; box-shadow: 0 16rpx 30rpx rgba(0, 0, 0, .45); }
+/* 折叠的窄条：照片模糊、压暗，只露出竖排名字 */
+.dw-card .dw-img { filter: blur(5px) brightness(.62) saturate(1.2); transform: scale(1.25); transition: filter .45s ease, transform .45s ease; }
+.dw-cur .dw-img { filter: none; transform: none; }
+.dw-card .dw-add-t, .dw-card .dw-add-s { opacity: 0; transition: opacity .3s ease; white-space: nowrap; }
+.dw-cur .dw-add-t, .dw-cur .dw-add-s { opacity: 1; }
 .dw-cur .dw-skew { box-shadow: 0 0 0 3rpx rgba(255, 255, 255, .85), 0 24rpx 50rpx rgba(0, 0, 0, .55); }
 .dw-unskew { position: absolute; left: -16%; right: -16%; top: 0; bottom: 0; transform: skewX(10deg); display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .dw-img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
@@ -1291,7 +1283,7 @@ function onPublish() {
 .dw-tags { flex: 1; min-width: 0; padding-bottom: 2rpx; font-size: 20rpx; color: rgba(255, 255, 255, .8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dw-btn { position: absolute; right: 16%; bottom: 0; height: 64rpx; padding: 0 26rpx 0 34rpx; background: #FFFFFF; transform: skewX(-10deg); display: flex; align-items: center; }
 .dw-btn-t { margin-left: 6rpx; font-size: 24rpx; font-weight: 700; letter-spacing: 4rpx; color: #0B0C10; }
-.dw-vname { position: absolute; left: 50%; top: 50%; font-size: 40rpx; font-weight: 300; letter-spacing: 6rpx; color: rgba(255, 255, 255, .85); transform: translate(-50%, -50%) rotate(-78deg); white-space: nowrap; opacity: 0; transition: opacity .3s ease; }
+.dw-vname { position: absolute; left: 50%; top: 50%; font-size: 34rpx; font-weight: 300; letter-spacing: 6rpx; color: rgba(255, 255, 255, .85); transform: translate(-50%, -50%) rotate(-78deg); white-space: nowrap; opacity: 0; transition: opacity .3s ease; }
 .dw-card .dw-info, .dw-card .dw-btn, .dw-card .dw-title { opacity: 0; transition: opacity .3s ease; }
 .dw-cur .dw-info, .dw-cur .dw-btn, .dw-cur .dw-title { opacity: 1; }
 .dw-card .dw-vname { opacity: 1; }
@@ -1311,36 +1303,6 @@ function onPublish() {
 .lnk { color: #FF6B6B; }
 .chk { width: 44rpx; height: 44rpx; flex: none; box-sizing: border-box; border-radius: 50%; border: 3rpx solid #4A4D57; display: flex; align-items: center; justify-content: center; }
 .chk-on { border-color: #DC0000; background: #DC0000; }
-.scap { position: relative; height: 112rpx; margin-bottom: 18rpx; padding: 0 22rpx 0 12rpx; box-sizing: border-box; border-radius: 999rpx; overflow: hidden; display: flex; align-items: center; background: #1F222A; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .08); }
-.scap-on { box-shadow: inset 0 0 0 4rpx #DC0000; }
-.scap-cv { position: absolute; left: 30%; top: 0; right: 0; bottom: 0; }
-.scap-off .scap-cv { filter: grayscale(1) brightness(.6); opacity: .75; }
-.scap-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
-.scap-ic { position: relative; width: 80rpx; height: 80rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.scap-ic-on { background: rgba(12, 32, 22, .7); box-shadow: inset 0 0 0 3rpx #4CB582; }
-.scap-ic-off { background: rgba(36, 14, 16, .7); box-shadow: inset 0 0 0 3rpx rgba(255, 107, 107, .6); }
-.scap-main { position: relative; flex: 1; min-width: 0; margin: 0 16rpx 0 18rpx; display: flex; flex-direction: column; }
-.scap-n { font-size: 28rpx; font-weight: 700; color: #FFFFFF; text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, .45); }
-.scap-s { margin-top: 4rpx; font-size: 22rpx; color: rgba(242, 242, 238, .78); }
-.scap .chk { position: relative; background: rgba(10, 10, 12, .4); border-color: rgba(255, 255, 255, .6); }
-.scap .chk-on { border-color: #DC0000; background: #DC0000; }
-.tvp { position: relative; height: 300rpx; border-radius: 24rpx; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.tvp-theme { position: absolute; left: 20rpx; top: 16rpx; padding: 4rpx 14rpx; border-radius: 999rpx; background: rgba(255, 181, 71, .18); font-size: 20rpx; color: #FFB547; }
-.tvp-time { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 96rpx; line-height: 1; color: #F2F2EE; }
-.tvp-dims { margin-top: 18rpx; padding: 0 24rpx; display: flex; flex-wrap: wrap; justify-content: center; }
-.tvp-dim { margin: 4rpx 6rpx; padding: 2rpx 12rpx; border-radius: 8rpx; background: rgba(255, 255, 255, .1); font-size: 18rpx; color: #E5E7EB; }
-.themes { margin-top: 20rpx; display: flex; }
-.thc { flex: 1; height: 132rpx; margin-right: 14rpx; padding: 0 16rpx; box-sizing: border-box; border-radius: 20rpx; background: #000000; box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, .12); display: flex; flex-direction: column; justify-content: center; }
-.thc:last-child { margin-right: 0; }
-.thc-on { box-shadow: inset 0 0 0 4rpx #DC0000; }
-.thc-n { font-size: 28rpx; font-weight: 700; color: #FFFFFF; }
-.thc-d { margin-top: 6rpx; font-size: 18rpx; line-height: 1.4; color: #9CA3AF; }
-.dims { display: flex; flex-wrap: wrap; }
-.dim { height: 60rpx; margin: 0 12rpx 12rpx 0; padding: 0 20rpx; border-radius: 999rpx; background: #1F222A; border: 2rpx solid transparent; display: flex; align-items: center; }
-.dim-on { background: #2A1216; border-color: rgba(220, 0, 0, .5); }
-.dim-fixed { background: #23252C; border-color: transparent; }
-.dim-t { margin-left: 8rpx; font-size: 24rpx; color: #E5E7EB; }
-.dim-fixed .dim-t { color: #9CA3AF; }
 .dlr { display: flex; align-items: center; padding: 18rpx 8rpx; border-bottom: 1rpx solid #2E313A; }
 .dlr-av { width: 80rpx; height: 80rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30rpx; font-weight: 700; }
 .dlr-on .dlr-av { box-shadow: 0 0 0 4rpx #DC0000; }
