@@ -9,10 +9,12 @@
       <view class="head-row" :style="headRowStyle">
         <view v-if="canBack" class="h-back" hover-class="press" @tap="goBack"><z-icon name="arrow-left" :size="18" color="#FFFFFF" /></view>
         <text class="h-title">广场</text>
+        <!-- 当前城市：点开是城市切换与附近俱乐部 -->
+        <view class="h-city" hover-class="press" @tap="toVenues"><z-icon name="map-pin" :size="13" color="#FF6B6B" /><text class="h-city-t">{{ city }}</text><z-icon name="chevron-down" :size="12" color="#9CA3AF" /></view>
       </view>
       <view class="h-stat">
         <text class="h-num">{{ p2(featured.length) }}</text>
-        <view class="h-stat-t"><text class="h-stat-a">场公开赛</text><text class="h-stat-b">正在报名，点开就能报名或进入</text></view>
+        <view class="h-stat-t"><text class="h-stat-a">场公开赛</text><text class="h-stat-b">{{ city }}正在报名，点开就能报名或进入</text></view>
       </view>
     </view>
 
@@ -25,14 +27,14 @@
           <view class="chip-t" :class="{ 'chip-t-on': cat === i }"><text class="chip-char">{{ c.label[0] }}</text><text class="chip-char chip-char-last">{{ c.label[1] }}</text></view>
         </view>
       </view>
-      <view class="chips-search" hover-class="press" @tap="toast('搜索待接入')"><z-icon name="search" :size="18" color="#E5E7EB" /></view>
+      <view class="chips-search" hover-class="press" @tap="searchOpen = true"><z-icon name="search" :size="18" color="#E5E7EB" /></view>
     </view>
     </view>
 
     <!-- 正在报名的公开赛：横向卡片，当前卡片放大 -->
     <block v-if="cat === 0">
       <view class="sec-h"><text class="sec-t">正在报名</text><text class="sec-s">左右滑动</text></view>
-      <swiper class="feat" previous-margin="32rpx" next-margin="104rpx" :current="featIdx" @change="onFeat">
+      <swiper v-if="featured.length" class="feat" previous-margin="32rpx" next-margin="104rpx" :current="featIdx" @change="onFeat">
         <swiper-item v-for="(mt, i) in featured" :key="mt.id">
           <view class="fm" :class="{ 'fm-cur': i === featIdx }" hover-class="fm-press" @tap="openMatch(mt)">
             <view class="fm-cover" :style="mt.coverStyle">
@@ -48,6 +50,8 @@
                 <text class="by-dl-t">驻场荷官</text>
               </view>
               <view class="fm-line" :class="{ 'fm-line-short': mt.dealerFaces.length }"><text class="fm-line-n">{{ mt.scene.name }}</text><text class="fm-line-t">{{ mt.scene.line }}</text></view>
+              <!-- 直接转发这场比赛：先看卡片预览 -->
+              <view class="fm-share" hover-class="press" @tap.stop="openSharePv(mt)"><z-icon name="share" :size="15" color="#FFFFFF" /></view>
               <view v-if="!mt.autoApprove" class="fm-flag"><z-icon name="user-check" :size="12" color="#FFC53A" /><text class="fm-flag-t">需审核</text></view>
             </view>
             <view class="fm-body">
@@ -64,8 +68,20 @@
           </view>
         </swiper-item>
       </swiper>
-      <view class="dots"><view v-for="(mt, i) in featured" :key="mt.id" class="dot" :class="{ 'dot-on': i === featIdx }"></view></view>
+      <view v-if="featured.length" class="dots"><view v-for="(mt, i) in featured" :key="mt.id" class="dot" :class="{ 'dot-on': i === featIdx }"></view></view>
+      <!-- 当前城市还没有公开赛 -->
+      <z-empty v-else kind="city" compact :title="city + '暂时没有公开赛'" desc="看看附近的认证俱乐部，或者自己发起一场" action="附近俱乐部" action2="发起比赛" @action="toVenues" @action2="toCreate" />
       <view class="sec-h sec-h-feed"><text class="sec-t">大家在聊</text></view>
+    </block>
+
+    <!-- 赛事：多维筛选（日期、赛制、报名状态、距离）；没有结果时显示空状态 -->
+    <block v-if="cat === 1">
+      <z-filter-bar :value="filters" @change="onFilter" />
+      <view v-if="matchList.length" class="fl-sum">
+        <text class="fl-sum-t">{{ city }} · {{ matchList.length }} 场{{ filtered ? '符合条件的比赛' : '公开赛' }}</text>
+        <text class="fl-sum-s">{{ origin.mine ? '距离从你的位置算' : '距离从市中心算' }}</text>
+      </view>
+      <z-empty v-else :kind="featured.length ? 'table' : 'city'" :title="featured.length ? '没有符合条件的比赛' : city + '暂时没有公开赛'" :desc="featured.length ? '换个日期、赛制或距离试试' : '看看附近的认证俱乐部，或者自己发起一场'" :action="featured.length ? '清除筛选' : '附近俱乐部'" :action2="featured.length ? '' : '发起比赛'" @action="onEmptyAction" @action2="toCreate" />
     </block>
 
     <!-- 瀑布流：带封面的帖子、海报广告、文字型赛事卡片 -->
@@ -83,7 +99,10 @@
           @tap="openItem(it)"
         >
           <block v-if="it.kind === 'post'">
-            <view :id="'cv-' + it.key" class="pc-cover" :style="it.coverStyle + ';height:' + it.coverH + 'rpx'"></view>
+            <view :id="'cv-' + it.key" class="pc-cover" :style="it.coverStyle + ';height:' + it.coverH + 'rpx'">
+              <text v-if="it.type === 'report'" class="pc-badge pc-badge-r">官方战报</text>
+              <text v-else-if="it.type === 'club'" class="pc-badge pc-badge-c">俱乐部动态</text>
+            </view>
             <view class="pc-body">
               <text class="pc-title">{{ it.title }}</text>
               <view class="pc-meta">
@@ -113,10 +132,12 @@
                   <view class="by-av by-av-s" :style="'background:' + it.creator.bg + ';color:' + it.creator.fg"><text>{{ it.creator.char }}</text><view v-if="it.byHost" class="by-v"><z-icon name="letter-v" :size="6" :stroke="3.4" color="#FFFFFF" /></view></view>
                   <text class="mc-srv">{{ it.creator.name }}</text>
                 </view>
-                <z-icon name="arrow-up-right" :size="16" color="#FFFFFF" />
+                <view class="mc-share" hover-class="press" @tap.stop="openSharePv(it)"><z-icon name="share" :size="14" color="#FFFFFF" /></view>
               </view>
-              <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name) }">{{ it.name }}</text>
-              <text v-if="it.location" class="mc-loc">{{ it.location.name }}</text>
+              <!-- 赛事分类里：标题上方是赛制，地点前面是距离 -->
+              <text v-if="it.formatText" class="mc-fmt">{{ it.formatText }}</text>
+              <text class="mc-title" :class="{ 'font-sys': !fitsDisplay(it.name), 'mc-title-tight': it.formatText }">{{ it.name }}</text>
+              <text v-if="it.location" class="mc-loc">{{ it.kmText ? it.kmText + ' · ' : '' }}{{ it.location.name }}</text>
             </view>
             <view class="mc-meta">
               <view class="mc-when"><text class="mc-time">{{ it.time }}</text><text class="mc-date">{{ it.date }}</text></view>
@@ -154,9 +175,22 @@
             <text class="dt-title">{{ detail.title }}</text>
             <view class="dt-author">
               <view class="av av-56" :style="'background:' + detail.author.bg + ';color:' + detail.author.fg"><text>{{ detail.author.c }}</text></view>
-              <view class="dt-author-t"><text class="dt-name">{{ detail.author.name }}</text><text class="dt-time">{{ ago(detail.at) }}</text></view>
+              <view class="dt-author-t"><view class="dt-name-row"><text class="dt-name">{{ detail.author.name }}</text><text v-if="detail.type === 'report'" class="dt-badge">官方</text><text v-else-if="detail.type === 'club'" class="dt-badge dt-badge-c">认证俱乐部</text></view><text class="dt-time">{{ ago(detail.at) }}</text></view>
             </view>
             <text v-for="(para, k) in detail.body" :key="k" class="dt-p">{{ para }}</text>
+            <!-- 官方完赛战报：参赛人数、级数、用时和前三名 -->
+            <view v-if="detail.report" class="rp">
+              <view class="rp-stats">
+                <view class="rp-st"><text class="rp-st-v">{{ detail.report.players }}</text><text class="rp-st-k">参赛</text></view>
+                <view class="rp-st"><text class="rp-st-v">{{ detail.report.levels }}</text><text class="rp-st-k">级</text></view>
+                <view class="rp-st rp-st-w"><text class="rp-st-v">{{ detail.report.duration }}</text><text class="rp-st-k">用时</text></view>
+              </view>
+              <view v-for="t in detail.report.top" :key="t.rank" class="rp-row">
+                <text class="rp-rank" :class="'rp-rank-' + t.rank">{{ t.rank }}</text>
+                <view class="av av-56" :style="'background:' + t.bg + ';color:' + t.fg"><text>{{ t.c }}</text></view>
+                <view class="rp-main"><text class="rp-n">{{ t.name }}</text><text class="rp-note">{{ t.note }}</text></view>
+              </view>
+            </view>
             <view v-if="detail.match" class="dt-match" hover-class="press-soft" @tap="openMatch(detail.match)">
               <view class="dt-match-cv" :style="detail.match.thumbStyle"></view>
               <view class="dt-match-t"><text class="dt-match-n">{{ detail.match.name }}</text><text class="dt-match-s">{{ detail.match.date }} {{ detail.match.time }}，{{ detail.match.signed }}/{{ detail.match.cap }} 已报名</text></view>
@@ -172,10 +206,37 @@
           <view :class="likePop ? 'pop-' + likeFlip : ''"><z-icon :name="liked[detail.id] ? 'suit-heart' : 'heart'" :size="22" :color="liked[detail.id] ? '#FF4D4D' : '#E5E7EB'" /></view>
           <text class="dt-act-t">{{ likeCount(detail) }}</text>
         </view>
-        <view class="dt-act" hover-class="press" @tap="toast('评论待接入')"><z-icon name="message-circle" :size="22" color="#E5E7EB" /><text class="dt-act-t">{{ detail.comments }}</text></view>
+        <view class="dt-act" hover-class="press" @tap="commentsOpen = true"><z-icon name="message-circle" :size="22" color="#E5E7EB" /><text class="dt-act-t">{{ commentCount(detail) }}</text></view>
         <button class="dt-share" open-type="share" hover-class="press"><z-icon name="share" :size="18" color="#FFFFFF" /><text class="dt-share-t">分享</text></button>
       </view>
     </view>
+
+    <!-- 全局搜索 -->
+    <z-search :show="searchOpen" :matches="searchMatches" :clubs="CLUBS" :channels="servers" @close="searchOpen = false" @pick="onSearchPick" />
+    <!-- 评论：官方战报、俱乐部动态、玩家帖子 -->
+    <z-comments :show="commentsOpen" :post-id="detail ? detail.id : ''" :post-author="detail ? detail.author.name : ''" :me="meAuthor" @close="commentsOpen = false" @count="commentTick++" />
+    <!-- 转发预览：好友在微信里看到的卡片（标题 + 5:4 卡片图 + 小程序名），确认后转发 -->
+    <view v-if="sharePv.open" class="spv-ov">
+      <view class="spv-mask" @tap="sharePv.open = false" @touchmove.stop.prevent="noop"></view>
+      <view class="spv">
+        <view class="spv-grab"></view>
+        <text class="spv-t">转发给好友</text>
+        <text class="spv-s">好友在微信聊天里会看到这样的卡片</text>
+        <view class="spv-chat">
+          <view class="spv-card">
+            <text class="spv-card-t">{{ sharePv.title }}</text>
+            <image v-if="sharePv.src" class="spv-img" :src="sharePv.src" mode="aspectFill" />
+            <view v-else class="spv-img spv-loading"><text>正在生成卡片…</text></view>
+            <view class="spv-app"><view class="spv-app-ic"><z-icon name="cards" :size="10" color="#FFFFFF" /></view><text class="spv-app-t">桌趣 · 小程序</text></view>
+          </view>
+        </view>
+        <button class="spv-btn" open-type="share" :data-mid="sharePv.id" hover-class="press" @tap="onShareTap"><z-icon name="share" :size="18" color="#FFFFFF" /><text class="spv-btn-t">转发给微信好友</text></button>
+      </view>
+    </view>
+    <!-- 画转发卡片用的 canvas，放在屏幕外 -->
+    <!-- #ifdef MP-WEIXIN -->
+    <canvas id="plaza-cv" type="2d" class="cv-off"></canvas>
+    <!-- #endif -->
 
     <z-tabbar :items="navItems" :active="navActive" @change="onNav" />
   </view>
@@ -194,7 +255,17 @@ import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle, nearestSize, postCover, isPostCover } from '@/common/svg.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
-import { publicMatches, plazaPosts, plazaAds, morePosts, sceneLine, findPublicMatch } from '@/mock/plaza.js'
+import { publicMatches, hostMatches, plazaPosts, plazaReports, plazaAds, morePosts, sceneLine, findPublicMatch } from '@/mock/plaza.js'
+import { servers, me } from '@/mock/data.js'
+import { CLUBS } from '@/mock/venues.js'
+import ZEmpty from '@/components/z-empty/z-empty.vue'
+import ZSearch from '@/components/z-search/z-search.vue'
+import ZFilterBar from '@/components/z-filter-bar/z-filter-bar.vue'
+import ZComments from '@/components/z-comments/z-comments.vue'
+import { currentCity, userPosition, originFor, distanceKm, fmtKm, cityOfLocation } from '@/common/geo.js'
+import { filterMatches, emptyFilter, isFiltered, formatLabel } from '@/common/match-filter.js'
+import { commentsOf } from '@/common/comments.js'
+import { shareCardData, shareTitleOf, renderShareCard } from '@/common/share-card.js'
 
 const instance = getCurrentInstance()
 const nav = getNavMetrics()
@@ -250,12 +321,87 @@ const decorate = (m) => {
 const creatorOf = (m) => m.creator || { name: (m.inviter && m.inviter.name) || '玩家', char: (m.inviter && m.inviter.c) || '玩', bg: (m.inviter && m.inviter.bg) || '#E4E9D8', fg: (m.inviter && m.inviter.fg) || '#3E5A1E' }
 // 正在报名：自己发布的公开比赛排在最前面，再加上广场上别人的比赛（主办方和玩家创建的都有）
 const featured = ref([])
+/* ---------- 城市：广场只显示当前城市的公开赛；在附近俱乐部页切换城市后回来自动更新 ---------- */
+const city = ref(currentCity())
+const pos = ref(null)
+const origin = computed(() => originFor(city.value, pos.value))
+userPosition().then((p) => { pos.value = p })
 function loadFeatured() {
+  city.value = currentCity()
   const mine = listMatches().filter((m) => m.isPublic && m.startAt > Date.now() - 6 * 3600000)
-  featured.value = mine.concat(publicMatches.filter((p) => !mine.some((x) => x.id === p.id))).map((m) => decorate({ participants: [], ...m }))
+  featured.value = mine.concat(publicMatches.filter((p) => !mine.some((x) => x.id === p.id)))
+    .filter((m) => cityOfLocation(m.location) === city.value)
+    .map((m) => decorate({ participants: [], ...m }))
 }
 loadFeatured()
-onShow(loadFeatured)
+// 从附近俱乐部页换了城市回来：卡片换了一批，重新观察
+onShow(() => {
+  const prev = city.value
+  loadFeatured()
+  if (prev !== city.value) {
+    resetShown()
+    nextTick(() => setTimeout(observeCards, 30))
+  }
+})
+const toVenues = () => uni.navigateTo({ url: '/pages/venues/index' })
+const toCreate = () => uni.navigateTo({ url: '/pages/create/index' })
+
+/* ---------- 赛事：多维筛选 ---------- */
+const filters = ref(emptyFilter())
+const filtered = computed(() => isFiltered(filters.value))
+const matchList = computed(() => filterMatches(featured.value, filters.value, { origin: origin.value }).map(({ m, km }) => ({ ...m, km, kmText: fmtKm(km), formatText: formatLabel(m) })))
+// 换筛选条件：和切换分类一样，先淡出，换完卡片后重新观察（卡片进入视口才显示）
+function onFilter(f) {
+  swapping.value = true
+  setTimeout(() => {
+    resetShown()
+    filters.value = f
+    swapping.value = false
+    nextTick(() => setTimeout(observeCards, 30))
+  }, 160)
+}
+function onEmptyAction() {
+  if (featured.value.length) onFilter(emptyFilter())
+  else toVenues()
+}
+
+/* ---------- 全局搜索：赛事、俱乐部、频道 ---------- */
+const searchOpen = ref(false)
+const searchMatches = computed(() => {
+  const all = listMatches().concat(hostMatches, publicMatches)
+  return all.filter((m, i) => all.findIndex((x) => x.id === m.id) === i)
+})
+function onSearchPick({ type, item }) {
+  searchOpen.value = false
+  if (type === 'match') return uni.navigateTo({ url: '/pages/invite/index?id=' + item.id })
+  if (type === 'club') return uni.navigateTo({ url: '/pages/venues/index?club=' + item.id })
+  uni.redirectTo({ url: '/pages/home/index?server=' + item.id })
+}
+
+/* ---------- 评论 ---------- */
+const commentsOpen = ref(false)
+const commentTick = ref(0)
+const meAuthor = { name: me.nickname, c: me.char, bg: '#F1E4D3', fg: '#8A1C1C' }
+const commentCount = (p) => (commentTick.value, commentsOf(p.id).length)
+
+/* ---------- 转发：在广场直接转发比赛，先看卡片预览 ---------- */
+const sharePv = reactive({ open: false, id: '', title: '', src: '' })
+let shareCache = {}
+async function openSharePv(m) {
+  Object.assign(sharePv, { open: true, id: m.id, title: shareTitleOf(m), src: shareCache[m.id] || '' })
+  if (sharePv.src) return
+  try {
+    const src = await renderShareCard(instance, '#plaza-cv', shareCardData(m))
+    shareCache[m.id] = src
+    if (sharePv.id === m.id) sharePv.src = src
+  } catch (e) {
+    toast('卡片生成失败，可以直接转发')
+  }
+}
+// 点「转发给微信好友」：小程序会接着调用 onShareAppMessage；这里只负责收起预览
+function onShareTap() {
+  setTimeout(() => { sharePv.open = false }, 300)
+}
 const featIdx = ref(0)
 const onFeat = (e) => { featIdx.value = e.detail.current }
 function openMatch(m) {
@@ -271,7 +417,14 @@ const decoratePost = (p) => ({
   coverH: Math.round(CARD_W / p.ratio),
   match: p.matchId ? decorate(findPublicMatch(p.matchId)) : null
 })
-const posts = ref(plazaPosts.map(decoratePost))
+// 帖子里穿插官方完赛战报和俱乐部动态
+const mixPosts = () => {
+  const out = []
+  const extra = plazaReports.slice()
+  plazaPosts.forEach((p, i) => { out.push(p); if (i % 2 === 0 && extra.length) out.push(extra.shift()) })
+  return out.concat(extra)
+}
+const posts = ref(mixPosts().map(decoratePost))
 const ads = plazaAds.map((a) => ({ ...a, key: 'a-' + a.id }))
 const liked = reactive({})
 const likeCount = (p) => p.likes + (liked[p.id] ? 1 : 0)
@@ -287,7 +440,7 @@ const loading = ref(false)
 const ended = ref(false)
 
 const feedItems = computed(() => {
-  if (cat.value === 1) return featured.value.slice()
+  if (cat.value === 1) return matchList.value.slice()
   if (cat.value === 2) return posts.value.slice()
   // 全部：帖子为主，穿插海报广告和带封面的赛事卡片
   const out = []
@@ -490,9 +643,17 @@ onReachBottom(() => {
     nextTick(() => setTimeout(observeCards, 30))
   }, 600)
 })
-onShareAppMessage(() => (detail.value
-  ? { title: detail.value.title, path: '/pages/plaza/index?post=' + detail.value.id }
-  : { title: '广场：正在报名的公开赛', path: '/pages/plaza/index' }))
+// 转发：在比赛卡片的预览里点「转发给微信好友」时转发那场比赛（卡片图用预览里画好的）；在帖子详情里转发帖子；否则转发广场
+onShareAppMessage((res) => {
+  const mid = res && res.from === 'button' && res.target && res.target.dataset ? res.target.dataset.mid : ''
+  const m = mid ? featured.value.find((x) => x.id === mid) || findPublicMatch(mid) : null
+  if (m) {
+    const base = { title: shareTitleOf(m), path: '/pages/invite/index?id=' + m.id }
+    return shareCache[m.id] ? { ...base, imageUrl: shareCache[m.id] } : base
+  }
+  if (detail.value) return { title: detail.value.title, path: '/pages/plaza/index?post=' + detail.value.id }
+  return { title: `广场：${city.value}正在报名的公开赛`, path: '/pages/plaza/index' }
+})
 
 /* ---------- 底部导航 ---------- */
 // 底部导航：第四个入口随认证状态变化（认证后模式切换时自动更新）
@@ -668,7 +829,7 @@ function onNav(i) {
 .mc-date { margin-left: 8rpx; font-size: 20rpx; color: #6B6A64; }
 .mc-sign { font-family: "BoardNum", sans-serif; font-weight: 700; font-size: 28rpx; color: #DC0000; }
 
-.mc-top, .mc-title, .mc-loc { position: relative; z-index: 1; }
+.mc-top, .mc-fmt, .mc-title, .mc-loc { position: relative; z-index: 1; }
 
 .more { padding: 12rpx 0 0; text-align: center; }
 .more-t { font-size: 24rpx; color: #6B7280; }
@@ -726,4 +887,59 @@ function onNav(i) {
   .card, .fm, .dt-move, .dt-scroll, .dt-bar, .chip-ind, .dot, .cbar { transition: none; }
   .pop-0, .pop-1 { animation: none; }
 }
+
+/* 城市、筛选概况 */
+.h-city { margin-left: 20rpx; height: 52rpx; padding: 0 14rpx 0 16rpx; border-radius: 999rpx; background: #262A34; display: flex; align-items: center; }
+.h-city-t { margin: 0 4rpx 0 6rpx; font-size: 24rpx; font-weight: 600; color: #FFFFFF; }
+.fl-sum { padding: 4rpx 32rpx 4rpx; display: flex; align-items: baseline; justify-content: space-between; }
+.fl-sum-t { font-size: 24rpx; color: #E5E7EB; }
+.fl-sum-s { font-size: 20rpx; color: #6B7280; }
+/* 比赛卡片上的转发按钮 */
+.fm-share { position: absolute; right: 20rpx; top: 20rpx; width: 56rpx; height: 56rpx; border-radius: 50%; background: rgba(10, 10, 12, .6); display: flex; align-items: center; justify-content: center; }
+.fm-flag { right: 88rpx !important; }
+.mc-share { width: 48rpx; height: 48rpx; flex: none; border-radius: 50%; background: rgba(10, 10, 12, .45); display: flex; align-items: center; justify-content: center; }
+.mc-title-tight { margin-top: 0; }
+.mc-fmt { align-self: flex-start; margin-top: auto; margin-bottom: 8rpx; padding: 2rpx 12rpx; border-radius: 8rpx; background: rgba(10, 10, 12, .55); font-size: 20rpx; color: #F4B740; }
+/* 官方战报、俱乐部动态 */
+.pc-cover { position: relative; }
+.pc-badge { position: absolute; left: 14rpx; top: 14rpx; padding: 4rpx 12rpx; border-radius: 8rpx; font-size: 20rpx; font-weight: 600; color: #FFFFFF; }
+.pc-badge-r { background: #DC0000; }
+.pc-badge-c { background: rgba(10, 10, 12, .62); color: #F4B740; }
+.dt-name-row { display: flex; align-items: center; }
+.dt-badge { margin-left: 10rpx; padding: 2rpx 10rpx; border-radius: 8rpx; background: #DC0000; font-size: 20rpx; color: #FFFFFF; }
+.dt-badge-c { background: rgba(244, 183, 64, .18); color: #F4B740; }
+.rp { margin-top: 32rpx; padding: 24rpx; border-radius: 24rpx; background: #262A34; }
+.rp-stats { display: flex; padding-bottom: 20rpx; border-bottom: 1rpx solid #35383F; }
+.rp-st { flex: 1; display: flex; flex-direction: column; }
+.rp-st-w { flex: 1.6; }
+.rp-st-v { font-family: "BoardNum", "PingFang SC", sans-serif; font-weight: 800; font-size: 34rpx; color: #FFFFFF; }
+.rp-st-k { margin-top: 2rpx; font-size: 20rpx; color: #9CA3AF; }
+.rp-row { margin-top: 18rpx; display: flex; align-items: center; }
+.rp-rank { width: 44rpx; height: 44rpx; margin-right: 16rpx; border-radius: 50%; background: #35383F; text-align: center; line-height: 44rpx; font-size: 24rpx; font-weight: 800; color: #FFFFFF; }
+.rp-rank-1 { background: #F4B740; color: #3A2A00; }
+.rp-rank-2 { background: #C9CDD4; color: #222; }
+.rp-rank-3 { background: #C47A45; color: #FFFFFF; }
+.rp-main { margin-left: 16rpx; display: flex; flex-direction: column; }
+.rp-n { font-size: 28rpx; font-weight: 600; color: #FFFFFF; }
+.rp-note { margin-top: 2rpx; font-size: 22rpx; color: #C9CDD4; }
+/* 转发预览 */
+.spv-ov { position: fixed; z-index: 280; left: 0; top: 0; right: 0; bottom: 0; }
+.spv-mask { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, .6); }
+.spv { position: absolute; left: 0; right: 0; bottom: 0; padding: 14rpx 40rpx calc(32rpx + env(safe-area-inset-bottom)); background: #262A34; border-radius: 40rpx 40rpx 0 0; display: flex; flex-direction: column; align-items: center; animation: spv-up .22s ease-out; }
+@keyframes spv-up { from { transform: translateY(100%); } to { transform: none; } }
+.spv-grab { width: 64rpx; height: 8rpx; border-radius: 4rpx; background: #4B5060; }
+.spv-t { margin-top: 20rpx; font-size: 32rpx; font-weight: 600; color: #FFFFFF; }
+.spv-s { margin-top: 6rpx; font-size: 22rpx; color: #9CA3AF; }
+.spv-chat { margin-top: 24rpx; width: 100%; padding: 28rpx 0; border-radius: 24rpx; background: #EDEDED; display: flex; justify-content: center; }
+.spv-card { width: 460rpx; padding: 18rpx 20rpx 12rpx; border-radius: 12rpx; background: #FFFFFF; }
+.spv-card-t { display: block; font-size: 26rpx; line-height: 1.45; color: #111111; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.spv-img { display: block; margin-top: 12rpx; width: 420rpx; height: 336rpx; border-radius: 6rpx; background: #E5E5E5; }
+.spv-loading { display: flex; align-items: center; justify-content: center; font-size: 22rpx; color: #888888; }
+.spv-app { margin-top: 12rpx; padding-top: 10rpx; border-top: 1rpx solid #EEEEEE; display: flex; align-items: center; }
+.spv-app-ic { width: 26rpx; height: 26rpx; border-radius: 50%; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.spv-app-t { margin-left: 8rpx; font-size: 20rpx; color: #888888; }
+.spv-btn { margin: 28rpx 0 0; width: 100%; height: 92rpx; padding: 0; line-height: normal; border-radius: 999rpx; background: #DC0000; display: flex; align-items: center; justify-content: center; }
+.spv-btn::after { border: none; }
+.spv-btn-t { margin-left: 10rpx; font-size: 30rpx; font-weight: 600; color: #FFFFFF; }
+.cv-off { position: fixed; left: -2000px; top: 0; width: 1000px; height: 800px; }
 </style>

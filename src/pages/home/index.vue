@@ -163,6 +163,8 @@ onLoad((q) => {
   if (!requireLogin()) return
   // 刚登录进来：弹一条欢迎提示
   if (q && q.welcome === '1') setTimeout(() => popMsg('欢迎来到桌趣，' + who.nickname, 'check', 'red', 2400), 700)
+  // 从广场搜索点进某个频道：打开时选中它
+  if (q && q.server && servers.some((s) => s.id === q.server)) current.value = q.server
 })
 
 /* ---------- 认证后模式：连点左上角标志 5 次切换（类似安卓的开发者模式） ---------- */

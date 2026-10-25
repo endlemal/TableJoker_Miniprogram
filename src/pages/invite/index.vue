@@ -341,8 +341,8 @@ import { rosterOf, approve, checkIn, codeOf, checkinPayload, parseCheckin, ROSTE
 import { specialOf } from '@/common/blind-notes.js'
 import { chipsOf } from '@/common/chips.js'
 import { qrSvgUri } from '@/common/qr.js'
-import { drawCard, drawTicket, ticketLayout, TICKET_W } from '@/common/share-canvas.js'
-import { SCENE_TINT } from '@/common/cover-art.js'
+import { drawTicket, ticketLayout, TICKET_W } from '@/common/share-canvas.js'
+import { shareCardData, renderShareCard, getCanvas, exportCanvas } from '@/common/share-card.js'
 import { shareLinkOf, SUBSCRIBE_TMPLS } from '@/common/config.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, coverStyle } from '@/common/svg.js'
@@ -350,7 +350,7 @@ import { getMatch, getJoin, setJoin } from '@/common/store.js'
 import { me, coverScenes, makeDemoMatch } from '@/mock/data.js'
 import { findPublicMatch } from '@/mock/plaza.js'
 import { TV_THEMES } from '@/mock/remote.js'
-import { tagOf, tagStatus, publicTags } from '@/common/tags.js'
+import { tagOf, tagStatus } from '@/common/tags.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 
 const nav = getNavMetrics()
@@ -649,29 +649,8 @@ function onSubDone(res) {
 
 /* ---------- 分享：转发卡片（5:4）和票据 ---------- */
 const shareTitle = computed(() => `${m.value.name}｜${dateLabel.value} ${clockText.value} 开赛，${isFull.value ? '名额已满' : '还剩 ' + (m.value.cap - signedCount.value) + ' 个位置'}`)
-// 转发卡片：消息里已经有标题，卡片上不写标题——赛事封面、主办方头像、标签、开赛时间、荷官 / 选手头像气泡
-const cardData = computed(() => {
-  const x = m.value
-  const d = new Date(x.startAt)
-  const host = x.creator || {}
-  const dealers = (x.dealers || []).map((dl) => ({ char: dl.char, bg: dl.tone || dl.bg || '#2A2D36', fg: '#FFFFFF', photo: dl.photo || '', dealer: true }))
-  const players = roster.value.filter((p) => p.status !== 'pending').map((p) => ({ char: p.c, bg: p.bg, fg: p.fg }))
-  return {
-    coverSrc: x.coverImage || `/static/covers/${scene.value.key}.jpg`,
-    tint: SCENE_TINT[scene.value.key] || '#1F222A',
-    host: host.name || x.inviter.name,
-    hostChar: host.char || x.inviter.c,
-    hostBg: x.inviter.bg,
-    hostFg: x.inviter.fg,
-    byHost: byHost.value,
-    tags: publicTags(x.tags),
-    date: `${d.getMonth() + 1}/${d.getDate()} 周${WEEK[d.getDay()]}`,
-    time: clockText.value,
-    people: dealers.concat(players),
-    dealerCount: dealers.length,
-    playerCount: signedCount.value
-  }
-})
+// 转发卡片（和广场共用 common/share-card.js）：名单里不含待审核的玩家
+const cardData = computed(() => shareCardData(m.value, roster.value.filter((p) => p.status !== 'pending')))
 // 票据：比赛邀请。主标题是赛事标题，副标题是主办方；日期、开赛、起始盲注一行，地点和完整地址一行；
 // 不放封面主题和报名状态；票号按比赛固定（不带玩家的签到码）；二维码是比赛邀请页的链接
 const ticketData = computed(() => {
@@ -695,60 +674,16 @@ const ticketData = computed(() => {
     seed: Number(no)
   }
 })
-// 画图用的 canvas：小程序用页面里的 canvas（type="2d"），H5 新建一个
-async function getCanvas(W, H) {
-  // #ifdef MP-WEIXIN
-  const node = await new Promise((resolve) => uni.createSelectorQuery().in(instance.proxy).select('#share-cv').fields({ node: true, size: true }).exec((r) => resolve(r && r[0] && r[0].node)))
-  if (!node) throw new Error('no canvas')
-  node.width = W
-  node.height = H
-  return node
-  // #endif
-  // #ifndef MP-WEIXIN
-  const c = document.createElement('canvas')
-  c.width = W
-  c.height = H
-  return c
-  // #endif
-}
-function loadImg(canvas, src) {
-  return new Promise((resolve) => {
-    if (!src) return resolve(null)
-    let img = null
-    // #ifdef MP-WEIXIN
-    img = canvas.createImage()
-    // #endif
-    // #ifndef MP-WEIXIN
-    img = new Image()
-    // #endif
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = src
-  })
-}
-// 票据导出 PNG（票面以外和缺口透明）；转发卡片铺满整张图，用 JPG
-function exportCanvas(canvas, type) {
-  // #ifdef MP-WEIXIN
-  return new Promise((resolve, reject) => uni.canvasToTempFilePath({ canvas, fileType: type, quality: 0.92, success: (r) => resolve(r.tempFilePath), fail: reject }))
-  // #endif
-  // #ifndef MP-WEIXIN
-  return Promise.resolve(type === 'png' ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.92))
-  // #endif
-}
 async function renderImage(kind) {
   if (kind === 'ticket') {
     // 先量版面（地址有几行），再按内容的高度画
-    const probe = await getCanvas(TICKET_W, 100)
+    const probe = await getCanvas(instance, '#share-cv', TICKET_W, 100)
     const L = ticketLayout(probe.getContext('2d'), ticketData.value)
-    const c = await getCanvas(TICKET_W, L.H)
+    const c = await getCanvas(instance, '#share-cv', TICKET_W, L.H)
     drawTicket(c.getContext('2d'), ticketData.value, L)
     return exportCanvas(c, 'png')
   }
-  const c = await getCanvas(1000, 800)
-  const d = cardData.value
-  const imgs = await Promise.all([loadImg(c, d.coverSrc)].concat(d.people.slice(0, 5).map((pp) => loadImg(c, pp.photo))))
-  drawCard(c.getContext('2d'), d, { cover: imgs[0], dealers: imgs.slice(1) }, 2)
-  return exportCanvas(c, 'jpg')
+  return renderShareCard(instance, '#share-cv', cardData.value)
 }
 let cardPath = ''
 onReady(() => { renderImage('card').then((p) => { cardPath = p }).catch(() => {}) })
