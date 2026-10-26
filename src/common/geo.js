@@ -1,4 +1,4 @@
-// 位置和城市：距离（公里）、当前城市（广场和附近俱乐部页共用）、用户的大致位置。
+// 位置和城市：距离（公里）、当前城市、用户的大致位置（广场的赛事和主办方用）。
 // 用户位置用模糊定位（getFuzzyLocation，精度约 1 公里，已在 manifest 声明），算距离足够，不需要精确定位
 import { CITIES } from '../mock/venues.js'
 
@@ -17,18 +17,14 @@ export const cityOf = (name) => CITIES.find((c) => c.name === name) || null
 // 资料里的城市（「上海市」）换成城市列表里的名字（「上海」）
 export const normCity = (s) => String(s || '').replace(/市$/, '')
 
-// 当前城市：自己切换过的优先，其次是资料里的城市（在支持的城市里），都没有就是北京
+// 当前城市：资料里的城市（在支持的城市里），没有就是北京。广场不再提供切换城市（其他城市的内容用搜索找）。
+// 上一版切换城市时存下的选择会被清掉，免得停在某个城市回不来
 export function currentCity() {
-  const saved = uni.getStorageSync(KEY)
-  if (saved && cityOf(saved)) return saved
+  if (uni.getStorageSync(KEY)) uni.removeStorageSync(KEY)
   const prof = uni.getStorageSync('zz_profile')
   const mine = normCity(prof && prof.city)
   return cityOf(mine) ? mine : CITIES[0].name
 }
-export function setCity(name) {
-  if (cityOf(name)) uni.setStorageSync(KEY, name)
-}
-
 // 用户的大致位置：小程序里用模糊定位，拿不到（拒绝授权、H5）就返回 null；同一次打开只问一次
 let posCache
 export function userPosition() {

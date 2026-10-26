@@ -22,7 +22,7 @@ const OUTLINE = ['dice', 'chess-knight', 'moon-stars', 'cards', 'plus', 'scan', 
   'aspect-ratio', 'cast', 'shield-check', 'alert-triangle', 'player-pause', 'trash',
   'arrows-exchange', 'filter', 'list-details', 'lock-open', 'moon', 'checks', 'hand-move', 'hand-finger', 'folder',
   'grip-vertical', 'copy', 'hash', 'arrow-up',
-  'trending-up', 'bell-ringing', 'alarm', 'circle-check', 'armchair', 'download', 'rotate', 'calendar', 'current-location']
+  'trending-up', 'bell-ringing', 'alarm', 'circle-check', 'armchair', 'download', 'rotate', 'calendar', 'current-location', 'adjustments-horizontal']
 const FILLED = { 'suit-spade': 'spade', 'suit-heart': 'heart', 'suit-diamond': 'diamonds', 'suit-club': 'clubs' }
 
 const inner = (file) => fs.readFileSync(file, 'utf8')

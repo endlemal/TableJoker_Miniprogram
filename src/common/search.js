@@ -1,4 +1,4 @@
-// 全局搜索：赛事名称、主办方 / 俱乐部名称、6 位房间码，实时检索赛事、俱乐部和频道
+// 全局搜索：赛事名称、主办方名称、帖子、6 位房间码，实时检索（不分城市）
 const HIST_KEY = 'zz_search_history'
 const norm = (s) => String(s || '').trim().toLowerCase()
 const has = (text, q) => norm(text).includes(q)
@@ -19,22 +19,26 @@ export function splitHit(text, q) {
   }
   return out
 }
-// q：输入；matches：所有能看到的比赛；clubs：认证俱乐部；channels：频道
-export function searchAll(q, { matches = [], clubs = [], channels = [] }) {
+// 搜索范围（搜索栏右边的筛选按钮）
+export const SCOPES = [{ key: 'all', label: '全部' }, { key: 'match', label: '赛事' }, { key: 'club', label: '主办方' }, { key: 'post', label: '帖子' }]
+// q：输入；matches：所有能看到的比赛（所有城市）；clubs：认证主办方；posts：广场帖子；scope：只搜某一类
+export function searchAll(q, { matches = [], clubs = [], posts = [], scope = 'all' }) {
   const k = norm(q)
-  if (!k) return { q: k, code: null, matches: [], clubs: [], channels: [], empty: false }
+  const none = { q: k, code: null, matches: [], clubs: [], posts: [], empty: false }
+  if (!k) return none
+  const want = (t) => scope === 'all' || scope === t
   // 6 位房间码：精确命中；输入 3 位以上数字时，房间码开头相同的也列出来
   const digits = /^\d+$/.test(k)
-  const code = digits && k.length === 6 ? matches.find((m) => m.roomCode === k) || null : null
-  const found = matches.filter((m) => m !== code && (
+  const code = want('match') && digits && k.length === 6 ? matches.find((m) => m.roomCode === k) || null : null
+  const found = want('match') ? matches.filter((m) => m !== code && (
     has(m.name, k) ||
     has(m.creator && m.creator.name, k) ||
     has(m.location && m.location.name, k) ||
     (digits && k.length >= 3 && String(m.roomCode || '').startsWith(k))
-  ))
-  const cl = clubs.filter((c) => has(c.name, k) || has(c.venue && c.venue.name, k) || has(c.venue && c.venue.address, k) || has(c.city, k))
-  const ch = channels.filter((c) => has(c.name, k))
-  return { q: k, code, matches: found.slice(0, 20), clubs: cl.slice(0, 10), channels: ch.slice(0, 10), empty: !code && !found.length && !cl.length && !ch.length }
+  )) : []
+  const cl = want('club') ? clubs.filter((c) => has(c.name, k) || has(c.venue && c.venue.name, k) || has(c.venue && c.venue.address, k) || has(c.city, k) || has(c.area, k)) : []
+  const ps = want('post') ? posts.filter((p) => has(p.title, k) || has(p.author && p.author.name, k) || (p.body || []).some((t) => has(t, k))) : []
+  return { q: k, code, matches: found.slice(0, 20), clubs: cl.slice(0, 10), posts: ps.slice(0, 10), empty: !code && !found.length && !cl.length && !ps.length }
 }
 export function loadHistory() {
   const v = uni.getStorageSync(HIST_KEY)

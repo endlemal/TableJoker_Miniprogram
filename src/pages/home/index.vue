@@ -142,12 +142,15 @@ import { onLoad } from '@dcloudio/uni-app'
 import { requireLogin, useProfile } from '@/common/auth.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
-import { me, servers, featuredEvent as event } from '@/mock/data.js'
+import { me, featuredEvent as event } from '@/mock/data.js'
+import { listChannels, joinChannel } from '@/common/channels.js'
 import { publicMatches } from '@/mock/plaza.js'
 
 const nav = getNavMetrics()
-const current = ref(servers[0].id)
-const currentServer = computed(() => servers.find((s) => s.id === current.value) || servers[0])
+// 频道栏：默认频道 + 从广场「主办」进入过的主办方频道
+const servers = ref(listChannels())
+const current = ref(servers.value[0].id)
+const currentServer = computed(() => servers.value.find((s) => s.id === current.value) || servers.value[0])
 
 const railStyle = `padding-top:${nav.statusBar + Math.max(8, (nav.navH - 48) / 2)}px`
 const mainStyle = `padding-top:${nav.statusBar}px`
@@ -163,8 +166,12 @@ onLoad((q) => {
   if (!requireLogin()) return
   // 刚登录进来：弹一条欢迎提示
   if (q && q.welcome === '1') setTimeout(() => popMsg('欢迎来到桌趣，' + who.nickname, 'check', 'red', 2400), 700)
-  // 从广场搜索点进某个频道：打开时选中它
-  if (q && q.server && servers.some((s) => s.id === q.server)) current.value = q.server
+  // 从广场的主办方店铺点「进入频道」：没加入的先加入，打开时选中它
+  if (q && q.server) {
+    joinChannel(q.server)
+    servers.value = listChannels()
+    if (servers.value.some((s) => s.id === q.server)) current.value = q.server
+  }
 })
 
 /* ---------- 认证后模式：连点左上角标志 5 次切换（类似安卓的开发者模式） ---------- */
