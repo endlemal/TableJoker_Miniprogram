@@ -705,7 +705,7 @@ function onNav(i) {
 .feat { height: 452rpx; margin-top: 20rpx; }
 .fm {
   height: 432rpx; margin-right: 20rpx; border-radius: 32rpx; overflow: hidden; background: #1F222A;
-  transform: scale(.92); opacity: .55; transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s ease;
+  transform: scale(.92); opacity: 1; transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s ease;
 }
 .fm-cur { transform: scale(1); opacity: 1; }
 .fm-press { transform: scale(.97); }
