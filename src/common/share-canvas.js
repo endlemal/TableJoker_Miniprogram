@@ -168,8 +168,8 @@ function avatar(ctx, cx, cy, r, a, ring) {
   }
   ctx.restore()
 }
-// 微信群聊转发卡片（5:4）：消息里已经有标题，卡片上不写标题，只放赛事封面、主办方头像、标签、开赛时间、荷官 / 选手头像。
-// 设计尺寸 500×400，按 S 倍画（默认 2 倍，1000×800）。assets：{ cover, dealers: [img], host }（已经加载好的图片）
+// 微信群聊转发卡片（5:4）：消息里已经有标题，卡片上不写标题，只放赛事封面、主办方头像、标签、开赛时间、已报名选手的头像。
+// 设计尺寸 500×400，按 S 倍画（默认 2 倍，1000×800）。assets：{ cover, host }（已经加载好的图片）
 export function drawCard(ctx, d, assets = {}, S = 2) {
   const W = 500, H = 400
   ctx.save()
@@ -233,21 +233,21 @@ export function drawCard(ctx, d, assets = {}, S = 2) {
   ctx.fillStyle = '#FFFFFF'
   ctx.font = `bold 78px ${SANS}`
   ctx.fillText(d.time, 22, 372)
-  // 右下：荷官 / 选手头像气泡（荷官在前，金色描边）
+  // 右下：已报名选手的头像气泡
   const people = (d.people || []).slice(0, 5)
   const more = Math.max(0, (d.people || []).length - people.length)
   const r = 20, step = 30
   const n = people.length + (more ? 1 : 0)
   let cx = W - 26 - r - (n - 1) * step
   people.forEach((pp, i) => {
-    avatar(ctx, cx, 334, r, { img: (assets.dealers || [])[i] || null, char: pp.char, bg: pp.bg, fg: pp.fg }, pp.dealer ? '#F4B740' : '#FFFFFF')
+    avatar(ctx, cx, 334, r, { char: pp.char, bg: pp.bg, fg: pp.fg }, '#FFFFFF')
     cx += step
   })
   if (more) avatar(ctx, cx, 334, r, { char: '+' + more, bg: '#35383F', fg: '#FFFFFF' }, '#FFFFFF')
   if (n) {
     ctx.fillStyle = 'rgba(255, 255, 255, .88)'
     ctx.font = `13px ${SANS}`
-    const cap = [d.dealerCount ? `荷官 ${d.dealerCount}` : '', d.playerCount ? `已报名 ${d.playerCount}` : ''].filter(Boolean).join(' · ')
+    const cap = d.playerCount ? `已报名 ${d.playerCount}` : ''
     ctx.textAlign = 'right'
     ctx.fillText(cap, W - 24, 380)
     ctx.textAlign = 'left'

@@ -15,7 +15,8 @@ H5 能跑通不代表小程序没问题：WXSS 的选择器能力有限；逻辑
    - `app.json`：页面、分包、`requiredPrivateInfos`、`permission` 是否和预期一致。
    - 包体积：总大小和最大的几个文件。主包上限 2MB，字体子集和图片最容易超。
    - H5 专用代码：页面 JS 里不应该出现 `document.`、`window.`。加 `--forbid onPageScroll --pages pages/plaza/index` 可以确认某个优化在指定页面的小程序产物里确实生效。
-3. **按下面的规则对照代码**，逐条确认。
+3. **跑模板引用检查**：`python3 scripts/template_refs.py src`。它检查页面和组件的模板里用到的函数和状态（`@tap="openMatch(mt)"`、`:current="featIdx"`、`v-if`、`v-for` 的数据来源），在 `<script setup>` 里有没有定义。大段剪切、替换代码时很容易把模板还在用的东西一起删掉，编译不会报错，要到运行时点了才发现；改完代码先跑一遍，有问题时退出码为 1。
+4. **按下面的规则对照代码**，逐条确认。
 
 ## 规则
 

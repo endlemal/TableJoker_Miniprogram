@@ -26,7 +26,6 @@ export const privileges = [
     key: 'event', title: '赛事配置', icon: 'trophy', color: '#4CB582', tint: 'rgba(76, 181, 130, .14)',
     items: [
       { key: 'tables', name: '台桌管理', icon: 'layout-grid', desc: '按桌分配座位，随时合桌、拆桌，多桌比赛在一屏里掌握。' },
-      { key: 'dealers', name: '荷官管理', icon: 'id-badge-2', desc: '给每张台桌指派荷官，记录换班，比赛当天不乱。' },
       { key: 'settle', name: '结算管理', icon: 'receipt', desc: '比赛结束后自动汇总名次和积分，颁奖记录一目了然。' },
       { key: 'blinds', name: '盲注结构', icon: 'stopwatch', desc: '按级别设置盲注、时长和休息，存成模板，开赛时一键套用。' },
       { key: 'schemes', name: '方案管理', icon: 'files', desc: '把常用的比赛设置存成方案，下次创建比赛直接套用。' }

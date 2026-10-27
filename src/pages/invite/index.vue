@@ -149,12 +149,6 @@
         </view>
       </view>
 
-      <!-- 驻场荷官：倾斜的封面流，中间一张展开，其余折叠成窄条；只作展示和引流 -->
-      <block v-if="(m.dealers || []).length">
-        <view class="sec"><text class="st">驻场荷官</text><text class="sec-n">{{ m.dealers.length }} 位 · 现场为你发牌</text></view>
-        <z-dealer-bar :dealers="m.dealers" />
-      </block>
-
       <!-- 已报名：头像墙带状态（待审核 / 待签到 / 已签到），点开是名单抽屉 -->
       <view class="sec"><text class="st">已报名</text><text class="sm">{{ signedCount }}/{{ m.cap }}</text></view>
       <view class="rw" :hover-class="isHost ? 'press-soft' : ''" @tap="tapWall">
@@ -332,7 +326,6 @@ import ZFlap from '@/components/z-flap/z-flap.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import ZHeat from '@/components/z-heat/z-heat.vue'
 import ZSubscribe from '@/components/z-subscribe/z-subscribe.vue'
-import ZDealerBar from '@/components/z-dealer-bar/z-dealer-bar.vue'
 import ZChipLegend from '@/components/z-chip-legend/z-chip-legend.vue'
 import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
 import { openScanner } from '@/common/scanner.js'
@@ -901,7 +894,6 @@ function leave() {
 .host-n { margin-top: 20rpx; max-width: 128rpx; font-size: 24rpx; color: #E5E7EB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .host-r { margin-top: 4rpx; font-size: 22rpx; color: #6B7280; }
 .host-r-owner { color: #F4B740; }
-.host-r-dealer { color: #9CA3AF; }
 .sec-n { font-size: 24rpx; color: #6B7280; }
 .chip-tag { background: #2A1216; color: #FF8A8A; }
 .chip-pending { background: rgba(255, 197, 58, .1); color: #FFC53A; }

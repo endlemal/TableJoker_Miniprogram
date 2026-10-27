@@ -298,7 +298,7 @@ function enterRoom() {
 
 /* ---------- 待办 ---------- */
 const todoOpen = ref(false)
-const TODO_TIPS = { review: '报名审核即将上线', dealers: '荷官管理即将上线', devices: '设备绑定即将上线', msg: '留言即将上线' }
+const TODO_TIPS = { review: '报名审核即将上线', devices: '设备绑定即将上线', msg: '留言即将上线' }
 function doTodo(t) {
   if (t.action === 'room') return go('/pages/room/index')
   if (t.action === 'blinds') return go('/pages/create/index?open=blinds')

@@ -1,5 +1,5 @@
 // 比赛的转发卡片（5:4）：比赛邀请页和广场列表共用。卡片上不写标题（微信消息里已经有了），
-// 画赛事封面、主办方头像、标签、开赛时间（时:分）、荷官 / 选手头像气泡。另外放页面里画图要用的 canvas 工具
+// 画赛事封面、主办方头像、标签、开赛时间（时:分）、已报名选手的头像气泡。另外放页面里画图要用的 canvas 工具
 import { drawCard } from './share-canvas.js'
 import { publicTags } from './tags.js'
 import { SCENE_TINT } from './cover-art.js'
@@ -12,7 +12,6 @@ export function shareCardData(m, players) {
   const inviter = m.inviter || {}
   const creator = m.creator || {}
   const owner = (m.hosts || []).find((h) => h.role === 'owner')
-  const dealers = (m.dealers || []).map((dl) => ({ char: dl.char, bg: dl.tone || dl.bg || '#2A2D36', fg: '#FFFFFF', photo: dl.photo || '', dealer: true }))
   const ps = (players || (m.participants || []).filter((p) => !owner || p.name !== owner.name)).map((p) => ({ char: p.c, bg: p.bg, fg: p.fg }))
   return {
     coverSrc: m.coverImage || `/static/covers/${m.cover || 'wild'}.jpg`,
@@ -25,8 +24,7 @@ export function shareCardData(m, players) {
     tags: publicTags(m.tags),
     date: `${d.getMonth() + 1}/${d.getDate()} 周${WEEK[d.getDay()]}`,
     time: `${p2(d.getHours())}:${p2(d.getMinutes())}`,
-    people: dealers.concat(ps),
-    dealerCount: dealers.length,
+    people: ps,
     playerCount: (m.participants || []).length
   }
 }
@@ -80,7 +78,7 @@ export function exportCanvas(canvas, type) {
 // 画一张转发卡片（1000×800 的 JPG）
 export async function renderShareCard(instance, selector, data) {
   const c = await getCanvas(instance, selector, 1000, 800)
-  const imgs = await Promise.all([loadImg(c, data.coverSrc)].concat(data.people.slice(0, 5).map((p) => loadImg(c, p.photo))))
-  drawCard(c.getContext('2d'), data, { cover: imgs[0], dealers: imgs.slice(1) }, 2)
+  const cover = await loadImg(c, data.coverSrc)
+  drawCard(c.getContext('2d'), data, { cover }, 2)
   return exportCanvas(c, 'jpg')
 }

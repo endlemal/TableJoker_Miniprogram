@@ -25,7 +25,6 @@ export const rooms = [
 // 待办：按紧急程度排好，默认只显示前 3 条，其余折叠
 export const todos = [
   { key: 'review', tone: 'red', icon: 'clipboard-check', title: '5 条报名待审核', meta: '2 小时前', action: 'review' },
-  { key: 'dealer', tone: 'amber', icon: 'user-check', title: '2 位荷官待确认排班', meta: '周六', action: 'dealers' },
   { key: 'live', tone: 'green', icon: 'player-play', title: '周五深筹码大师赛 第 3 级进行中', meta: '进行中', action: 'room' },
   { key: 'device', tone: 'gray', icon: 'wifi-off', title: '1 台大屏离线', meta: '2 号桌', action: 'devices' },
   { key: 'blinds', tone: 'blue', icon: 'stopwatch', title: '周末猎人锦标赛还没设盲注结构', meta: '周六', action: 'blinds' },
@@ -92,13 +91,3 @@ export const featureGroups = privileges.map((g) => ({
   items: g.items.map((it) => ({ key: it.key, name: it.name, desc: it.desc, img: `/static/workbench/${it.key}.png` }))
 }))
 
-// 荷官名册（工作台的荷官列表）：创建比赛时选「驻场荷官」用。只作信息展示，不关联账号，也没有控场权限。
-// photo 是演示用的占位图（上线前换成荷官本人授权的照片）；tone 是照片的背景色，名牌卡片用它做底色
-export const dealerRoster = [
-  { id: 'dl2', name: '小鹿', char: '鹿', bg: '#DCE7F3', fg: '#1F4E79', title: '主牌官', years: 5, tags: ['锦标赛', '决赛桌'], photo: '/static/dealers/dealer-01.jpg', tone: '#92192C' },
-  { id: 'dl4', name: 'Mia', char: 'M', bg: '#F1DCE4', fg: '#7A1F45', title: '资深荷官', years: 4, tags: ['深筹赛', '英语'], photo: '/static/dealers/dealer-02.jpg', tone: '#1B3266' },
-  { id: 'dl1', name: '阿杰', char: '杰', bg: '#E9D9C3', fg: '#7A3B1A', title: '荷官', years: 6, tags: ['锦标赛', '英语'], tone: '#5A3A22' },
-  { id: 'dl3', name: '老周', char: '周', bg: '#E4E9D8', fg: '#3E5A1E', title: '资深荷官', years: 8, tags: ['决赛桌'], tone: '#2E4A1E' },
-  { id: 'dl5', name: '七七', char: '七', bg: '#E8E0F5', fg: '#4B2A86', title: '荷官', years: 1, tags: ['快速赛'], tone: '#3B2A66' },
-  { id: 'dl6', name: '大熊', char: '熊', bg: '#F3E6CF', fg: '#6B4A12', title: '场务 · 荷官', years: 4, tags: ['周末局'], tone: '#5A4012' }
-]
