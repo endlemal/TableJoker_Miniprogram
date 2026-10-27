@@ -314,6 +314,11 @@ const decorate = (m) => {
 const creatorOf = (m) => m.creator || { name: (m.inviter && m.inviter.name) || '玩家', char: (m.inviter && m.inviter.c) || '玩', bg: (m.inviter && m.inviter.bg) || '#E4E9D8', fg: (m.inviter && m.inviter.fg) || '#3E5A1E' }
 // 正在报名：自己发布的公开比赛排在最前面，再加上广场上别人的比赛（主办方和玩家创建的都有）
 const featured = ref([])
+const featIdx = ref(0)
+const onFeat = (e) => { featIdx.value = e.detail.current }
+function openMatch(m) {
+  uni.navigateTo({ url: '/pages/invite/index?id=' + m.id })
+}
 /* ---------- 城市：广场只显示当前城市的公开赛；在附近俱乐部页切换城市后回来自动更新 ---------- */
 const city = ref(currentCity())
 const pos = ref(null)
