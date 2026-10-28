@@ -215,7 +215,7 @@
 
 <script setup>
 import { requireLogin } from '@/common/auth.js'
-import { ref, reactive, computed, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, getCurrentInstance, watch } from 'vue'
 import { onLoad, onReady, onUnload, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
 import { getCertState, useCertState } from '@/common/cert.js'
 import { tabItems, tapTab } from '@/common/tabs.js'
@@ -224,7 +224,6 @@ import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri } from '@/common/svg.js'
 import { lottiePlaceholder } from '@/common/host-art.js'
-import { CERTIFY_WEB, WEBVIEW_ENABLED } from '@/common/config.js'
 import { me } from '@/mock/data.js'
 import { STATE_INFO, benefits, privileges, metrics, metricsNote, steps, faqs, rules } from '@/mock/host.js'
 
@@ -239,6 +238,7 @@ const toast = (title) => uni.showToast({ title, icon: 'none' })
 /* ---------- 认证状态 ---------- */
 const STATES = ['none', 'pending', 'verified', 'rejected']
 const state = ref(getCertState())
+let previewing = false // 用 ?state= 预览时不跟着账号的状态变
 const stInfo = computed(() => STATE_INFO[state.value])
 const locked = computed(() => state.value !== 'verified')
 // 开发预览：用 ?state=pending 之类的参数打开，只在本页预览这个状态，不改变账号的模式。
@@ -260,14 +260,10 @@ const stepTag = (i) => {
   return ''
 }
 
-// 跳到官网认证入口；个人主体的小程序不能用 web-view，改为复制链接
+// 立即认证 / 重新认证 / 查看进度：打开认证申请页（审核中时那一页显示进度）；已认证进入工作台
 function openCertify() {
   if (stInfo.value.link === 'workbench') return uni.redirectTo({ url: '/pages/workbench/index' })
-  const url = CERTIFY_WEB[stInfo.value.link]
-  if (!WEBVIEW_ENABLED) {
-    return uni.setClipboardData({ data: url, success: () => toast('链接已复制，请在浏览器打开') })
-  }
-  uni.navigateTo({ url: `/pages/webview/index?url=${encodeURIComponent(url)}&title=${encodeURIComponent('平台认证')}` })
+  uni.navigateTo({ url: '/pages/certify/index' })
 }
 const toContent = () => uni.pageScrollTo({ selector: '.sec-first', duration: 320 })
 
@@ -354,7 +350,10 @@ const canBack = ref(false)
 const goBack = () => uni.navigateBack()
 onLoad((q) => {
   if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
-  if (q && STATES.includes(q.state)) state.value = q.state
+  if (q && STATES.includes(q.state)) {
+    state.value = q.state
+    previewing = true
+  }
   canBack.value = getCurrentPages().length > 1
 })
 onReady(observe)
@@ -364,6 +363,8 @@ onShareAppMessage(() => ({ title: '平台认证：点亮认证标识', path: '/p
 /* ---------- 底部导航 ---------- */
 // 底部导航：跟着账号的模式（认证后模式时第四个入口是「主办方工作台」）
 const certState = useCertState()
+// 在认证申请页提交后回到这里：状态跟着变（未认证 → 审核中）
+watch(certState, (v) => { if (!previewing) state.value = v })
 const navItems = computed(() => tabItems(certState.value))
 const navActive = ref(3)
 function onNav(i) {
