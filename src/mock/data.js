@@ -100,7 +100,18 @@ export const room = {
     { id: 2, seat: 8, text: '休息的时候点奶茶吗？我请', minutesAgo: 3 },
     { id: 3, seat: 9, text: 'Q仔快点，盲注要涨了', minutesAgo: 1 }
   ],
-  notice: '第 7 级结束后休息 15 分钟，复活同时截止'
+  notice: '第 7 级结束后休息 15 分钟，复活同时截止',
+  // 主持人：房主和共同主持（能控制计时、开关玩法、发公告、改记分）
+  hosts: [{ name: '骰子先生', role: 'owner' }, { name: '老周', role: 'cohost' }],
+  // 已签到、还没入座的玩家（签到墙上和座位上的人一起显示）
+  waiting: [
+    { name: '陈默', c: '陈', bg: '#2F4A3A', fg: '#B8E6C8' },
+    { name: '童童', c: '童', bg: '#4A3626', fg: '#F2CDA6' },
+    { name: '林夕', c: '林', bg: '#3A3550', fg: '#D9CFFF' },
+    { name: '安然', c: '安', bg: '#33404F', fg: '#C9DAF0' }
+  ],
+  // 起始记分（每人）；记分页按这个算平均
+  startScore: 20000
 }
 
 // 创建比赛页 · 封面场景（名称 + 暗喻）

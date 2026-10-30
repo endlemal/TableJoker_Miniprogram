@@ -1,234 +1,259 @@
 <template>
-  <view class="room">
-    <!-- 导航：返回 + 搪瓷站名牌 -->
+  <view class="room" :class="{ 'room-land': land }">
+    <!-- 顶部导航：返回 + 房间名（纯文字），右边给小程序胶囊让出位置 -->
     <view class="nav" :style="navStyle">
-      <view class="back" hover-class="press" @tap="goBackOrHome">
-        <z-icon name="arrow-left" :size="18" color="#FFFFFF" />
-      </view>
-      <view class="plaque">
-        <view class="plaque-ring"></view>
-        <view class="rivet" style="left:12rpx;top:12rpx"></view>
-        <view class="rivet" style="right:12rpx;top:12rpx"></view>
-        <view class="rivet" style="left:12rpx;bottom:12rpx"></view>
-        <view class="rivet" style="right:12rpx;bottom:12rpx"></view>
-        <text class="plaque-zh">{{ room.name }}</text>
-        <text class="plaque-py">{{ room.pinyin }}</text>
-      </view>
+      <view class="nav-back" hover-class="press" @tap="goBackOrHome"><z-icon name="arrow-left" :size="20" color="#F3EEE6" /></view>
+      <text class="nav-name" :class="{ 'font-sys': !fitsDisplay(room.name) }">{{ room.name }}</text>
     </view>
 
-    <!-- 级别行 -->
-    <view class="lv-row">
-      <block v-if="!isBreak">
-        <text class="lv-word">第</text>
-        <view class="lv-flaps">
-          <z-flap :value="levelDigits[0]" :w="18" :h="26" :fs="26" :hinge="1" :pin="4" :stack="3" />
-          <view class="lv-gap"></view>
-          <z-flap :value="levelDigits[1]" :w="18" :h="26" :fs="26" :hinge="1" :pin="4" :stack="3" />
-        </view>
-        <text class="lv-word">级</text>
-      </block>
-      <text v-else class="lv-word">休息</text>
-      <text class="lv-elapsed">已进行 {{ elapsedMin }} 分钟</text>
-      <text class="lv-state" :style="{ color: stateColor }">{{ stateWord }}</text>
-    </view>
-
-    <!-- 牌桌：左右各三个座位，中间是翻牌钟面板 -->
-    <view class="table">
-      <view class="seat-col">
-        <view v-for="s in leftSeats" :key="s.no" class="seat" :class="{ 'seat-me': s.me }">
-          <view class="seat-av" :style="{ background: s.bg, color: s.fg }"><text>{{ s.c }}</text></view>
-          <text class="seat-name">{{ s.name }}</text>
-          <text class="seat-no">{{ s.no }} 号位</text>
-        </view>
-      </view>
-
-      <view class="board" @longpress="jumpToEnd">
-        <view class="bd-top">
-          <text class="bd-tag">{{ room.type }}</text>
-          <view class="bd-brk">
-            <text class="bd-brk-k">{{ isBreak ? '距下次休息' : '距休息' }}</text>
-            <text class="bd-brk-v">{{ toBreak }}</text>
-          </view>
+    <view class="main">
+      <view class="col-a">
+        <!-- 赛事状态栏：级别、已进行时长、运行状态（颜色配文字） -->
+        <view class="status">
+          <text class="st-lv">{{ isBreak ? '休息' : '第 ' + cur.no + ' 级' }}</text>
+          <text class="st-el">已进行 {{ elapsedMin }} 分钟</text>
+          <view class="st-state" :style="'color:' + stateInfo.color"><view class="st-dot" :style="'background:' + stateInfo.color"></view><text>{{ stateInfo.text }}</text></view>
         </view>
 
-        <view class="clock">
-          <z-flap :value="clockDigits[0]" :w="39" :h="65" :fs="72" :color="clockColor" />
-          <view class="clock-gap"></view>
-          <z-flap :value="clockDigits[1]" :w="39" :h="65" :fs="72" :color="clockColor" />
-          <view class="colon">
-            <view class="colon-dot" :style="{ background: clockColor }"></view>
-            <view class="colon-dot" :style="{ background: clockColor }"></view>
-          </view>
-          <z-flap :value="clockDigits[2]" :w="39" :h="65" :fs="72" :color="clockColor" />
-          <view class="clock-gap"></view>
-          <z-flap :value="clockDigits[3]" :w="39" :h="65" :fs="72" :color="clockColor" />
+        <!-- 键盘或表情面板打开时：赛事区收成一行摘要 -->
+        <view class="summary" :class="{ 'summary-on': compact }">
+          <text class="sm-time" :style="'color:' + clockColor">{{ clockText }}</text>
+          <text class="sm-b">{{ blindText }}</text>
+          <text class="sm-s" :style="'color:' + stateInfo.color">{{ stateInfo.text }}</text>
         </view>
 
-        <view class="prog"><view class="prog-fill" :style="{ width: progress + '%' }"></view></view>
+        <!-- 内容展示区：只能手动左右滑；签到墙、Timer（默认），主持人开启的玩法依次排在 Timer 后面 -->
+        <view class="stage" :class="{ 'stage-hide': compact }" :style="'height:' + stageH + 'px'">
+          <swiper class="pages" :current="pageIdx" :autoplay="false" :circular="false" :duration="260" @change="onPage">
+            <swiper-item v-for="p in pages" :key="p.key">
+              <scroll-view scroll-y class="pg" :class="'pg-' + p.key">
+                <!-- 签到墙 -->
+                <view v-if="p.key === 'wall'" class="wall">
+                  <text class="wall-t">签到墙</text>
+                  <view class="wall-grid">
+                    <view v-for="m in members" :key="m.name" class="wall-i" :style="'width:' + wallCol">
+                      <view class="wall-av" :style="'background:' + m.bg + ';color:' + m.fg"><text>{{ m.c }}</text><text v-if="m.seat" class="wall-seat">{{ m.seat }}</text></view>
+                      <text class="wall-n">{{ m.name }}</text>
+                    </view>
+                    <button class="wall-i wall-inv" :style="'width:' + wallCol" open-type="share" hover-class="press">
+                      <view class="wall-av wall-av-inv"><z-icon name="plus" :size="24" color="#F3EEE6" /></view>
+                      <text class="wall-n wall-n-inv">邀请</text>
+                    </button>
+                  </view>
+                </view>
 
-        <view class="blinds">
-          <view v-for="b in blindItems" :key="b.label" class="bl-item">
-            <z-flap :value="b.value" :w="52" :h="26" :fs="22" :hinge="1" :pin="4" :stack="3" />
-            <text class="bl-cap">{{ b.label }}</text>
-          </view>
+                <!-- Timer：翻牌倒计时、进度、盲注、距休息、盲注表 -->
+                <view v-else-if="p.key === 'timer'" class="tm" @longpress="jumpToEnd">
+                  <view class="tm-top">
+                    <text class="tm-tag">{{ room.type }}</text>
+                    <view class="tm-brk"><text class="tm-brk-k">{{ isBreak ? '距下次休息' : '距休息' }}</text><text class="tm-brk-v">{{ toBreak }}</text></view>
+                  </view>
+                  <view class="clock">
+                    <z-flap :value="clockDigits[0]" :w="flap.w" :h="flap.h" :fs="flap.fs" :color="clockColor" />
+                    <view class="clock-gap"></view>
+                    <z-flap :value="clockDigits[1]" :w="flap.w" :h="flap.h" :fs="flap.fs" :color="clockColor" />
+                    <view class="colon"><view class="colon-dot" :style="'background:' + clockColor"></view><view class="colon-dot" :style="'background:' + clockColor"></view></view>
+                    <z-flap :value="clockDigits[2]" :w="flap.w" :h="flap.h" :fs="flap.fs" :color="clockColor" />
+                    <view class="clock-gap"></view>
+                    <z-flap :value="clockDigits[3]" :w="flap.w" :h="flap.h" :fs="flap.fs" :color="clockColor" />
+                  </view>
+                  <view class="prog"><view class="prog-fill" :style="'width:' + progress + '%'"></view></view>
+                  <view class="tm-row">
+                    <view class="tm-struct" hover-class="press" @tap="structOpen = !structOpen">
+                      <z-icon :name="structOpen ? 'chevron-down' : 'list'" :size="20" color="#C9CDD4" />
+                      <text class="tm-struct-t">盲注表</text>
+                    </view>
+                    <view v-for="b in blindItems" :key="b.label" class="bl">
+                      <z-flap :value="b.value" :w="bflap.w" :h="bflap.h" :fs="bflap.fs" :hinge="1" :pin="4" :stack="3" />
+                      <text class="bl-cap">{{ b.label }}</text>
+                    </view>
+                  </view>
+                  <!-- 盲注结构：在本页里展开，内容长了在页面里滚动 -->
+                  <view v-if="structOpen" class="struct">
+                    <view class="tr tr-head"><text class="tc">级别</text><text class="tc">盲注</text><text class="tc">前注</text><text class="tc">时长</text><text class="tc">开始</text></view>
+                    <view v-for="r in timetable" :key="r.key" class="tr" :class="{ 'tr-cur': r.current }">
+                      <text class="tc" :style="r.lvColor ? 'color:' + r.lvColor : ''">{{ r.lv }}</text>
+                      <text class="tc">{{ r.blinds }}</text>
+                      <text class="tc">{{ r.ante }}</text>
+                      <text class="tc">{{ r.dur }} 分</text>
+                      <text class="tc" :style="r.current ? 'color:' + stateInfo.color : ''">{{ r.start }}</text>
+                    </view>
+                  </view>
+                </view>
+
+                <!-- 玩法：公共牌 -->
+                <view v-else-if="p.key === 'cards'" class="play">
+                  <text class="play-t">公共牌</text>
+                  <view class="cards">
+                    <view v-for="(c, i) in boardCards" :key="i" class="cd" :class="{ 'cd-back': !c.up, 'cd-deal': c.anim }" :style="'animation-delay:' + c.delay + 'ms'" @tap="reveal(i)">
+                      <block v-if="c.up"><text class="cd-r" :style="'color:' + c.color">{{ c.rank }}</text><view class="cd-s"><z-icon :name="c.suit" :size="16" :color="c.color" /></view></block>
+                    </view>
+                  </view>
+                  <view v-if="isHost" class="play-acts"><view class="pbtn" hover-class="press" @tap="dealFlop"><z-icon name="refresh" :size="16" color="#F3EEE6" /><text class="pbtn-t">重新发牌</text></view></view>
+                  <text class="play-s">{{ isHost ? '点背面的牌翻开' : '主持人翻牌后这里会同步' }}</text>
+                </view>
+
+                <!-- 玩法：走字灯 -->
+                <view v-else-if="p.key === 'ticker'" class="play">
+                  <text class="play-t">走字灯</text>
+                  <view class="ticker"><view class="mq" :style="'animation-duration:' + tickerDur + 's'"><text v-for="t in tickerItems" :key="t.key" class="mq-msg" :class="'mq-' + t.type">{{ t.label }}</text></view></view>
+                  <text class="play-s">公告：{{ notice }}</text>
+                </view>
+
+                <!-- 玩法：边池计算 -->
+                <view v-else-if="p.key === 'pot'" class="play">
+                  <text class="play-t">边池计算</text>
+                  <text class="play-s play-s-top">填每人这一手的总投入，自动分出主池和边池</text>
+                  <view v-for="(r, i) in potRows" :key="r.name" class="pot-r">
+                    <text class="pot-n">{{ r.name }}</text>
+                    <input class="pot-in" type="number" :value="r.amount" placeholder="0" placeholder-class="pot-ph" @input="setPot(i, $event)" />
+                  </view>
+                  <view v-for="(pt, i) in pots" :key="i" class="pot-res">
+                    <text class="pot-res-k">{{ i === 0 ? '主池' : '边池 ' + i }}</text>
+                    <text class="pot-res-v">{{ fmtNum(pt.amount) }}</text>
+                    <text class="pot-res-s">{{ pt.who.join('、') }}</text>
+                  </view>
+                </view>
+              </scroll-view>
+            </swiper-item>
+          </swiper>
+          <!-- 分页指示：当前页是短胶囊，其余是圆点 -->
+          <view class="dots"><view v-for="(p, i) in pages" :key="p.key" class="dot" :class="{ 'dot-on': i === pageIdx }"></view></view>
         </view>
 
-        <!-- 组件公共区：同一时间只显示一个组件 -->
-        <view class="slot">
-          <view v-if="slotKind === 'ticker'" class="ticker">
-            <view class="lane">
-              <view class="mq" :style="'animation-duration:' + tickerDur + 's'">
-                <text v-for="t in tickerItems" :key="t.key" class="mq-msg" :class="'mq-' + t.type">{{ t.label }}</text>
-              </view>
-            </view>
-            <view class="mesh"></view>
-          </view>
-          <view v-else class="cards" @longpress.stop="dealFlop">
-            <view
-              v-for="(c, i) in boardCards"
-              :key="i"
-              class="cd"
-              :class="{ 'cd-back': !c.up, 'cd-deal': c.anim }"
-              :style="'animation-delay:' + c.delay + 'ms'"
-              @tap="reveal(i)"
-            >
-              <block v-if="c.up">
-                <text class="cd-r" :style="{ color: c.color }">{{ c.rank }}</text>
-                <view class="cd-s"><z-icon :name="c.suit" :size="14" :color="c.color" /></view>
-              </block>
-              <view v-else class="cd-frame">
-                <view class="cd-pip" style="left:0;top:0"></view>
-                <view class="cd-pip" style="right:0;top:0"></view>
-                <view class="cd-pip" style="left:0;bottom:0"></view>
-                <view class="cd-pip" style="right:0;bottom:0"></view>
-              </view>
-            </view>
-          </view>
-        </view>
-      </view>
-
-      <view class="seat-col">
-        <view v-for="s in rightSeats" :key="s.no" class="seat" :class="{ 'seat-me': s.me }">
-          <view class="seat-av" :style="{ background: s.bg, color: s.fg }"><text>{{ s.c }}</text></view>
-          <text class="seat-name">{{ s.name }}</text>
-          <text class="seat-no">{{ s.no }} 号位</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 底排：盲注表 + 三个座位 + 邀请 -->
-    <view class="seat-row">
-      <view class="seat seat-tool" hover-class="press" @tap="structOpen = !structOpen">
-        <z-icon name="list" :size="22" color="#E5E7EB" />
-        <text class="seat-tool-t">盲注表</text>
-      </view>
-      <view v-for="s in bottomSeats" :key="s.no" class="seat" :class="{ 'seat-me': s.me }">
-        <view class="seat-av" :style="{ background: s.bg, color: s.fg }"><text>{{ s.c }}</text></view>
-        <text class="seat-name">{{ s.name }}</text>
-        <text class="seat-no">{{ s.no }} 号位</text>
-      </view>
-      <button class="seat seat-share" open-type="share" hover-class="press">
-        <z-icon name="plus" :size="22" color="#FF4D4D" />
-        <text class="seat-share-t">邀请</text>
-      </button>
-
-      <!-- 盲注结构：时刻表样式的悬浮面板 -->
-      <view v-if="structOpen" class="struct">
-        <view class="st-head">
-          <view class="st-title-wrap">
-            <text class="st-title">盲注结构</text>
-            <text class="st-sub">共 {{ totalLevels }} 级</text>
-          </view>
-          <view class="st-close" hover-class="press" @tap="structOpen = false">
-            <z-icon name="x" :size="14" color="#8F8F8A" />
-          </view>
-        </view>
-        <view class="tr tr-head">
-          <text class="tc">级别</text><text class="tc">盲注</text><text class="tc">前注</text><text class="tc">时长</text><text class="tc">开始</text>
-        </view>
-        <view v-for="r in timetable" :key="r.key" class="tr" :class="{ 'tr-cur': r.current, 'tr-last': r.last }">
-          <view v-if="r.current" class="tr-bar"></view>
-          <text class="tc" :class="{ 'tc-hei': r.isBreak }" :style="r.lvColor ? 'color:' + r.lvColor : ''">{{ r.lv }}</text>
-          <text class="tc" :class="{ 'tc-hei': r.isBreak }">{{ r.blinds }}</text>
-          <text class="tc">{{ r.ante }}</text>
-          <view class="tc tc-dur"><text>{{ r.dur }}</text><text class="tc-unit">分</text></view>
-          <text class="tc" :class="{ 'tc-hei': r.current }" :style="r.current ? 'color:' + stateColor : ''">{{ r.start }}</text>
+        <!-- 成员概览：叠放头像和人数，点开是签到墙 -->
+        <view class="members" hover-class="press-soft" @tap="pageKey = 'wall'">
+          <view class="stack"><view v-for="(m, i) in members.slice(0, 3)" :key="m.name" class="sk-av" :style="'background:' + m.bg + ';color:' + m.fg + ';z-index:' + (3 - i)"><text>{{ m.c }}</text></view></view>
+          <text class="mb-n">+{{ Math.max(0, members.length - 3) }}</text>
+          <text class="mb-s">{{ members.length }} 人已签到</text>
         </view>
       </view>
-    </view>
 
-    <view class="dots">
-      <view v-for="n in room.tables" :key="n" class="dot" :class="{ 'dot-on': n === room.table }"></view>
-    </view>
-    <view class="divider"></view>
+      <view class="col-b">
+        <!-- 气泡弹幕：靠左，最近几条，越早越淡；点了打开完整的房间弹幕列表 -->
+        <view class="dm-area"><z-danmaku :list="danmakuList" :max="land ? 6 : 5" @open="openChat" /></view>
 
-    <!-- 聊天 -->
-    <scroll-view class="chat" scroll-y :scroll-into-view="chatAnchor" scroll-with-animation>
-      <view v-for="m in chat" :id="'m' + m.id" :key="m.id" class="msg">
-        <view class="msg-av" :style="{ background: m.bg, color: m.fg }"><text>{{ m.c }}</text></view>
-        <view class="msg-body">
-          <view class="msg-top">
-            <text class="msg-name">{{ m.name }}</text>
-            <text class="msg-time">{{ m.time }}</text>
-          </view>
-          <text class="msg-text">{{ m.text }}</text>
-        </view>
-      </view>
-    </scroll-view>
-
-    <!-- 消息栏：右侧加号展开玩法组件 -->
-    <view class="composer" :style="composerStyle">
-      <view class="cmp-row">
-        <view class="cmp-input">
-          <input
+        <!-- 抽屉打开时输入栏和抽屉一起浮在屏幕底部，这里留出输入栏的位置，房间内容不会被顶上去 -->
+        <view v-if="drawer.show" class="bottom-spacer"></view>
+        <!-- 底部：输入栏 + 表情面板；键盘弹出时输入栏顶在键盘上面 -->
+        <view class="bottom" :class="{ 'bottom-top': drawer.show }" :style="bottomStyle">
+          <z-room-input
             v-model="draft"
-            class="cmp-field"
-            placeholder="这把我跟了"
-            placeholder-class="cmp-ph"
-            confirm-type="send"
-            :adjust-position="false"
-            :cursor-spacing="16"
-            @confirm="send"
-            @focus="panelOpen = false"
-            @keyboardheightchange="onKeyboard"
+            :panel="drawer.show ? 'more' : panel"
+            :failed="failed"
+            :focus-key="focusKey"
+            :cursor="cursor"
+            placeholder="给房间发消息"
+            @send="send"
+            @more="toggleMore"
+            @emoji="toggleEmoji"
+            @kb="onKb"
+            @focus="onInputFocus"
+            @cursor="cursor = $event"
           />
-          <view class="cmp-send" hover-class="press" @tap="send">
-            <z-icon name="corner-down-left" :size="18" color="#F3EEE6" />
-          </view>
-        </view>
-        <view class="cmp-more" :class="{ 'cmp-more-on': panelOpen }" hover-class="press" @tap="panelOpen = !panelOpen">
-          <z-icon name="plus" :size="22" color="#FFFFFF" />
-        </view>
-      </view>
-      <view v-if="panelOpen" class="panel">
-        <text class="panel-title">玩法组件</text>
-        <view class="panel-grid">
-          <view v-for="c in components" :key="c.key" class="cp" :class="{ 'cp-on': slotKind === c.key }" @tap="pick(c)">
-            <view class="cp-ic"><z-icon :name="c.icon" :size="22" :color="slotKind === c.key ? '#FF4D4D' : '#E5E7EB'" /></view>
-            <text class="cp-t">{{ c.label }}</text>
+          <z-emoji-panel v-if="panel === 'emoji'" @pick="pickEmoji" @del="delEmoji" />
+          <!-- 更多：抽屉在输入栏下面（输入栏左边的按钮变成 ×，再点一次收起）；上面是内容面板，底部是悬浮导航 -->
+          <view v-if="drawer.show" class="dr-sheet" :class="{ 'dr-on': drawer.open }" :style="drawer.drag ? 'transform:translateY(' + drawer.drag + 'px)' : ''">
+            <view class="dr-grab-area" @touchstart="dragStart" @touchmove="dragMove" @touchend="dragEnd" @touchcancel="dragEnd"><view class="dr-grab"></view></view>
+            <scroll-view scroll-y class="dr-body">
+              <view :key="drawer.tab" class="dr-panel" :class="'dr-from-' + drawer.dir">
+                <!-- 图片 -->
+                <block v-if="drawer.tab === 'image'">
+                  <text class="dp-t">发送图片</text>
+                  <view class="img-acts">
+                    <view class="img-a" hover-class="press" @tap="pickImage('album')"><z-icon name="photo" :size="28" color="#F3EEE6" /><text class="img-a-t">相册</text></view>
+                    <view class="img-a" hover-class="press" @tap="pickImage('camera')"><z-icon name="camera" :size="28" color="#F3EEE6" /><text class="img-a-t">拍照</text></view>
+                  </view>
+                  <text class="dp-s">图片会发到房间消息里，所有人都能看到</text>
+                </block>
+                <!-- 主持人 -->
+                <block v-else-if="drawer.tab === 'host'">
+                  <text class="dp-t">主持人</text>
+                  <view class="hosts"><view v-for="h in room.hosts" :key="h.name" class="host-chip"><text class="host-n">{{ h.name }}</text><text class="host-r">{{ h.role === 'owner' ? '房主' : '共同主持' }}</text></view></view>
+                  <block v-if="isHost">
+                    <text class="dp-h">计时</text>
+                    <view class="hgrid">
+                      <view class="hbtn" hover-class="press" @tap="togglePause"><z-icon :name="paused ? 'player-play' : 'player-pause'" :size="20" color="#F3EEE6" /><text class="hbtn-t">{{ paused ? '继续' : '暂停' }}</text></view>
+                      <view class="hbtn" hover-class="press" @tap="stepLevel(-1)"><z-icon name="player-skip-back" :size="20" color="#F3EEE6" /><text class="hbtn-t">上一级</text></view>
+                      <view class="hbtn" hover-class="press" @tap="stepLevel(1)"><z-icon name="player-skip-forward" :size="20" color="#F3EEE6" /><text class="hbtn-t">下一级</text></view>
+                      <view class="hbtn" hover-class="press" @tap="addTime(-60)"><z-icon name="minus" :size="20" color="#F3EEE6" /><text class="hbtn-t">减 1 分钟</text></view>
+                      <view class="hbtn" hover-class="press" @tap="addTime(60)"><z-icon name="plus" :size="20" color="#F3EEE6" /><text class="hbtn-t">加 1 分钟</text></view>
+                      <view class="hbtn" hover-class="press" @tap="shuffleSeats"><z-icon name="arrows-shuffle" :size="20" color="#F3EEE6" /><text class="hbtn-t">抽座位</text></view>
+                    </view>
+                    <text class="dp-h">房间公告</text>
+                    <view class="notice-row">
+                      <input v-model="noticeDraft" class="notice-in" maxlength="40" placeholder="写一句公告，走字灯和消息里都会显示" placeholder-class="ph" />
+                      <view class="pbtn" :class="{ 'pbtn-off': !noticeDraft.trim() || noticeDraft.trim() === notice }" hover-class="press" @tap="publishNotice"><text class="pbtn-t">发布</text></view>
+                    </view>
+                  </block>
+                  <text v-else class="dp-s">只有主持人可以控制计时、发布公告和抽座位</text>
+                </block>
+                <!-- 玩法 -->
+                <block v-else-if="drawer.tab === 'play'">
+                  <text class="dp-t">玩法</text>
+                  <view v-for="pl in PLAYS" :key="pl.key" class="pl-row">
+                    <view class="pl-ic"><z-icon :name="pl.icon" :size="22" color="#F3EEE6" /></view>
+                    <view class="pl-main"><text class="pl-n">{{ pl.name }}</text><text class="pl-d">{{ pl.desc }}</text></view>
+                    <switch v-if="isHost" :checked="playsOn.includes(pl.key)" color="#5865F2" @change="togglePlay(pl)" />
+                    <text v-else class="pl-st" :class="{ 'pl-st-on': playsOn.includes(pl.key) }">{{ playsOn.includes(pl.key) ? '已开启' : '未开启' }}</text>
+                  </view>
+                  <text class="dp-s">开启后排在 Timer 后面，左右滑动查看{{ isHost ? '' : '；只有主持人可以开关玩法' }}</text>
+                </block>
+                <!-- 记分 -->
+                <block v-else-if="drawer.tab === 'score'">
+                  <view class="sc-head"><text class="dp-t">记分</text><text class="sc-sum">合计 {{ fmtNum(totalScore) }} · 平均 {{ fmtNum(avgScore) }}</text></view>
+                  <view v-for="(s, i) in ranked" :key="s.name" class="sc-row">
+                    <text class="sc-rank" :class="{ 'sc-rank-top': i < 3 }">{{ i + 1 }}</text>
+                    <view class="sc-av" :style="'background:' + s.bg + ';color:' + s.fg"><text>{{ s.c }}</text></view>
+                    <text class="sc-n">{{ s.name }}</text>
+                    <view v-if="isHost" class="sc-step">
+                      <view class="sc-b" hover-class="press" @tap="adjustScore(s, -1000)"><z-icon name="minus" :size="14" color="#F3EEE6" /></view>
+                      <text class="sc-v">{{ fmtNum(s.score) }}</text>
+                      <view class="sc-b" hover-class="press" @tap="adjustScore(s, 1000)"><z-icon name="plus" :size="14" color="#F3EEE6" /></view>
+                    </view>
+                    <text v-else class="sc-v">{{ fmtNum(s.score) }}</text>
+                  </view>
+                  <text class="dp-s">{{ isHost ? '每次加减 1,000；只有主持人可以改记分' : '只有主持人可以改记分' }}</text>
+                </block>
+              </view>
+            </scroll-view>
+            <!-- 悬浮导航：图片｜弹幕｜主持人｜玩法｜记分 -->
+            <view class="dr-nav">
+              <view v-for="t in TABS" :key="t.key" class="dn" :class="{ 'dn-on': drawer.tab === t.key }" hover-class="press" @tap="pickTab(t.key)">
+                <z-icon :name="t.icon" :size="22" :color="drawer.tab === t.key ? '#F3EEE6' : '#8E929B'" />
+                <text class="dn-t">{{ t.name }}</text>
+              </view>
+            </view>
           </view>
         </view>
       </view>
     </view>
 
-    <view v-if="structOpen" class="mask" @tap="structOpen = false"></view>
+    <!-- 抽屉的遮罩：盖住上面的房间内容，点一下收起 -->
+    <view v-if="drawer.show" class="dr-mask" :class="{ 'dr-mask-on': drawer.open }" @tap="closeDrawer" @touchmove.stop.prevent="noop"></view>
   </view>
 </template>
 
 <script setup>
-import { ref, computed, nextTick } from 'vue'
-import { onLoad, onShow, onHide, onUnload, onReady, onShareAppMessage } from '@dcloudio/uni-app'
+// 房间：顶部导航、赛事状态栏、可手动横滑的内容展示区（签到墙、Timer、主持人开启的玩法）、成员概览和气泡弹幕、底部消息输入栏。
+// 「更多」打开底部抽屉：图片｜弹幕｜主持人｜玩法｜记分；「弹幕」打开完整的房间弹幕列表页。
+// 系统键盘、表情面板、更多抽屉三者互斥；键盘或表情面板打开时，赛事区收成一行摘要
+import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { onLoad, onShow, onHide, onUnload, onShareAppMessage } from '@dcloudio/uni-app'
 import { requireLogin } from '@/common/auth.js'
-// 必须登录：未登录（比如扫码直接打开房间）转到登录页，登录后回到这里
-onLoad(() => { requireLogin() })
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
+import ZRoomInput from '@/components/z-room-input/z-room-input.vue'
+import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
+import ZDanmaku from '@/components/z-danmaku/z-danmaku.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
+import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
+import { chat, sendText, sendImage, addSystem, startDemoFeed, stopDemoFeed } from '@/common/room-chat.js'
+import { insertAt, deleteBefore } from '@/common/emoji.js'
 
-const nav = getNavMetrics()
-const navStyle = `padding-top:${nav.statusBar}px;height:${nav.statusBar + nav.navH}px;padding-right:${nav.capsuleW + 8}px`
-
+const noop = () => {}
+const toast = (title) => uni.showToast({ title, icon: 'none' })
 const pad2 = (n) => (n < 10 ? '0' : '') + n
 const mmss = (sec) => { const m = Math.min(99, Math.floor(sec / 60)); return pad2(m) + ':' + pad2(sec % 60) }
 const hhmm = (ms) => { const d = new Date(ms); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
@@ -237,26 +262,71 @@ const fmtNum = (n) => {
   if (n >= 10000) return (Math.round(n / 1000) / 10) + '万'
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 
-/* ---------- 计时引擎（演示版：本地时钟推算；正式版应以服务端快照为准） ---------- */
+/* ---------- 身份：房主和共同主持是主持人；?role=player 可以预览玩家看到的样子 ---------- */
+const asPlayer = ref(false)
+const isHost = computed(() => !asPlayer.value && room.hosts.some((h) => h.name === me.nickname))
+onLoad((q) => {
+  if (!requireLogin()) return // 必须登录：未登录（比如扫码直接打开房间）转到登录页，登录后回到这里
+  if (q && q.role === 'player') asPlayer.value = true
+})
+
+/* ---------- 尺寸：窄屏、常规、横屏；翻牌数字按容器宽度算，横屏或矮屏时限制高度 ---------- */
+const nav = getNavMetrics()
+const navStyle = `padding-top:${nav.statusBar}px;height:${nav.statusBar + nav.navH}px;padding-right:${nav.capsuleW + 8}px`
+const winOf = () => { try { const w = uni.getWindowInfo ? uni.getWindowInfo() : uni.getSystemInfoSync(); return { w: w.windowWidth, h: w.windowHeight } } catch (e) { return { w: 375, h: 667 } } }
+const win = ref(winOf())
+const onResize = (r) => { win.value = r && r.size ? { w: r.size.windowWidth, h: r.size.windowHeight } : winOf() }
+uni.onWindowResize && uni.onWindowResize(onResize)
+const land = computed(() => win.value.w > win.value.h)
+// 尺寸都先按实际像素算，再换成 z-flap 用的设计稿单位（375 宽的 px，组件里换算成 rpx）。
+// rpx 跟着窗口宽度变，横屏时会被放大，所以这里按窗口宽度换算回去，让元素的实际大小跟着手机的短边走
+const k = computed(() => win.value.w / 375) // 设计稿 px → 实际 px
+const sc = computed(() => Math.min(win.value.w, win.value.h) / 375) // 实际大小跟着手机短边缩放
+// Timer 页里除翻牌数字以外的高度（标签行、进度条、盲注一行、内边距、分页点），这些是固定的 px，只有盲注的翻牌跟着缩放
+const fixedH = computed(() => 150 + 24 * sc.value)
+// 展示区最多能用的高度：竖屏占窗口的 56%；横屏是左栏去掉状态栏和成员行以后剩下的
+const stageCap = computed(() => (land.value ? win.value.h - (nav.statusBar + nav.navH) - 40 - 56 - 8 : Math.round(win.value.h * 0.56)))
+// 翻牌数字：四位数字 + 冒号占满展示区的宽度；同时不超过窗口高度的 26%（横屏 30%），也不能让 Timer 页超出展示区
+const flapPx = computed(() => {
+  const colW = land.value ? win.value.w * 0.56 : win.value.w
+  let w = (colW - 24 - 24 - 12 - 22) / 4 // 左右边距、卡片内边距、两个字间距、冒号
+  let h = w * 1.62
+  const maxH = Math.min(win.value.h * (land.value ? 0.3 : 0.26), stageCap.value - fixedH.value)
+  if (h > maxH) { h = Math.max(36, maxH); w = h / 1.62 }
+  return { w, h }
+})
+const flap = computed(() => ({ w: Math.round(flapPx.value.w / k.value), h: Math.round(flapPx.value.h / k.value), fs: Math.round((flapPx.value.h * 1.08) / k.value) }))
+const bflap = computed(() => ({ w: Math.round((46 * sc.value) / k.value), h: Math.round((24 * sc.value) / k.value), fs: Math.round((20 * sc.value) / k.value) }))
+// 展示区的高度（px）：所有分页一样大，正好放下 Timer 页；签到墙、玩法页内容长了在页面里滚动
+const stageH = computed(() => Math.min(Math.round(flapPx.value.h + fixedH.value), stageCap.value))
+const wallCols = computed(() => Math.max(4, Math.floor((land.value ? win.value.w * 0.56 : win.value.w) / 72)))
+const wallCol = computed(() => (100 / wallCols.value).toFixed(3) + '%')
+
+/* ---------- 计时引擎（演示：本地时钟推算；正式环境以服务端快照为准） ---------- */
 let levelNo = 0
 const S = room.structure.map((e) => (e.type === 'level' ? { ...e, no: ++levelNo } : { ...e }))
-const totalLevels = levelNo
 const idx = ref(room.startIndex)
 const remaining = ref(room.remainingSec)
 const now = ref(Date.now())
+const paused = ref(false)
 let endAt = Date.now() + room.remainingSec * 1000
 const usedBefore = S.slice(0, room.startIndex).reduce((sum, e) => sum + e.dur, 0)
 const startedAt = Date.now() - (usedBefore + S[room.startIndex].dur - room.remainingSec) * 1000
-
 const cur = computed(() => S[idx.value])
 const isBreak = computed(() => cur.value.type === 'break')
 const nextLevel = computed(() => S.slice(idx.value + 1).find((e) => e.type === 'level'))
-const levelDigits = computed(() => pad2(isBreak.value ? (nextLevel.value ? nextLevel.value.no : 0) : cur.value.no).split(''))
-const stateWord = computed(() => (isBreak.value ? '休息中' : remaining.value <= 60 ? '最后一分钟' : '进行中'))
-const stateColor = computed(() => (isBreak.value || remaining.value <= 60 ? '#FFC53A' : '#3FCF84'))
-const clockColor = computed(() => (!isBreak.value && remaining.value <= 60 ? '#FFC53A' : '#F2F2EE'))
+// 状态：进行中、即将切级（最后一分钟）、休息中、已暂停、连接中断——统一的状态色，配文字
+const STATE = {
+  running: { text: '进行中', color: '#3FCF84' },
+  near: { text: '即将切级', color: '#FFC53A' },
+  break: { text: '休息中', color: '#7AA7FF' },
+  paused: { text: '已暂停', color: '#A9AEB8' },
+  abnormal: { text: '连接中断', color: '#FF6B6B' }
+}
+const stateInfo = computed(() => STATE[!chat.online ? 'abnormal' : paused.value ? 'paused' : isBreak.value ? 'break' : remaining.value <= 60 ? 'near' : 'running'])
+const clockColor = computed(() => (!isBreak.value && remaining.value <= 60 ? '#FFC53A' : '#F3EEE6'))
+const clockText = computed(() => mmss(remaining.value))
 const progress = computed(() => (((cur.value.dur - remaining.value) / cur.value.dur) * 100).toFixed(1))
 const elapsedMin = computed(() => Math.max(0, Math.floor((now.value - startedAt) / 60000)))
 const toBreak = computed(() => {
@@ -267,42 +337,38 @@ const toBreak = computed(() => {
   }
   return '--:--'
 })
+const blindOf = computed(() => (isBreak.value ? nextLevel.value : cur.value))
 const blindItems = computed(() => {
-  const e = isBreak.value ? nextLevel.value : cur.value
+  const e = blindOf.value
   return [
-    { label: isBreak.value ? '休息后小盲' : '小盲', value: e ? fmtNum(e.sb) : '—' },
+    { label: isBreak.value ? '下一级小盲' : '小盲', value: e ? fmtNum(e.sb) : '—' },
     { label: '大盲', value: e ? fmtNum(e.bb) : '—' },
     { label: '前注', value: e ? fmtNum(e.ante) : '—' }
   ]
 })
+const blindText = computed(() => (blindOf.value ? `${fmtNum(blindOf.value.sb)}/${fmtNum(blindOf.value.bb)} · 前注 ${fmtNum(blindOf.value.ante)}` : ''))
+const structOpen = ref(false)
 const timetable = computed(() => {
   const rows = []
   let startMs = now.value + remaining.value * 1000
-  for (let k = 0; k < 6 && idx.value + k < S.length; k++) {
+  for (let k = 0; k < 8 && idx.value + k < S.length; k++) {
     const e = S[idx.value + k]
     if (k > 1) startMs += S[idx.value + k - 1].dur * 1000
     const level = e.type === 'level'
     rows.push({
       key: idx.value + k,
       current: k === 0,
-      isBreak: !level,
       lv: level ? pad2(e.no) : '休息',
-      lvColor: k === 0 ? stateColor.value : level ? '' : '#FFC53A',
+      lvColor: k === 0 ? stateInfo.value.color : level ? '' : '#7AA7FF',
       blinds: level ? `${fmtNum(e.sb)}/${fmtNum(e.bb)}` : e.note || '—',
       ante: level ? fmtNum(e.ante) : '',
       dur: Math.round(e.dur / 60),
-      start: k === 0 ? stateWord.value : hhmm(startMs),
-      last: false
+      start: k === 0 ? stateInfo.value.text : hhmm(startMs)
     })
   }
-  if (rows.length) rows[rows.length - 1].last = true
   return rows
 })
-
-const toDigits = (sec) => {
-  const t = mmss(sec)
-  return [t[0], t[1], t[3], t[4]]
-}
+const toDigits = (sec) => { const t = mmss(sec); return [t[0], t[1], t[3], t[4]] }
 const clockDigits = ref(toDigits(room.remainingSec))
 let rippleTimers = []
 function setClock(sec) {
@@ -318,6 +384,7 @@ function setClock(sec) {
 function tick() {
   const t = Date.now()
   now.value = t
+  if (paused.value) return
   let rem = Math.ceil((endAt - t) / 1000)
   while (rem <= 0 && idx.value < S.length - 1) {
     idx.value += 1
@@ -335,48 +402,75 @@ const stop = () => {
   rippleTimers.forEach(clearTimeout)
   rippleTimers = []
 }
-// 开发用：长按面板跳到本级最后 15 秒，方便看最后一分钟变色和换级翻牌
+// 开发用：长按 Timer 跳到本级最后 15 秒，方便看最后一分钟变色和换级翻牌
 function jumpToEnd() {
+  if (paused.value) return
   endAt = Date.now() + 15000
   tick()
   toast('演示：跳到本级最后 15 秒')
 }
-
-/* ---------- 座位 ---------- */
-const seats = ref(room.seats.map((s) => ({ ...s })))
-const bySeat = (n) => seats.value.find((s) => s.no === n)
-const leftSeats = computed(() => [1, 2, 3].map(bySeat))
-const bottomSeats = computed(() => [4, 5, 6].map(bySeat))
-const rightSeats = computed(() => [9, 8, 7].map(bySeat))
-function shuffleSeats() {
-  const nos = seats.value.map((s) => s.no)
-  for (let i = nos.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const tmp = nos[i]; nos[i] = nos[j]; nos[j] = tmp
-  }
-  seats.value = seats.value.map((s, i) => ({ ...s, no: nos[i] }))
+// 主持人：暂停 / 继续、上一级 / 下一级、加减时间
+function togglePause() {
+  if (paused.value) { endAt = Date.now() + remaining.value * 1000; paused.value = false; addSystem('主持人继续了计时') }
+  else { paused.value = true; addSystem('主持人暂停了计时') }
+  tick()
+}
+function stepLevel(d) {
+  const n = Math.max(0, Math.min(S.length - 1, idx.value + d))
+  if (n === idx.value) return
+  idx.value = n
+  remaining.value = S[n].dur
+  endAt = Date.now() + S[n].dur * 1000
+  setClock(remaining.value)
+  addSystem(`主持人把计时切到了${S[n].type === 'break' ? '休息' : '第 ' + S[n].no + ' 级'}`)
+}
+function addTime(sec) {
+  const next = Math.max(10, remaining.value + sec)
+  remaining.value = next
+  endAt = Date.now() + next * 1000
+  setClock(next)
+  toast(sec > 0 ? '本级加了 1 分钟' : '本级减了 1 分钟')
 }
 
-/* ---------- 组件公共区：走字灯 / 公共牌 ---------- */
-const slotKind = ref('ticker')
-const danmaku = ref(room.chat.filter((m) => m.seat === 8).map((m) => ({ from: '七七', text: m.text })))
-const tickerItems = computed(() => {
-  const one = [{ type: 'notice', label: '【公告】' + room.notice }]
-    .concat(danmaku.value.map((d) => ({ type: 'danmaku', label: d.from + '：' + d.text })))
-  return one.concat(one).map((t, i) => ({ ...t, key: i }))
-})
-const tickerDur = computed(() => {
-  const half = tickerItems.value.slice(0, tickerItems.value.length / 2)
-  const px = half.reduce((sum, t) => sum + t.label.length * 22 + 56, 0)
-  return Math.max(10, Math.round(px / 45))
-})
+/* ---------- 成员：座位上的人 + 已签到候补；签到墙、成员概览、记分都用 ---------- */
+const members = ref(room.seats.map((s) => ({ name: s.name, c: s.c, bg: s.bg, fg: s.fg, seat: s.no })).concat(room.waiting.map((p) => ({ ...p, seat: 0 }))))
+// 抽座位：打乱后前 9 位入座（1 到 9 号），其余候补
+function shuffleSeats() {
+  const list = members.value.slice()
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = list[i]; list[i] = list[j]; list[j] = t }
+  members.value = list.map((m, i) => ({ ...m, seat: i < 9 ? i + 1 : 0 }))
+  addSystem('主持人重新抽了座位，签到墙上可以看到座位号')
+  toast('已重新抽座位')
+}
 
-const SUITS = [
-  { name: 'suit-spade', color: '#141414' },
-  { name: 'suit-heart', color: '#DC0000' },
-  { name: 'suit-diamond', color: '#DC0000' },
-  { name: 'suit-club', color: '#141414' }
+/* ---------- 内容展示区：分页按 key 记，开关玩法时停在原来的页面 ---------- */
+const PLAYS = [
+  { key: 'cards', name: '公共牌', icon: 'cards', desc: '在桌面中间翻开公共牌' },
+  { key: 'ticker', name: '走字灯', icon: 'speakerphone', desc: '滚动显示房间公告和最新消息' },
+  { key: 'pot', name: '边池计算', icon: 'calculator', desc: '按每人投入分出主池和边池' }
 ]
+const playsOn = ref([])
+const pages = computed(() => [{ key: 'wall' }, { key: 'timer' }].concat(PLAYS.filter((p) => playsOn.value.includes(p.key)).map((p) => ({ key: p.key }))))
+const pageKey = ref('timer')
+const pageIdx = computed(() => Math.max(0, pages.value.findIndex((p) => p.key === pageKey.value)))
+function onPage(e) {
+  const p = pages.value[e.detail.current]
+  if (p) pageKey.value = p.key
+}
+function togglePlay(pl) {
+  if (!isHost.value) return
+  if (playsOn.value.includes(pl.key)) {
+    playsOn.value = playsOn.value.filter((k) => k !== pl.key)
+    if (pageKey.value === pl.key) pageKey.value = 'timer' // 关掉的正是当前页：回到 Timer
+    addSystem(`主持人关闭了「${pl.name}」`)
+  } else {
+    playsOn.value = PLAYS.filter((p) => p.key === pl.key || playsOn.value.includes(p.key)).map((p) => p.key)
+    addSystem(`主持人开启了「${pl.name}」，在 Timer 后面左右滑动查看`)
+  }
+}
+
+/* ---------- 玩法：公共牌 ---------- */
+const SUITS = [{ name: 'suit-spade', color: '#141414' }, { name: 'suit-heart', color: '#DC0000' }, { name: 'suit-diamond', color: '#DC0000' }, { name: 'suit-club', color: '#141414' }]
 const RANKS = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']
 const faceUp = (rank, s) => ({ up: true, rank, suit: SUITS[s].name, color: SUITS[s].color, id: rank + s, anim: false, delay: 0 })
 const faceDown = () => ({ up: false, anim: false, delay: 0 })
@@ -399,6 +493,7 @@ function dealFlop() {
   animate([0, 1, 2, 3, 4])
 }
 function reveal(i) {
+  if (!isHost.value) return toast('只有主持人可以翻牌')
   if (boardCards.value[i].up) return
   const used = boardCards.value.filter((c) => c.up).map((c) => c.id)
   const list = boardCards.value.slice()
@@ -407,206 +502,347 @@ function reveal(i) {
   animate([i])
 }
 
-/* ---------- 聊天与消息栏 ---------- */
-const fmtTime = (d) => `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
-const mySeat = room.seats.find((s) => s.me)
-const chat = ref(room.chat.map((m) => {
-  const p = room.seats.find((s) => s.no === m.seat)
-  return { id: m.id, name: p.name, c: p.c, bg: p.bg, fg: p.fg, text: m.text, time: fmtTime(new Date(Date.now() - m.minutesAgo * 60000)) }
-}))
-const chatAnchor = ref('')
+/* ---------- 玩法：走字灯（公告 + 最近的消息） ---------- */
+const notice = ref(room.notice)
+const noticeDraft = ref(room.notice)
+function publishNotice() {
+  const t = noticeDraft.value.trim()
+  if (!t || t === notice.value) return
+  notice.value = t
+  addSystem('主持人更新了公告：' + t)
+  toast('公告已发布')
+}
+const tickerItems = computed(() => {
+  const msgs = chat.list.filter((m) => m.kind === 'text').slice(-4).map((m) => ({ type: 'danmaku', label: m.from.name + '：' + m.text }))
+  const one = [{ type: 'notice', label: '【公告】' + notice.value }].concat(msgs)
+  return one.concat(one).map((t, i) => ({ ...t, key: i }))
+})
+const tickerDur = computed(() => {
+  const half = tickerItems.value.slice(0, tickerItems.value.length / 2)
+  return Math.max(10, Math.round(half.reduce((sum, t) => sum + t.label.length * 22 + 56, 0) / 45))
+})
+
+/* ---------- 玩法：边池计算 ---------- */
+const potRows = ref(room.seats.map((s) => ({ name: s.name, amount: '' })))
+function setPot(i, e) { potRows.value[i].amount = String(e.detail.value || '').replace(/\D/g, '') }
+const pots = computed(() => {
+  const ins = potRows.value.map((r) => ({ name: r.name, v: Number(r.amount) || 0 })).filter((r) => r.v > 0)
+  const levels = [...new Set(ins.map((r) => r.v))].sort((a, b) => a - b)
+  let prev = 0
+  return levels.map((lv) => {
+    const who = ins.filter((r) => r.v >= lv)
+    const pot = { amount: (lv - prev) * who.length, who: who.map((r) => r.name) }
+    prev = lv
+    return pot
+  }).filter((p) => p.amount > 0)
+})
+
+/* ---------- 记分 ---------- */
+const scores = ref(members.value.map((m, i) => ({ name: m.name, c: m.c, bg: m.bg, fg: m.fg, score: room.startScore + ((i * 7919) % 9 - 4) * 1500 })))
+const ranked = computed(() => scores.value.slice().sort((a, b) => b.score - a.score))
+const totalScore = computed(() => scores.value.reduce((a, s) => a + s.score, 0))
+const avgScore = computed(() => Math.round(totalScore.value / Math.max(1, scores.value.length)))
+function adjustScore(s, d) {
+  if (!isHost.value) return
+  const it = scores.value.find((x) => x.name === s.name)
+  if (it) it.score = Math.max(0, it.score + d)
+}
+
+/* ---------- 消息：气泡弹幕和完整列表共用一份数据 ---------- */
+const danmakuList = computed(() => chat.list.slice(-6))
+const openChat = () => uni.navigateTo({ url: '/pages/room/chat' })
 const draft = ref('')
-const panelOpen = ref(false)
-const keyboard = ref(0)
-const structOpen = ref(false)
-const composerStyle = computed(() => (keyboard.value ? `padding-bottom:${keyboard.value + 8}px` : ''))
-
-function send() {
+const cursor = ref(-1)
+const failed = ref(false)
+const focusKey = ref(0)
+const panel = ref('none') // none / emoji
+const kb = ref(0)
+const compact = computed(() => kb.value > 0 || panel.value === 'emoji')
+// 键盘弹出时输入栏顶在键盘上面；表情面板和抽屉自带底部安全区；都没有时留出底部安全区
+const bottomStyle = computed(() => (kb.value > 0 ? `padding-bottom:${kb.value}px` : panel.value === 'emoji' || drawer.show ? '' : 'padding-bottom:env(safe-area-inset-bottom)'))
+watch(draft, () => { if (failed.value) failed.value = false })
+async function send() {
   const text = draft.value.trim()
-  if (!text) return toast('先输入内容')
-  const id = Date.now()
-  chat.value.push({ id, name: me.nickname, c: me.char, bg: mySeat.bg, fg: mySeat.fg, text, time: fmtTime(new Date()) })
-  // 聊天消息同时以琥珀色弹幕出现在走字灯上
-  danmaku.value = danmaku.value.concat([{ from: me.nickname, text }]).slice(-4)
-  draft.value = ''
-  nextTick(() => { chatAnchor.value = 'm' + id })
+  if (!text) return
+  failed.value = false
+  const ok = await sendText(text)
+  if (ok) {
+    draft.value = ''
+    cursor.value = 0
+  } else {
+    // 发送失败：内容留在输入框，按钮变成重试
+    nextTick(() => { failed.value = true })
+    toast('发送失败，点右边的按钮重试')
+  }
 }
-function onKeyboard(e) {
-  keyboard.value = (e.detail && e.detail.height) || 0
-  if (keyboard.value) panelOpen.value = false
+function onKb(h) {
+  kb.value = h
+  if (h) panel.value = 'none'
 }
-
-const components = [
-  { key: 'cards', label: '公共牌', icon: 'cards' },
-  { key: 'ticker', label: '走字灯', icon: 'speakerphone' },
-  { key: 'seats', label: '抽座位', icon: 'arrows-shuffle' },
-  { key: 'pot', label: '边池计算', icon: 'calculator' }
-]
-function pick(c) {
-  if (c.key === 'cards' || c.key === 'ticker') {
-    if (slotKind.value === c.key) return
-    slotKind.value = c.key
-    if (c.key === 'cards') animate([0, 1, 2, 3, 4])
+function onInputFocus() {
+  panel.value = 'none'
+  if (drawer.show) closeDrawer()
+}
+const cursorPos = () => (cursor.value >= 0 && cursor.value <= draft.value.length ? cursor.value : draft.value.length)
+// 表情 ⇄ 键盘：切换时保留草稿和光标位置
+function toggleEmoji() {
+  if (panel.value === 'emoji') {
+    panel.value = 'none'
+    focusKey.value += 1
     return
   }
-  if (c.key === 'seats') { shuffleSeats(); toast('已重新抽座位') }
-  if (c.key === 'pot') toast('边池计算待接入')
+  if (drawer.show) closeDrawer()
+  uni.hideKeyboard()
+  kb.value = 0
+  panel.value = 'emoji'
+}
+function pickEmoji(e) {
+  const r = insertAt(draft.value, cursorPos(), e)
+  draft.value = r.text
+  cursor.value = r.cursor
+}
+function delEmoji() {
+  const r = deleteBefore(draft.value, cursorPos())
+  draft.value = r.text
+  cursor.value = r.cursor
 }
 
-onShow(start)
-onHide(stop)
-onUnload(stop)
-onReady(() => { chatAnchor.value = 'm' + chat.value[chat.value.length - 1].id })
+/* ---------- 更多抽屉 ---------- */
+const TABS = [
+  { key: 'image', name: '图片', icon: 'photo' },
+  { key: 'chat', name: '弹幕', icon: 'message-circle' },
+  { key: 'host', name: '主持人', icon: 'crown' },
+  { key: 'play', name: '玩法', icon: 'puzzle' },
+  { key: 'score', name: '记分', icon: 'trophy' }
+]
+const drawer = reactive({ show: false, open: false, tab: 'image', dir: 'r', drag: 0 })
+let drawerTimer = null
+function openDrawer() {
+  uni.hideKeyboard()
+  kb.value = 0
+  panel.value = 'none'
+  clearTimeout(drawerTimer)
+  drawer.show = true
+  drawer.drag = 0
+  setTimeout(() => { drawer.open = true }, 20)
+}
+function closeDrawer() {
+  drawer.open = false
+  drawer.drag = 0
+  clearTimeout(drawerTimer)
+  drawerTimer = setTimeout(() => { drawer.show = false }, 240)
+}
+const toggleMore = () => (drawer.show && drawer.open ? closeDrawer() : openDrawer())
+function pickTab(key) {
+  // 「弹幕」：收起抽屉，打开完整的房间弹幕列表
+  if (key === 'chat') {
+    closeDrawer()
+    setTimeout(openChat, 160)
+    return
+  }
+  const from = TABS.findIndex((t) => t.key === drawer.tab)
+  const to = TABS.findIndex((t) => t.key === key)
+  drawer.dir = to >= from ? 'r' : 'l'
+  drawer.tab = key
+}
+// 下滑抽屉关闭：只在顶部拖拽条区域响应
+let dragY = null
+function dragStart(e) { dragY = e.touches[0].clientY }
+function dragMove(e) {
+  if (dragY === null) return
+  drawer.drag = Math.max(0, e.touches[0].clientY - dragY)
+}
+function dragEnd() {
+  if (dragY === null) return
+  dragY = null
+  if (drawer.drag > 90) closeDrawer()
+  else drawer.drag = 0
+}
+function pickImage(src) {
+  const done = (path) => {
+    if (!path) return
+    sendImage(path)
+    closeDrawer()
+    toast('图片已发送')
+  }
+  // #ifdef MP-WEIXIN
+  uni.chooseMedia({ count: 1, mediaType: ['image'], sourceType: [src], sizeType: ['compressed'], success: (r) => done(r.tempFiles && r.tempFiles[0] && r.tempFiles[0].tempFilePath) })
+  // #endif
+  // #ifndef MP-WEIXIN
+  uni.chooseImage({ count: 1, sourceType: [src], success: (r) => done(r.tempFilePaths && r.tempFilePaths[0]) })
+  // #endif
+}
+
+onShow(() => { start(); startDemoFeed('room') })
+onHide(() => { stop(); stopDemoFeed('room') })
+onUnload(() => { stop(); stopDemoFeed('room'); uni.offWindowResize && uni.offWindowResize(onResize) })
 onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入座`, path: '/pages/invite/index' }))
 </script>
 
 <style>
-.room { position: relative; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #181A20; }
-.press { opacity: .82; transform: scale(.97); }
-
-/* 导航 + 站名牌 */
-.nav { flex: none; display: flex; align-items: center; box-sizing: border-box; padding-left: 32rpx; }
-.back { width: 64rpx; height: 64rpx; flex: none; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; }
-.plaque {
-  position: relative; margin-left: 16rpx; height: 80rpx; box-sizing: border-box; padding: 0 32rpx;
-  border-radius: 12rpx; background: #1C4E9D; border-bottom: 6rpx solid #0E2A57;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-}
-.plaque-ring { position: absolute; left: 6rpx; top: 6rpx; right: 6rpx; bottom: 6rpx; border: 3rpx solid rgba(255, 255, 255, .6); border-radius: 8rpx; }
-.rivet { position: absolute; width: 8rpx; height: 8rpx; border-radius: 50%; background: rgba(255, 255, 255, .75); }
-.plaque-zh { font-family: "BoardHei", "PingFang SC", "Microsoft YaHei", sans-serif; font-weight: 900; font-size: 30rpx; line-height: 1; letter-spacing: 3rpx; color: #FFFFFF; }
-.plaque-py { margin-top: 6rpx; font-family: "BoardNum", "Helvetica Neue", Arial, sans-serif; font-weight: 700; font-size: 20rpx; line-height: 1; letter-spacing: 3rpx; color: rgba(255, 255, 255, .8); }
-
-/* 级别行 */
-.lv-row { flex: none; display: flex; align-items: center; height: 72rpx; padding: 0 32rpx; }
-.lv-word { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 36rpx; color: #F2F2EE; }
-.lv-flaps { display: flex; margin: 0 12rpx; padding-bottom: 6rpx; }
-.lv-gap { width: 14rpx; }
-.lv-elapsed { margin-left: 16rpx; font-size: 24rpx; color: #8F8F8A; }
-.lv-state { margin-left: auto; font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 32rpx; letter-spacing: 2rpx; }
-
-/* 牌桌 */
-.table { flex: none; display: flex; justify-content: space-between; padding: 8rpx 24rpx 0; }
-.seat-col { display: flex; flex-direction: column; justify-content: space-between; height: 504rpx; }
-.seat {
-  position: relative; width: 112rpx; height: 152rpx; box-sizing: border-box; padding-top: 16rpx;
-  border-radius: 28rpx; background: #1F222A; display: flex; flex-direction: column; align-items: center;
-}
-.seat-me { background: #262A34; border: 1rpx solid #3A3D46; }
-.seat-av { width: 68rpx; height: 68rpx; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30rpx; font-weight: 500; }
-.seat-name { margin-top: 12rpx; max-width: 100rpx; font-size: 22rpx; line-height: 28rpx; color: #E5E7EB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seat-me .seat-name { color: #FFFFFF; }
-.seat-no { font-size: 22rpx; line-height: 28rpx; color: #6B7280; }
-
-.board {
-  width: 446rpx; height: 504rpx; box-sizing: border-box; padding: 24rpx;
-  border-radius: 16rpx; background: #050505;
-  display: flex; flex-direction: column; justify-content: space-between;
-}
-.bd-top { display: flex; align-items: center; justify-content: space-between; height: 36rpx; }
-.bd-tag {
-  height: 36rpx; line-height: 36rpx; padding: 0 12rpx; border-radius: 6rpx; background: #1C4E9D; color: #FFFFFF;
-  font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 22rpx; letter-spacing: 2rpx;
-}
-.bd-brk { display: flex; align-items: baseline; }
-.bd-brk-k { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 22rpx; color: #8F8F8A; }
-.bd-brk-v { margin-left: 8rpx; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 800; font-size: 36rpx; line-height: 1; letter-spacing: 1rpx; color: #F2F2EE; }
-
-.clock { display: flex; align-items: center; justify-content: center; padding-bottom: 10rpx; }
-.clock-gap { width: 8rpx; }
-.colon { display: flex; flex-direction: column; align-items: center; justify-content: space-between; height: 38rpx; margin: 0 12rpx; }
-.colon-dot { width: 10rpx; height: 10rpx; }
-
-.prog { height: 6rpx; border-radius: 3rpx; background: #1A1A1A; overflow: hidden; }
-.prog-fill { height: 6rpx; background: #F2F2EE; }
-
-.blinds { display: flex; justify-content: space-around; padding-top: 4rpx; }
-.bl-item { display: flex; flex-direction: column; align-items: center; }
-.bl-cap { margin-top: 14rpx; font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 20rpx; color: #8F8F8A; }
-
-.slot { position: relative; height: 96rpx; border-radius: 8rpx; overflow: hidden; background: #161616; border: 1rpx solid #262626; }
-.ticker, .lane, .mesh, .cards { position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
-.lane { overflow: hidden; white-space: nowrap; }
-.mq { display: inline-flex; align-items: center; height: 100%; animation-name: mq-roll; animation-timing-function: linear; animation-iteration-count: infinite; }
-.mq-msg { flex: none; margin-right: 112rpx; white-space: nowrap; font-family: "BoardHei", "BoardNum", "PingFang SC", sans-serif; font-weight: 900; font-size: 44rpx; line-height: 94rpx; }
-.mq-notice { color: #FF3B30; text-shadow: 0 0 10rpx rgba(255, 59, 48, .6); }
-.mq-danmaku { color: #FFB22E; text-shadow: 0 0 10rpx rgba(255, 178, 46, .55); }
-.mesh { background-image: radial-gradient(circle, rgba(5, 5, 5, 0) 0.8px, #050505 1.05px); background-size: 2px 2px; pointer-events: none; }
-@keyframes mq-roll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-
-.cards { background: #050505; display: flex; align-items: center; justify-content: center; }
-.cd { position: relative; width: 60rpx; height: 84rpx; margin: 0 5rpx; border-radius: 8rpx; background: #F2F2EE; }
-.cd-back { background: #B80000; }
-.cd-deal { animation: cd-in 280ms cubic-bezier(.3, 1.3, .5, 1) both; }
-.cd-r { position: absolute; left: 8rpx; top: 6rpx; font-family: "BoardNum", "Helvetica Neue", sans-serif; font-weight: 800; font-size: 34rpx; line-height: 1; }
-.cd-s { position: absolute; right: 6rpx; bottom: 6rpx; }
-.cd-frame { position: absolute; left: 6rpx; top: 6rpx; right: 6rpx; bottom: 6rpx; border: 2rpx solid #F3B3B3; border-radius: 6rpx; }
-.cd-frame .cd-pip { position: absolute; width: 8rpx; height: 8rpx; border-radius: 50%; background: #F2F2EE; margin: 20rpx 10rpx; }
-@keyframes cd-in { from { transform: perspective(400rpx) rotateY(90deg); } to { transform: perspective(400rpx) rotateY(0deg); } }
-
-/* 底排 */
-.seat-row { position: relative; flex: none; display: flex; justify-content: space-between; padding: 24rpx 24rpx 0; }
-.seat-tool { justify-content: center; padding-top: 0; }
-.seat-tool-t { margin-top: 10rpx; font-size: 22rpx; color: #9CA3AF; }
-.seat-share {
-  margin: 0; padding: 0; line-height: normal; justify-content: center;
-  background: #2A1216; border: 2rpx dashed #7A2A2E; border-radius: 28rpx; color: #FF4D4D;
-}
-.seat-share::after { border: none; }
-.seat-share-t { margin-top: 10rpx; font-size: 22rpx; color: #FF4D4D; }
-
-.struct {
-  position: absolute; z-index: 60; left: 24rpx; bottom: calc(100% + 16rpx); width: 600rpx; box-sizing: border-box;
-  padding: 20rpx 20rpx 12rpx; background: #050505; border: 4rpx solid #262626; border-radius: 8rpx;
-}
-.st-head { display: flex; align-items: center; justify-content: space-between; height: 52rpx; margin-bottom: 12rpx; }
-.st-title-wrap { display: flex; align-items: baseline; }
-.st-title { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 32rpx; color: #F2F2EE; }
-.st-sub { margin-left: 16rpx; font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 24rpx; color: #8F8F8A; }
-.st-close { width: 52rpx; height: 52rpx; box-sizing: border-box; border-radius: 8rpx; border: 4rpx solid #262626; display: flex; align-items: center; justify-content: center; }
-.tr { position: relative; display: grid; grid-template-columns: 80rpx 184rpx 96rpx 80rpx 1fr; align-items: center; height: 60rpx; border-bottom: 4rpx solid #262626; }
-.tr-last { border-bottom: 0; }
-.tr-cur { background: #101010; }
-.tr-bar { position: absolute; left: 0; top: 12rpx; bottom: 12rpx; width: 6rpx; background: #3FCF84; }
-.tr-head { height: 48rpx; }
-.tr-head .tc { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 24rpx; color: #8F8F8A; }
-.tc { text-align: center; white-space: nowrap; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 700; font-size: 34rpx; color: #F2F2EE; }
-.tc-hei { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 26rpx; }
-.tc-dur { display: flex; align-items: baseline; justify-content: center; }
-.tc-unit { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 22rpx; }
-
-.dots { flex: none; display: flex; justify-content: center; margin-top: 20rpx; }
-.dot { width: 12rpx; height: 12rpx; border-radius: 6rpx; margin: 0 6rpx; background: #3A3D46; }
-.dot-on { width: 32rpx; background: #F3EEE6; }
-.divider { flex: none; height: 1px; margin: 20rpx 32rpx 0; background: #24272F; }
-
-/* 聊天 */
-.chat { flex: 1; height: 0; box-sizing: border-box; padding: 0 32rpx; }
-.msg { display: flex; align-items: flex-start; padding-top: 24rpx; }
-.msg-av { width: 64rpx; height: 64rpx; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 26rpx; font-weight: 500; }
-.msg-body { flex: 1; min-width: 0; margin-left: 20rpx; }
-.msg-top { display: flex; align-items: baseline; justify-content: space-between; }
-.msg-name { font-size: 24rpx; font-weight: 500; color: #9CA3AF; }
-.msg-time { font-size: 22rpx; color: #6B7280; }
-.msg-text { display: block; margin-top: 4rpx; font-size: 26rpx; line-height: 1.45; color: #E5E7EB; word-break: break-all; }
-
-/* 消息栏 */
-.composer { flex: none; padding: 16rpx 32rpx calc(16rpx + env(safe-area-inset-bottom)); background: #181A20; border-top: 1px solid #24272F; }
-.cmp-row { display: flex; align-items: center; }
-.cmp-input { flex: 1; height: 88rpx; box-sizing: border-box; padding: 0 10rpx 0 28rpx; border-radius: 28rpx; background: #1F222A; display: flex; align-items: center; }
-.cmp-field { flex: 1; height: 88rpx; font-size: 28rpx; color: #FFFFFF; }
-.cmp-ph { color: #6B7280; }
-.cmp-send { width: 68rpx; height: 68rpx; flex: none; border-radius: 20rpx; background: #35383F; display: flex; align-items: center; justify-content: center; }
-.cmp-more { width: 88rpx; height: 88rpx; flex: none; margin-left: 16rpx; border-radius: 50%; background: #262A34; display: flex; align-items: center; justify-content: center; transition: transform .2s ease; }
-.cmp-more-on { transform: rotate(45deg); }
-.panel { padding-top: 28rpx; }
-.panel-title { display: block; margin-bottom: 20rpx; font-size: 24rpx; color: #6B7280; }
-.panel-grid { display: flex; }
-.cp { flex: 1; display: flex; flex-direction: column; align-items: center; }
-.cp-ic { width: 104rpx; height: 104rpx; box-sizing: border-box; border-radius: 28rpx; background: #1F222A; border: 2rpx solid #262A34; display: flex; align-items: center; justify-content: center; }
-.cp-on .cp-ic { background: #2A1216; border-color: #DC0000; }
-.cp-t { margin-top: 12rpx; font-size: 22rpx; color: #9CA3AF; }
-.cp-on .cp-t { color: #FFFFFF; }
-
-.mask { position: fixed; z-index: 50; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, .25); }
+/* 页面深灰、输入栏和抽屉略亮、Timer 接近黑色；主要文字暖白，辅助文字清楚的灰；间距以 8px 为单位 */
+.room { position: relative; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #1B1D22; }
+.press { opacity: .8; }
+.press-soft { opacity: .85; }
+.font-sys { font-family: "PingFang SC", sans-serif !important; font-weight: 700; }
+.nav { flex: none; padding-left: 12px; box-sizing: border-box; display: flex; align-items: center; }
+.nav-back { width: 44px; height: 44px; flex: none; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
+.nav-name { margin-left: 12px; flex: 1; min-width: 0; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 24px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.col-a { flex: none; display: flex; flex-direction: column; }
+.col-b { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 赛事状态栏 */
+.status { height: 40px; padding: 0 16px; display: flex; align-items: center; }
+.st-lv { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 22px; color: #F3EEE6; }
+.st-el { margin-left: 8px; font-size: 13px; color: #A9AEB8; }
+.st-state { margin-left: auto; display: flex; align-items: center; font-size: 15px; font-weight: 600; }
+.st-dot { width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+/* 摘要（键盘或表情面板打开时） */
+.summary { height: 0; margin: 0 12px; padding: 0 16px; border-radius: 16px; background: #0D0E11; overflow: hidden; opacity: 0; display: flex; align-items: center; transition: height 240ms ease, opacity 200ms ease; }
+.summary-on { height: 48px; opacity: 1; }
+.sm-time { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 24px; }
+.sm-b { margin-left: 12px; flex: 1; min-width: 0; font-size: 14px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-s { margin-left: 8px; font-size: 13px; font-weight: 600; }
+/* 内容展示区 */
+.stage { position: relative; margin: 0 12px; border-radius: 16px; background: #0D0E11; overflow: hidden; display: flex; flex-direction: column; transition: height 240ms ease, opacity 200ms ease; }
+.stage-hide { height: 0 !important; opacity: 0; }
+.pages { width: 100%; flex: 1; min-height: 0; }
+.pg { height: 100%; box-sizing: border-box; }
+.dots { height: 24px; flex: none; display: flex; align-items: center; justify-content: center; }
+.dot { width: 6px; height: 6px; margin: 0 4px; border-radius: 3px; background: #4B4F58; transition: width 240ms ease, background 240ms ease; }
+.dot-on { width: 18px; background: #F3EEE6; }
+/* 签到墙 */
+.wall { padding: 16px 8px 32px; }
+.wall-t { display: block; text-align: center; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 24px; color: #F3EEE6; }
+.wall-grid { margin-top: 16px; display: flex; flex-wrap: wrap; }
+.wall-i { margin: 0 0 12px; padding: 0; line-height: normal; background: transparent; display: flex; flex-direction: column; align-items: center; }
+.wall-i::after { border: none; }
+.wall-av { position: relative; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; }
+.wall-seat { position: absolute; right: -4px; bottom: -4px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: #F3EEE6; color: #0D0E11; font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; }
+.wall-av-inv { background: #33363E; }
+.wall-n { margin-top: 6px; max-width: 100%; font-size: 12px; color: #E5E2DB; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wall-n-inv { color: #A9AEB8; }
+/* Timer */
+.tm { padding: 12px 12px 8px; }
+.tm-top { height: 28px; display: flex; align-items: center; justify-content: space-between; }
+.tm-tag { padding: 2px 8px; border-radius: 6px; background: #2D5BD8; font-size: 13px; font-weight: 700; color: #FFFFFF; }
+.tm-brk { display: flex; align-items: baseline; }
+.tm-brk-k { font-size: 13px; color: #A9AEB8; }
+.tm-brk-v { margin-left: 6px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 20px; color: #F3EEE6; }
+.clock { margin-top: 8px; display: flex; align-items: center; justify-content: center; }
+.clock-gap { width: 6px; }
+.colon { width: 22px; display: flex; flex-direction: column; align-items: center; }
+.colon-dot { width: 6px; height: 6px; margin: 5px 0; border-radius: 1px; }
+.prog { height: 4px; margin: 16px 24px 0; border-radius: 2px; background: #2C2F36; overflow: hidden; }
+.prog-fill { height: 100%; border-radius: 2px; background: #F3EEE6; transition: width 1s linear; }
+.tm-row { margin-top: 16px; display: flex; align-items: flex-start; justify-content: space-around; }
+.tm-struct { width: 56px; height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tm-struct-t { margin-top: 4px; font-size: 12px; color: #C9CDD4; }
+.bl { display: flex; flex-direction: column; align-items: center; }
+.bl-cap { margin-top: 6px; font-size: 12px; color: #C9CDD4; }
+.struct { margin-top: 16px; }
+.tr { height: 36px; display: flex; align-items: center; border-bottom: 1px solid #22252B; }
+.tr-head { height: 28px; }
+.tr-head .tc { font-size: 12px; color: #8E929B; }
+.tr-cur { background: #17191E; }
+.tc { flex: 1; text-align: center; font-size: 13px; color: #E5E2DB; }
+/* 玩法页 */
+.play { padding: 16px 16px 32px; }
+.play-t { display: block; font-size: 16px; font-weight: 700; color: #F3EEE6; }
+.play-s { display: block; margin-top: 12px; font-size: 12px; color: #A9AEB8; }
+.play-s-top { margin-top: 4px; margin-bottom: 8px; }
+.play-acts { margin-top: 16px; display: flex; justify-content: center; }
+.cards { margin-top: 24px; display: flex; justify-content: center; }
+.cd { position: relative; width: 52px; height: 72px; margin: 0 4px; border-radius: 6px; background: #F3EEE6; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.cd-back { background: repeating-linear-gradient(45deg, #2D5BD8 0 6px, #2148B0 6px 12px); border: 2px solid #F3EEE6; box-sizing: border-box; }
+.cd-deal { animation: cd-in 360ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cd-in { from { transform: translateY(-24px) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.cd-r { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 24px; }
+.cd-s { margin-top: 2px; }
+.ticker { margin-top: 24px; height: 44px; border-radius: 8px; background: #17191E; overflow: hidden; display: flex; align-items: center; }
+.mq { display: flex; white-space: nowrap; animation: mq-run linear infinite; }
+@keyframes mq-run { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.mq-msg { margin-right: 28px; font-size: 16px; }
+.mq-notice { color: #FFC53A; }
+.mq-danmaku { color: #F3EEE6; }
+.pot-r { height: 44px; display: flex; align-items: center; border-bottom: 1px solid #22252B; }
+.pot-n { flex: 1; font-size: 14px; color: #E5E2DB; }
+.pot-in { width: 120px; height: 32px; padding: 0 8px; border-radius: 8px; background: #22252B; text-align: right; font-size: 15px; color: #F3EEE6; }
+.pot-ph { color: #6E737C; }
+.pot-res { margin-top: 12px; padding: 12px; border-radius: 12px; background: #17191E; display: flex; flex-wrap: wrap; align-items: baseline; }
+.pot-res-k { font-size: 14px; color: #C9CDD4; }
+.pot-res-v { margin-left: 8px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 20px; color: #F3EEE6; }
+.pot-res-s { width: 100%; margin-top: 4px; font-size: 12px; color: #A9AEB8; }
+/* 成员概览 */
+.members { height: 56px; padding: 0 16px; display: flex; align-items: center; }
+.stack { display: flex; }
+.sk-av { position: relative; width: 36px; height: 36px; margin-right: -10px; border-radius: 50%; border: 2px solid #1B1D22; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
+.mb-n { margin-left: 18px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 22px; color: #F3EEE6; }
+.mb-s { margin-left: 8px; font-size: 12px; color: #A9AEB8; }
+/* 气泡弹幕区：在成员概览和输入栏之间，靠左、贴着下沿 */
+.dm-area { flex: 1; min-height: 0; padding: 0 16px 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
+.bottom { flex: none; background: #1B1D22; transition: padding-bottom 200ms ease; }
+/* 横屏：左边赛事区，右边交流区 */
+.room-land .main { flex-direction: row; }
+.room-land .col-a { width: 56%; }
+.room-land .col-b { width: 44%; }
+/* 更多抽屉：在输入栏下面；打开时输入栏和抽屉一起浮在屏幕底部（遮罩上面），原位置留一个同样高的占位 */
+.bottom-top { position: fixed; z-index: 160; left: 0; right: 0; bottom: 0; }
+.room-land .bottom-top { left: 56%; }
+.bottom-spacer { flex: none; height: calc(64px + env(safe-area-inset-bottom)); }
+.dr-mask { position: fixed; z-index: 150; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0); transition: background 240ms ease; }
+.dr-mask-on { background: rgba(0, 0, 0, .55); }
+.dr-sheet { max-height: 0; overflow: hidden; background: #2C2F36; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; transition: max-height 260ms cubic-bezier(.2, .8, .2, 1); }
+.dr-on { max-height: 64vh; }
+.dr-grab-area { height: 24px; flex: none; display: flex; align-items: center; justify-content: center; }
+.dr-grab { width: 36px; height: 4px; border-radius: 2px; background: #4B4F58; }
+.dr-body { flex: 1; min-height: 0; max-height: calc(64vh - 24px - 88px); }
+.dr-panel { padding: 0 16px 16px; animation-duration: 240ms; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+.dr-from-r { animation-name: dr-in-r; }
+.dr-from-l { animation-name: dr-in-l; }
+@keyframes dr-in-r { from { transform: translateX(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes dr-in-l { from { transform: translateX(-32px); opacity: 0; } to { transform: none; opacity: 1; } }
+.dp-t { display: block; font-size: 17px; font-weight: 700; color: #F3EEE6; }
+.dp-h { display: block; margin-top: 16px; font-size: 13px; color: #A9AEB8; }
+.dp-s { display: block; margin-top: 16px; font-size: 12px; color: #A9AEB8; }
+.img-acts { margin-top: 16px; display: flex; }
+.img-a { flex: 1; height: 96px; border-radius: 16px; background: #383C45; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.img-a:first-child { margin-right: 12px; }
+.img-a-t { margin-top: 8px; font-size: 14px; color: #F3EEE6; }
+.hosts { margin-top: 12px; display: flex; flex-wrap: wrap; }
+.host-chip { margin: 0 8px 8px 0; height: 32px; padding: 0 12px; border-radius: 16px; background: #383C45; display: flex; align-items: center; }
+.host-n { font-size: 14px; color: #F3EEE6; }
+.host-r { margin-left: 6px; font-size: 12px; color: #A9AEB8; }
+.hgrid { margin-top: 8px; display: flex; flex-wrap: wrap; justify-content: space-between; }
+.hbtn { width: 31%; height: 64px; margin-bottom: 8px; border-radius: 12px; background: #383C45; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hbtn-t { margin-top: 4px; font-size: 13px; color: #F3EEE6; }
+.notice-row { margin-top: 8px; display: flex; align-items: center; }
+.notice-in { flex: 1; min-width: 0; height: 44px; padding: 0 12px; border-radius: 12px; background: #383C45; font-size: 14px; color: #F3EEE6; }
+.ph { color: #8E929B; }
+.pbtn { height: 44px; margin-left: 8px; padding: 0 16px; border-radius: 12px; background: #5865F2; display: flex; align-items: center; }
+.pbtn-off { background: #383C45; }
+.pbtn-t { margin-left: 4px; font-size: 14px; font-weight: 600; color: #FFFFFF; }
+.pl-row { height: 64px; display: flex; align-items: center; border-bottom: 1px solid #383C45; }
+.pl-ic { width: 40px; height: 40px; flex: none; border-radius: 12px; background: #383C45; display: flex; align-items: center; justify-content: center; }
+.pl-main { flex: 1; min-width: 0; margin: 0 12px; display: flex; flex-direction: column; }
+.pl-n { font-size: 15px; font-weight: 600; color: #F3EEE6; }
+.pl-d { margin-top: 2px; font-size: 12px; color: #A9AEB8; }
+.pl-st { font-size: 13px; color: #A9AEB8; }
+.pl-st-on { color: #3FCF84; }
+.sc-head { display: flex; align-items: baseline; justify-content: space-between; }
+.sc-sum { font-size: 12px; color: #A9AEB8; }
+.sc-row { height: 52px; display: flex; align-items: center; border-bottom: 1px solid #383C45; }
+.sc-rank { width: 24px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 16px; color: #8E929B; }
+.sc-rank-top { color: #FFC53A; }
+.sc-av { width: 32px; height: 32px; margin-left: 4px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+.sc-n { flex: 1; min-width: 0; margin-left: 12px; font-size: 14px; color: #F3EEE6; }
+.sc-step { display: flex; align-items: center; }
+.sc-b { width: 32px; height: 32px; border-radius: 8px; background: #383C45; display: flex; align-items: center; justify-content: center; }
+.sc-v { min-width: 72px; text-align: center; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 16px; color: #F3EEE6; }
+/* 悬浮导航 */
+.dr-nav { flex: none; margin: 8px 12px calc(12px + env(safe-area-inset-bottom)); height: 64px; padding: 0 4px; border-radius: 16px; background: #1B1D22; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); display: flex; align-items: center; }
+.dn { flex: 1; height: 56px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: background 200ms ease; }
+.dn-on { background: #383C45; }
+.dn-t { margin-top: 2px; font-size: 12px; color: #8E929B; }
+.dn-on .dn-t { color: #F3EEE6; font-weight: 600; }
 </style>

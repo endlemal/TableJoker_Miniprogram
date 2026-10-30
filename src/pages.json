@@ -59,12 +59,20 @@
 			}
 		},
 		{
+			"path": "pages/room/chat",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "房间弹幕列表"
+			}
+		},
+		{
       "path": "pages/webview/index",
       "style": { "navigationStyle": "default", "navigationBarTitleText": "活动", "navigationBarBackgroundColor": "#181A20", "navigationBarTextStyle": "white" }
     },
     {
       "path": "pages/room/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "房间", "disableScroll": true }
+      "style": {
+				"pageOrientation": "auto", "navigationStyle": "custom", "navigationBarTitleText": "房间", "disableScroll": true }
     }
   ],
   "globalStyle": {
