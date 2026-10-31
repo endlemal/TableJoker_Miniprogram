@@ -1,21 +1,24 @@
-// 记分工具在房间里的运行：牌桌、入座 / 离桌、自动开局、演示玩家（机器人）出分、轮到自己时的倒计时、收分（选赢家）、
-// 主持人开桌 / 删桌、调整资产。资产就是「记分」：牌桌上的记分和记分面板是同一份（assets）。
-// start 是每人的起点：排行里的累计盈亏 = 现在的资产 − 起点；主持人调整资产时起点跟着移动，所以加减的那部分不算盈亏。
-// 演示：其他玩家由机器人代打，没人选赢家时随机选；正式环境由服务端判定和广播，每位玩家在自己的手机上出分，收分由桌上的人确认
+// 记分工具在房间里的运行：牌桌、入座 / 离桌、自动开局、演示玩家（机器人）出分、轮到谁的倒计时、收分（主持人指定赢家 → 赢家收分）、
+// 主持人开桌 / 删桌、调整资产，以及把出分、收分变成房间里的事件消息。
+// 资产就是「记分」：牌桌上的记分和记分面板是同一份（assets）。start 是每人的起点：排行里的累计盈亏 = 现在的资产 − 起点；
+// 主持人调整资产时起点跟着移动，所以加减的那部分不算盈亏。
+// 演示：其他玩家由机器人代打；自己是主持人时由自己指定赢家，否则模拟主持人自动指定。正式环境由服务端判定和广播
 import { reactive } from 'vue'
 import * as T from './tally.js'
+import { addEvent } from './room-chat.js'
 
-export const ACT_SECONDS = 20
-export const PICK_SECONDS = 20
+export const ACT_SECONDS = 20 // 每人出分的决策时间（头像上的环形倒计时）
+export const DESIGNATE_SECONDS = 30 // 主持人指定赢家
+export const COLLECT_SECONDS = 20 // 赢家收分
 export const tally = reactive({
-  tables: [], assets: {}, start: {}, members: [], me: '', blinds: { sb: 100, bb: 200, ante: 0 },
+  tables: [], assets: {}, start: {}, members: [], me: '', iAmHost: false, blinds: { sb: 100, bb: 200, ante: 0 },
   turnLeft: 0, on: false,
-  // 自己这桌在收分时的选择：pending 是要选赢家的池（下标），k 是现在选到第几个，sel 是这个池选中的座位，picks 是已经确认的
-  pick: null
+  picks: {} // 主持人正在指定的赢家：{ [池的下标]: [座位号] }（自己这桌）
 })
 let seq = 0
 const memberOf = (name) => tally.members.find((m) => m.name === name)
 const asPlayer = (m) => ({ pid: m.name, name: m.name, c: m.c, bg: m.bg, fg: m.fg, stack: tally.assets[m.name] || 0, bot: m.name !== tally.me })
+const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 // 第一次进房间时：每人的资产（起始记分上下浮动），开一张 9 人桌，先坐 6 个人（不包括自己）
 export function initTally(members, me, startScore) {
@@ -34,19 +37,19 @@ export function createTable(size) {
   let no = 1
   while (used.includes(no)) no++
   const t = T.createTable({ id: 't' + ++seq, name: no + ' 号桌', size })
-  t.no = no
+  Object.assign(t, { no, turnStart: 0, turnEnd: 0 })
   tally.tables.push(t)
   tally.tables.sort((a, b) => a.no - b.no)
   return tally.tables.find((x) => x.id === t.id)
 }
-// 删桌：正在进行的这一手退回投入，所有人离座
+// 删桌：没指定赢家的退回投入，已经指定的照样发给赢家；所有人离座
 export function removeTable(id) {
   const t = tally.tables.find((x) => x.id === id)
   if (!t) return
   T.abortHand(t)
+  flushLog(t)
   syncAssets(t)
   tally.tables = tally.tables.filter((x) => x.id !== id)
-  if (tally.pick && tally.pick.tableId === id) tally.pick = null
 }
 const syncAssets = (t) => t.seats.forEach((s) => { if (s) tally.assets[s.pid] = s.stack })
 export const mySpot = () => {
@@ -72,9 +75,10 @@ export function leaveTable() {
   const cur = mySpot()
   if (!cur) return
   T.forfeit(cur.t, cur.i)
+  flushLog(cur.t)
   syncAssets(cur.t)
   cur.t.seats[cur.i] = null
-  tally.pick = null
+  tally.picks = {}
 }
 // 主持人调整资产：立刻生效（在座的人改的是还没投入的记分）；起点跟着移动，排行里的累计盈亏不受影响
 export function setAssets(name, value) {
@@ -87,99 +91,133 @@ export function myAct(action, to) {
   const cur = mySpot()
   if (!cur) return '你还没入座'
   const r = T.act(cur.t, cur.i, action, to)
-  if (r.ok) { cur.t._deadline = 0; arm(cur.t, Date.now()) }
+  if (r.ok) { flushLog(cur.t); trackTurn(cur.t, Date.now()) }
   return r.ok ? '' : r.error
 }
-// 轮到自己（出分或收分）的那一刻就开始倒计时，倒计时从满格开始显示（不等下一次推进）
-function arm(t, now) {
+
+/* ---------- 收分：主持人指定每个池的赢家（平手多选），赢家再各自收分 ---------- */
+export function togglePick(k, seat) {
+  const cur = mySpot()
+  if (!tally.iAmHost || !cur || !cur.t.hand || cur.t.hand.street !== 'collect') return
+  const pot = cur.t.hand.pots[k]
+  if (!pot || pot.winners || !pot.elig.includes(seat)) return
+  const sel = tally.picks[k] || []
+  tally.picks = { ...tally.picks, [k]: sel.includes(seat) ? sel.filter((x) => x !== seat) : sel.concat([seat]) }
+}
+export function confirmDesignation() {
+  const cur = mySpot()
+  if (!cur || !cur.t.hand || cur.t.hand.street !== 'collect') return '现在不能指定赢家'
+  const picks = cur.t.hand.pots.map((p, k) => p.winners || tally.picks[k] || [])
+  const r = T.designate(cur.t, picks)
+  if (r.ok) { tally.picks = {}; cur.t._deadline = 0 }
+  return r.ok ? '' : r.error
+}
+export function myCollect(k) {
+  const cur = mySpot()
+  if (!cur) return '你还没入座'
+  const r = T.collect(cur.t, k, cur.i)
+  if (r.ok) { flushLog(cur.t); cur.t._deadline = 0 }
+  return r.ok ? '' : r.error
+}
+
+/* ---------- 事件：出分（盲注、跟注、加注、全下）和收分，插进房间消息 ---------- */
+function flushLog(t) {
   const h = t.hand
-  if (!h || t._deadline) return
+  if (!h || !h.log) return
+  if (t._logHand !== t.handNo) { t._logHand = t.handNo; t._logN = 0 }
+  while (t._logN < h.log.length) {
+    const e = h.log[t._logN++]
+    const s = h.seatRef[e.seat]
+    if (!s) continue
+    let text
+    if (e.kind === 'collect') text = `收分 ${fmt(e.amount)}${e.potCount > 1 ? (e.pot === 0 ? '（主池）' : `（边池 ${e.pot}）`) : ''}`
+    else if (e.kind === 'blind') text = `${e.text} ${fmt(e.amount)}`
+    else if (e.text === '加注') text = `加注到 ${fmt(e.to)}`
+    else text = `${e.text} ${fmt(e.amount)}`
+    // 只有一张桌时不用写桌名
+    addEvent(s, tally.tables.length > 1 ? `${t.name} · ${text}` : text, e.kind === 'collect' ? 'collect' : 'bet')
+  }
+}
+// 轮到谁：换人的那一刻记下开始和结束时间（头像上的环形倒计时用）；自己的倒计时立刻从满格开始
+function trackTurn(t, now) {
+  const h = t.hand
+  const actor = h && T.ROUND_NAME[h.street] && h.toAct >= 0 && ['preflop', 'flop', 'turn', 'river'].includes(h.street) ? h.toAct : -1
+  const key = t.handNo + ':' + h.street + ':' + actor + ':' + (h ? h.log.length : 0)
+  if (actor < 0) { t.turnStart = 0; t.turnEnd = 0; t._turnKey = ''; return }
+  if (t._turnKey === key) return
+  t._turnKey = key
+  t.turnStart = now
+  t.turnEnd = now + ACT_SECONDS * 1000
   const mine = mySpot()
-  if (!mine || mine.t.id !== t.id) return
-  if (h.street === 'collect') { t._deadline = now + PICK_SECONDS * 1000; tally.turnLeft = PICK_SECONDS; return }
-  if (h.street !== 'done' && h.toAct === mine.i) { t._deadline = now + ACT_SECONDS * 1000; tally.turnLeft = ACT_SECONDS }
+  if (mine && mine.t.id === t.id && mine.i === actor) tally.turnLeft = ACT_SECONDS
 }
 
-/* ---------- 收分：自己这桌由自己选赢家（一个池一个池地选，可以多选平分） ---------- */
-export const currentPot = () => {
-  const p = tally.pick
-  if (!p) return null
-  const t = tally.tables.find((x) => x.id === p.tableId)
-  if (!t || !t.hand || t.hand.street !== 'collect') return null
-  const k = p.pending[p.k]
-  return { t, k, pot: t.hand.pots[k], no: p.k, total: p.pending.length }
-}
-export function togglePick(seat) {
-  const c = currentPot()
-  if (!c || !c.pot.elig.includes(seat)) return
-  const sel = tally.pick.sel
-  tally.pick.sel = sel.includes(seat) ? sel.filter((x) => x !== seat) : sel.concat([seat])
-}
-export function confirmPick() {
-  const c = currentPot()
-  if (!c) return '现在不能收分'
-  if (!tally.pick.sel.length) return '先点选收分的人'
-  tally.pick.picks[c.k] = tally.pick.sel.slice()
-  tally.pick.sel = []
-  tally.pick.k += 1
-  if (tally.pick.k < tally.pick.pending.length) return ''
-  const r = T.award(c.t, tally.pick.picks)
-  c.t._deadline = 0
-  tally.pick = null
-  return r.ok ? '' : r.error
-}
-
-/* ---------- 每 300ms 推进一次：开局、机器人出分、自己的倒计时、收分 ---------- */
+/* ---------- 每 300ms 推进一次 ---------- */
 function step() {
   const now = Date.now()
   const mine = mySpot()
   tally.tables.forEach((t) => {
     const h = t.hand
+    flushLog(t)
     if (!h || h.street === 'done') {
       if (h && !t._synced) { syncAssets(t); t._synced = true }
-      if (!t._nextAt) t._nextAt = now + (h ? 3600 : 1500) // 上一手结束后留 3 秒多看结果
+      if (!t._nextAt) t._nextAt = now + (h ? 3200 : 1500) // 上一手结束后留 3 秒看结果
       if (now >= t._nextAt) {
         t._nextAt = 0
-        if (T.startHand(t, tally.blinds)) { t._synced = false; t._botAt = 0; t._deadline = 0; arm(t, now) }
+        if (T.startHand(t, tally.blinds)) { t._synced = false; t._botAt = 0; t._deadline = 0; flushLog(t); trackTurn(t, now) }
       }
       return
     }
+    const atMine = !!(mine && mine.t.id === t.id)
+    // 指定赢家：自己是主持人、坐在这桌，由自己指定；否则模拟主持人自动指定
     if (h.street === 'collect') {
-      const atMine = mine && mine.t.id === t.id
-      if (atMine) {
-        if (!tally.pick || tally.pick.tableId !== t.id) tally.pick = { tableId: t.id, pending: T.pendingPots(t), k: 0, sel: [], picks: [] }
-        if (!t._deadline) t._deadline = now + PICK_SECONDS * 1000
-        tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
-      } else if (!t._deadline) t._deadline = now + 2500
-      // 超时没选：演示里随机选（正式环境由桌上的人确认）
+      const byMe = atMine && tally.iAmHost
+      if (!t._deadline) t._deadline = now + (byMe ? DESIGNATE_SECONDS * 1000 : 2500)
+      if (byMe) tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
       if (now >= t._deadline) {
         t._deadline = 0
         const picks = T.botPicks(t)
-        if (atMine && tally.pick) tally.pick.picks.forEach((w, k) => { if (w) picks[k] = w })
-        T.award(t, picks)
-        if (atMine) tally.pick = null
+        if (byMe) h.pots.forEach((p, k) => { if (!p.winners && (tally.picks[k] || []).length) picks[k] = tally.picks[k] })
+        T.designate(t, picks)
+        if (byMe) tally.picks = {}
       }
       return
     }
+    // 收分：机器人赢家依次收分（桌面分逐个倒数）；自己赢了的那份要自己点「收分」，20 秒没点自动收
+    if (h.street === 'payout') {
+      const u = T.unpaid(t)
+      const bot = u.find((x) => !atMine || x.seat !== mine.i)
+      if (bot) {
+        if (!t._botAt) t._botAt = now + 900 + Math.random() * 700
+        if (now >= t._botAt) { t._botAt = 0; T.collect(t, bot.k, bot.seat); flushLog(t) }
+      } else if (u.length) {
+        if (!t._deadline) t._deadline = now + COLLECT_SECONDS * 1000
+        tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
+        if (now >= t._deadline) { t._deadline = 0; u.forEach((x) => T.collect(t, x.k, x.seat)); flushLog(t) }
+      }
+      return
+    }
+    // 出分
+    trackTurn(t, now)
     const seat = t.seats[h.toAct]
     if (!seat) { T.forfeit(t, h.toAct); return }
     if (seat.bot) {
-      if (!t._botAt) t._botAt = now + 650 + Math.random() * 900
+      if (!t._botAt) t._botAt = now + 700 + Math.random() * 1100
       if (now >= t._botAt) {
         t._botAt = 0
         const a = T.botAction(t, h.toAct)
         if (!a || !T.act(t, h.toAct, a.action, a.to).ok) { const o = T.options(t, h.toAct); if (o) T.act(t, h.toAct, o.canCheck ? 'check' : 'fold') }
-        arm(t, now)
+        flushLog(t)
+        trackTurn(t, now)
       }
     } else {
-      // 轮到自己：倒计时，超时自动过牌（不能过牌就弃牌）
-      if (!t._deadline) t._deadline = now + ACT_SECONDS * 1000
-      tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
-      if (now >= t._deadline) {
-        t._deadline = 0
+      // 轮到自己：倒计时用这一轮的结束时间，超时自动过牌（不能过牌就弃牌）
+      tally.turnLeft = Math.max(0, Math.ceil((t.turnEnd - now) / 1000))
+      if (now >= t.turnEnd) {
         const o = T.options(t, h.toAct)
         if (o) T.act(t, h.toAct, o.canCheck ? 'check' : 'fold')
-        arm(t, now)
+        flushLog(t)
+        trackTurn(t, now)
       }
     }
   })

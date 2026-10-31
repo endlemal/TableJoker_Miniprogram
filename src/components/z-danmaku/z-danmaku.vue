@@ -1,18 +1,21 @@
 <template>
   <!-- 直播间式气泡弹幕：靠左，最新的在最下面，越早的越淡 -->
   <view class="dmk">
-    <view v-for="(m, i) in shown" :key="m.id" class="dmk-i" :style="'opacity:' + fadeOf(i)" @tap="emit('open')">
+    <view v-for="(m, i) in shown" :key="m.id" class="dmk-i" :class="{ 'dmk-ev': m.kind === 'event' }" :style="'opacity:' + fadeOf(i)" @tap="emit('open')">
       <view v-if="m.kind === 'system'" class="dmk-av dmk-sys"><z-icon name="pin" :size="13" color="#C9CDD4" /></view>
       <view v-else class="dmk-av" :style="'background:' + m.from.bg + ';color:' + m.from.fg"><text class="dmk-c">{{ m.from.c }}</text></view>
-      <view class="dmk-b" :class="{ 'dmk-b-sys': m.kind === 'system' }">
-        <text class="dmk-t"><text v-if="m.kind !== 'system'" class="dmk-n">{{ m.from.name }}：</text>{{ m.text }}</text>
+      <view class="dmk-b" :class="{ 'dmk-b-sys': m.kind === 'system', 'dmk-b-bet': m.kind === 'event' && m.tone !== 'collect', 'dmk-b-win': m.kind === 'event' && m.tone === 'collect' }">
+        <!-- 出分、收分事件：头像在右边，「阿林 跟注 800」 -->
+        <text v-if="m.kind === 'event'" class="dmk-t"><text class="dmk-n">{{ m.from.name }} </text>{{ m.text }}</text>
+        <text v-else class="dmk-t"><text v-if="m.kind !== 'system'" class="dmk-n">{{ m.from.name }}：</text>{{ m.text }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
-// 只负责主界面的展示：显示最近几条，较早的逐渐变淡；完整的消息记录在「房间弹幕列表」页
+// 只负责主界面的展示：显示最近几条，较早的逐渐变淡；完整的消息记录在「房间弹幕列表」页。
+// 记分工具的出分、收分事件靠右显示（头像在右边），和聊天区分开
 import { computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 
@@ -34,6 +37,10 @@ const fadeOf = (i) => FADE[Math.min(FADE.length - 1, shown.value.length - 1 - i)
 .dmk-b { margin-left: 8px; padding: 5px 12px; border-radius: 16px; background: rgba(24, 26, 32, .72); border: 1px solid rgba(243, 238, 230, .28); }
 .dmk-t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .dmk-b-sys { border-color: rgba(201, 205, 212, .2); }
+.dmk-ev { align-self: flex-end; flex-direction: row-reverse; }
+.dmk-ev .dmk-b { margin-left: 0; margin-right: 8px; }
+.dmk-b-bet { border-color: rgba(183, 210, 138, .55); background: rgba(40, 52, 30, .72); }
+.dmk-b-win { border-color: rgba(255, 197, 58, .7); background: rgba(64, 50, 16, .72); }
 .dmk-n { font-size: 14px; line-height: 20px; color: #C9CDD4; }
 .dmk-t { font-size: 14px; line-height: 20px; color: #F3EEE6; word-break: break-all; }
 .dmk-b-sys .dmk-t { color: #C9CDD4; }

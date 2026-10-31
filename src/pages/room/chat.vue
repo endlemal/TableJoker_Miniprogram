@@ -8,8 +8,13 @@
 
     <!-- 完整的消息记录：头像、昵称、时间、正文；和房间页的气泡弹幕是同一份数据 -->
     <scroll-view scroll-y class="list" :scroll-into-view="anchor" :scroll-with-animation="smooth" @scroll="onScroll">
-      <view v-for="m in rows" :id="'m' + m.id" :key="m.id" class="cm" :class="{ 'cm-sys': m.kind === 'system', 'cm-msg': m.kind !== 'system', 'cm-grouped': m.grouped, 'cm-act': actOn === m.id }" @tap="tapMsg(m)">
-        <block v-if="m.kind === 'system'">
+      <view v-for="m in rows" :id="'m' + m.id" :key="m.id" class="cm" :class="{ 'cm-sys': m.kind === 'system' || m.kind === 'event', 'cm-msg': m.kind !== 'system' && m.kind !== 'event', 'cm-grouped': m.grouped, 'cm-act': actOn === m.id }" @tap="tapMsg(m)">
+        <!-- 记分工具的出分、收分事件：显示成系统消息 -->
+        <block v-if="m.kind === 'event'">
+          <view class="cm-pin"><z-icon name="abacus" :size="16" :color="m.tone === 'collect' ? '#FFC53A' : '#B7D28A'" /></view>
+          <view class="cm-main"><text class="cm-sys-t"><text class="cm-ev-n">{{ m.from.name }}</text> {{ m.text }}</text><text class="cm-time cm-time-sys">{{ hhmm(m.at) }}</text></view>
+        </block>
+        <block v-else-if="m.kind === 'system'">
           <view class="cm-pin"><z-icon name="pin" :size="16" color="#A9AEB8" /></view>
           <view class="cm-main"><text class="cm-sys-t">{{ m.text }}</text><text class="cm-time cm-time-sys">{{ hhmm(m.at) }}</text></view>
         </block>
@@ -103,7 +108,8 @@ const noop = () => {}
 const GROUP_MS = 5 * 60000
 const rows = computed(() => chat.list.map((m, i) => {
   const prev = chat.list[i - 1]
-  const grouped = !!(prev && m.kind !== 'system' && prev.kind !== 'system' && !m.reply && prev.from.name === m.from.name && m.at - prev.at < GROUP_MS)
+  const plain = (x) => x.kind === 'text' || x.kind === 'image'
+  const grouped = !!(prev && plain(m) && plain(prev) && !m.reply && prev.from.name === m.from.name && m.at - prev.at < GROUP_MS)
   return { ...m, grouped }
 }))
 /* ---------- 点一条消息：喜欢、表情反应、回复 ---------- */
@@ -111,7 +117,7 @@ const actOn = ref(0)
 const replyTo = ref(null)
 const reactTo = ref(null)
 function tapMsg(m) {
-  if (m.kind === 'system') { actOn.value = 0; return }
+  if (m.kind === 'system' || m.kind === 'event') { actOn.value = 0; return }
   actOn.value = actOn.value === m.id ? 0 : m.id
 }
 const reactionsOf = (m) => Object.entries(m.reactions || {}).map(([e, who]) => ({ e, n: who.length, mine: who.includes(ME.name) }))
@@ -233,6 +239,7 @@ onUnload(() => stopDemoFeed('chat'))
 .cm-sys { padding-top: 6px; padding-bottom: 6px; }
 .cm-pin { width: 40px; flex: none; display: flex; justify-content: center; padding-top: 2px; }
 .cm-sys-t { font-size: 14px; line-height: 1.5; color: #C9CDD4; }
+.cm-ev-n { color: #F3EEE6; font-weight: 600; }
 .cm-time-sys { margin-left: 0; margin-top: 2px; }
 .list-end { height: 16px; }
 .cm { position: relative; }

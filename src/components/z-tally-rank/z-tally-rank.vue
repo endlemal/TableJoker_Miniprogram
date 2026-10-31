@@ -7,9 +7,14 @@
         <text class="ztr-rank" :class="{ 'ztr-rank-top': r.rank < 3 }">{{ r.rank + 1 }}</text>
         <view class="ztr-av" :style="'background:' + r.bg + ';color:' + r.fg"><text>{{ r.c }}</text></view>
         <view class="ztr-main">
-          <view class="ztr-bar-w"><view class="ztr-bar" :style="'width:' + r.w + '%;background:' + r.bar"></view><text class="ztr-n">{{ r.name }}</text></view>
+          <view class="ztr-bar-w">
+            <view class="ztr-bar" :style="'width:' + r.w + '%;background:' + r.bar"></view>
+            <text class="ztr-n">{{ r.name }}</text>
+            <!-- 累计盈亏放在条里，变化时滚动计数 -->
+            <view class="ztr-d" :class="r.d > 0 ? 'ztr-up' : r.d < 0 ? 'ztr-down' : ''"><z-count v-if="r.d" :value="r.d" sign :duration="900" /><text v-else>持平</text></view>
+          </view>
         </view>
-        <view class="ztr-side"><text class="ztr-v">{{ fmt(r.v) }}</text><text class="ztr-d" :class="r.d > 0 ? 'ztr-up' : r.d < 0 ? 'ztr-down' : ''">{{ r.d > 0 ? '+' : r.d < 0 ? '−' : '' }}{{ r.d ? fmt(Math.abs(r.d)) : '持平' }}</text></view>
+        <view class="ztr-side"><view class="ztr-v"><z-count :value="r.v" :duration="900" /></view></view>
       </view>
     </view>
   </view>
@@ -18,6 +23,7 @@
 <script setup>
 // members：房间里所有人；assets：现在的资产；start：起点（累计盈亏 = 现在 − 起点）；highlight：和自己同桌的人
 import { computed } from 'vue'
+import ZCount from '@/components/z-count/z-count.vue'
 
 const props = defineProps({
   members: { type: Array, default: () => [] },
@@ -53,9 +59,10 @@ const list = computed(() => {
 .ztr-n { position: absolute; left: 8px; top: 0; font-size: 12px; line-height: 22px; color: #0D0E11; font-weight: 600; white-space: nowrap; }
 .ztr-hl .ztr-bar-w { box-shadow: inset 0 0 0 1px rgba(243, 238, 230, .35); }
 .ztr-me .ztr-bar-w { box-shadow: inset 0 0 0 2px #8EA1FF; }
-.ztr-side { width: 76px; flex: none; margin-left: 8px; display: flex; flex-direction: column; align-items: flex-end; }
+.ztr-side { width: 64px; flex: none; margin-left: 8px; display: flex; flex-direction: column; align-items: flex-end; }
 .ztr-v { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 13px; line-height: 15px; color: #F3EEE6; }
-.ztr-d { font-size: 10px; line-height: 13px; color: #A9AEB8; }
+/* 条里的盈亏：深色小底，放在任何颜色的条上都看得清 */
+.ztr-d { position: absolute; right: 4px; top: 3px; height: 16px; padding: 0 6px; border-radius: 8px; background: rgba(13, 14, 17, .62); font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 11px; line-height: 16px; color: #C9CDD4; }
 .ztr-up { color: #3FCF84; }
 .ztr-down { color: #FF8A8A; }
 </style>

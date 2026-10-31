@@ -23,7 +23,7 @@
         </view>
 
         <!-- 内容展示区：只能手动左右滑；签到墙、Timer（默认），主持人开启的玩法依次排在 Timer 后面 -->
-        <view class="stage" :class="{ 'stage-hide': compact }" :style="'height:' + stageH + 'px'">
+        <view class="stage" :class="{ 'stage-hide': compact }" :style="'height:' + curStageH + 'px'">
           <swiper class="pages" :current="pageIdx" :autoplay="false" :circular="false" :duration="260" @change="onPage">
             <swiper-item v-for="p in pages" :key="p.key">
               <scroll-view scroll-y class="pg" :class="'pg-' + p.key">
@@ -72,7 +72,7 @@
 
                 <!-- 玩法：记分工具（没入座时是牌桌列表；入座后是自己这桌：玩家纵向排列，右上角看排行） -->
                 <view v-else-if="p.key === 'tally'" class="hp">
-                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="tally.blinds" :height="stageH - 24" :pick-pot="pickPot" :pick-sel="pickSel" :members="tally.members" :assets="tally.assets" :start="tally.start" @leave="leaveTally" @pick="togglePick" />
+                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" @leave="leaveTally" />
                   <view v-else class="tl">
                     <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">我的记分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
                     <view v-for="t in tally.tables" :key="t.id" class="tl-card">
@@ -116,7 +116,7 @@
         </view>
 
         <!-- 成员概览：叠放头像和人数，点开是签到墙 -->
-        <view class="members" hover-class="press-soft" @tap="pageKey = 'wall'">
+        <view v-if="!onTallyPage" class="members" hover-class="press-soft" @tap="pageKey = 'wall'">
           <view class="stack"><view v-for="(m, i) in members.slice(0, 3)" :key="m.name" class="sk-av" :style="'background:' + m.bg + ';color:' + m.fg + ';z-index:' + (3 - i)"><text>{{ m.c }}</text></view></view>
           <text class="mb-n">+{{ Math.max(0, members.length - 3) }}</text>
           <text class="mb-s">{{ members.length }} 人已签到</text>
@@ -125,7 +125,7 @@
 
       <view class="col-b">
         <!-- 气泡弹幕：靠左，最近几条，越早越淡；点了打开完整的房间弹幕列表 -->
-        <view class="dm-area"><z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" @open="openChat" /><z-tally-act v-if="spot" :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" :pick-pot="pickPot" :pick-sel="pickSel" @act="onTallyAct" @confirm="onConfirmPick" /></view>
+        <view class="dm-area"><view class="dm-msgs"><z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" @open="openChat" /></view><z-tally-pot v-if="spot" :table="spot.t" :my-seat="spot.i" :is-host="isHost" :picks="tally.picks" :turn-left="tally.turnLeft" @pick="onPick" @designate="onDesignate" @collect="onCollect" /><z-tally-act v-if="myTurn" :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" @act="onTallyAct" /></view>
 
         <!-- 抽屉打开时输入栏和抽屉一起浮在屏幕底部，这里留出输入栏的位置，房间内容不会被顶上去 -->
         <view v-if="drawer.show" class="bottom-spacer"></view>
@@ -294,7 +294,8 @@ import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
 import ZDanmaku from '@/components/z-danmaku/z-danmaku.vue'
 import ZTallyTable from '@/components/z-tally-table/z-tally-table.vue'
 import ZTallyAct from '@/components/z-tally-act/z-tally-act.vue'
-import { tally, initTally, runTally, mySpot, join, leaveTable, myAct, createTable, removeTable, setAssets, currentPot, togglePick, confirmPick } from '@/common/tally-room.js'
+import ZTallyPot from '@/components/z-tally-pot/z-tally-pot.vue'
+import { tally, initTally, runTally, mySpot, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect } from '@/common/tally-room.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
@@ -542,11 +543,26 @@ function leaveTally() {
     success: ({ confirm }) => { if (confirm) leaveTable() }
   })
 }
-// 收分：自己这桌正在选赢家的池，和已经点选的人
-const pickPot = computed(() => (spot.value ? currentPot() : null))
-const pickSel = computed(() => (tally.pick ? tally.pick.sel : []))
-function onConfirmPick() {
-  const err = confirmPick()
+// 记分工具页：所有在座的人一屏放得下（每人 40px），展示区跟着加高（最多窗口的 62%）；这一页上成员概览先收起，dm-area 留给桌面分
+const onTallyPage = computed(() => pageKey.value === 'tally' && !!spot.value)
+const tallyStageH = computed(() => {
+  const n = spot.value ? spot.value.t.seats.filter(Boolean).length : 0
+  return Math.round(Math.min(win.value.h * 0.62, Math.max(stageH.value, 34 + 6 + n * 40 + 24 + 8)))
+})
+const curStageH = computed(() => (onTallyPage.value ? tallyStageH.value : stageH.value))
+const myTurn = computed(() => {
+  const h = spot.value && spot.value.t.hand
+  return !!(h && ['preflop', 'flop', 'turn', 'river'].includes(h.street) && h.toAct === spot.value.i)
+})
+// 主持人给每个池指定赢家（平手多选）；赢家自己收分
+watch(isHost, (v) => { tally.iAmHost = v }, { immediate: true })
+const onPick = (k, seat) => togglePick(k, seat)
+function onDesignate() {
+  const err = confirmDesignation()
+  if (err) toast(err)
+}
+function onCollect(k) {
+  const err = myCollect(k)
   if (err) toast(err)
 }
 function onTallyAct(action, to) {
@@ -897,7 +913,9 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .mb-n { margin-left: 18px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 22px; color: #F3EEE6; }
 .mb-s { margin-left: 8px; font-size: 12px; color: #A9AEB8; }
 /* 气泡弹幕区：在成员概览和输入栏之间，靠左、贴着下沿 */
-.dm-area { flex: 1; min-height: 0; padding: 0 16px 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
+.dm-area { flex: 1; min-height: 0; padding: 0 16px 8px; overflow: hidden; display: flex; flex-direction: column; }
+/* 气泡弹幕只占剩下的空间（贴着下沿、顶部渐隐）；桌面分和出分区按自己的高度排在下面，不会被挤到上面去 */
+.dm-msgs { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
 .bottom { flex: none; background: #1B1D22; transition: padding-bottom 200ms ease; }
 /* 横屏：左边赛事区，右边交流区 */
 .room-land .main { flex-direction: row; }

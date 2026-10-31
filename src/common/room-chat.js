@@ -52,6 +52,10 @@ export function toggleReaction(id, emoji) {
   if (!r[emoji].length) delete r[emoji]
   m.reactions = r
 }
+// 记分工具的事件：玩家出分（盲注、跟注、加注、全下）和收分。气泡弹幕里靠右显示，房间弹幕列表里显示成系统消息
+export function addEvent(p, text, tone = 'bet') {
+  chat.list.push({ id: ++seq, kind: 'event', from: person(p), text, tone, at: Date.now() })
+}
 // 系统消息：主持人的操作（暂停、换级、公告、抽座位、开关玩法）
 export function addSystem(text) {
   chat.list.push({ id: ++seq, kind: 'system', text, at: Date.now() })

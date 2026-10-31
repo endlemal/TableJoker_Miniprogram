@@ -1,9 +1,10 @@
 // 记分工具的牌局引擎：不发牌、不比牌，只管出分和收分（牌在桌上用实体牌）。
 // 前注和盲注、按顺序出分（弃牌 / 过牌 / 跟注 / 加注 / 全下）、最小加注规则、四轮出分（翻牌前 / 翻牌 / 转牌 / 河牌）；
-// 出分结束后进入收分：按每人投入分出主池和边池，每个池由大家选出收分的人（可以几个人平分）；只剩一人没弃牌时，他直接收分。
+// 出分结束后进入收分，分两步：主持人指定每个池的赢家（designate，平手可以多选平分；只有一人有资格的池自动指定），
+// 然后每位赢家收取自己那份（collect）。所有池都收完，这一手结束。
 // 纯逻辑，不依赖页面：房间页负责显示，演示里其他玩家的行动由 botAction / botPicks 给出。正式环境由服务端跑同样的规则
 
-export const ROUND_NAME = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', collect: '收分', done: '已结束' }
+export const ROUND_NAME = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', collect: '指定赢家', payout: '收分', done: '已结束' }
 
 // 可以传种子的随机数（mulberry32），测试时结果可复现
 export function makeRng(seed) {
@@ -81,12 +82,13 @@ export function startHand(t, blinds) {
   const players = {}
   const seatRef = {}
   act.forEach((i) => { players[i] = { bet: 0, committed: 0, folded: false, allIn: false, acted: false, last: '' }; seatRef[i] = t.seats[i] })
-  const h = { street: 'preflop', players, seatRef, order: act, button, sb, bb, toAct: -1, currentBet: 0, minRaise: blinds.bb, blinds: { ...blinds }, pots: null, result: null }
+  const h = { street: 'preflop', players, seatRef, order: act, button, sb, bb, toAct: -1, currentBet: 0, minRaise: blinds.bb, blinds: { ...blinds }, pots: null, result: null, log: [] }
   t.hand = h
   // 前注是死注：算进桌面分，不算本轮的出分
   if (blinds.ante > 0) act.forEach((i) => { const a = pay(h, i, blinds.ante); players[i].bet -= a })
   pay(h, sb, blinds.sb); players[sb].last = '小盲'
   pay(h, bb, blinds.bb); players[bb].last = '大盲'
+  h.log.push({ seat: sb, kind: 'blind', text: '小盲', amount: players[sb].bet }, { seat: bb, kind: 'blind', text: '大盲', amount: players[bb].bet })
   h.currentBet = Math.max(players[sb].bet, players[bb].bet)
   // 翻牌前：大盲之后的人先出分（两人桌是小盲 = 庄位先说）
   h.toAct = nextSeat(t, bb, (i) => canAct(h, i))
@@ -119,6 +121,7 @@ export function act(t, i, action, to) {
   if (h.toAct !== i) return { ok: false, error: '还没轮到你' }
   const p = h.players[i]
   const o = options(t, i)
+  const before = p.committed
   if (action === 'fold') { p.folded = true; p.last = '弃牌' }
   else if (action === 'check') {
     if (!o.canCheck) return { ok: false, error: '需要跟注或弃牌' }
@@ -143,6 +146,9 @@ export function act(t, i, action, to) {
     } else p.last = p.allIn ? '全下' : '跟注'
   } else return { ok: false, error: '不认识的动作' }
   p.acted = true
+  // 出分了（跟注、加注、全下）就记一笔，页面会把它插进气泡弹幕
+  const paid = p.committed - before
+  if (paid > 0) h.log.push({ seat: i, kind: 'bet', text: p.last, amount: paid, to: p.bet })
   advance(t, i)
   return { ok: true }
 }
@@ -185,53 +191,82 @@ function computePots(h) {
   })
   return pots
 }
-// 出分结束：分好池；每个池只有一个人有资格时（比如只剩一人没弃牌、或者没人跟的那部分）直接给他
+// 出分结束：分好池；只有一人有资格的池（比如只剩一人没弃牌、或者没人跟的那部分）自动指定给他。都自动指定了就直接进入收分
 function toCollect(t) {
   const h = t.hand
   h.street = 'collect'
   h.toAct = -1
   h.pots = computePots(h)
-  if (h.pots.every((p) => p.winners)) award(t, h.pots.map((p) => p.winners))
+  if (h.pots.every((p) => p.winners)) designate(t, h.pots.map((p) => p.winners))
 }
-// 还要选赢家的池（下标）
+// 还要指定赢家的池（下标）
 export const pendingPots = (t) => (t.hand && t.hand.street === 'collect' ? t.hand.pots.map((p, k) => (p.winners ? -1 : k)).filter((k) => k >= 0) : [])
-// 收分：picks[k] 是第 k 个池收分的人（座位号数组，可以多人平分）；只有一个人有资格的池可以不填
-export function award(t, picks) {
+// 第一步：指定赢家。picks[k] 是第 k 个池的赢家（座位号数组，平手可以多选平分）；只有一人有资格的池可以不填
+export function designate(t, picks) {
   const h = t.hand
-  if (!h || h.street !== 'collect') return { ok: false, error: '现在不能收分' }
+  if (!h || h.street !== 'collect') return { ok: false, error: '现在不能指定赢家' }
   for (let k = 0; k < h.pots.length; k++) {
     const p = h.pots[k]
     const w = (picks && picks[k] && picks[k].length ? picks[k] : p.winners) || []
-    if (!w.length) return { ok: false, error: `还没选第 ${k + 1} 个池收分的人` }
-    if (w.some((i) => !p.elig.includes(i))) return { ok: false, error: '收分的人要在这个池里' }
+    if (!w.length) return { ok: false, error: `还没指定${k === 0 ? '主池' : '边池 ' + k}的赢家` }
+    if (w.some((i) => !p.elig.includes(i))) return { ok: false, error: '赢家要在这个池里' }
   }
-  const won = {}
-  const pots = h.pots.map((p, k) => {
-    const w = [...new Set((picks && picks[k] && picks[k].length ? picks[k] : p.winners))]
+  h.pots = h.pots.map((p, k) => {
+    const w = [...new Set(picks && picks[k] && picks[k].length ? picks[k] : p.winners)]
     // 平分；除不尽的从庄位左边开始依次多给 1
     const byPos = w.slice().sort((a, b) => ((a - h.button + t.size) % t.size) - ((b - h.button + t.size) % t.size))
-    const share = Math.floor(p.amount / byPos.length)
-    let rest = p.amount - share * byPos.length
-    byPos.forEach((i) => { won[i] = (won[i] || 0) + share + (rest > 0 ? 1 : 0); if (rest > 0) rest-- })
-    return { amount: p.amount, elig: p.elig, winners: byPos }
+    const each = Math.floor(p.amount / byPos.length)
+    let rest = p.amount - each * byPos.length
+    const shares = {}
+    byPos.forEach((i) => { shares[i] = each + (rest > 0 ? 1 : 0); if (rest > 0) rest-- })
+    return { ...p, winners: byPos, shares, taken: {}, left: p.amount }
   })
-  Object.keys(won).forEach((i) => { h.seatRef[i].stack += won[i] })
+  h.street = 'payout'
+  return { ok: true }
+}
+// 第二步：赢家收取自己在第 k 个池的那份；所有池都收完，这一手结束
+export function collect(t, k, seat) {
+  const h = t.hand
+  if (!h || h.street !== 'payout') return { ok: false, error: '现在不能收分' }
+  const p = h.pots[k]
+  if (!p || !p.shares[seat]) return { ok: false, error: '这个池不是你赢的' }
+  if (p.taken[seat]) return { ok: false, error: '已经收过了' }
+  h.seatRef[seat].stack += p.shares[seat]
+  p.taken = { ...p.taken, [seat]: true }
+  p.left -= p.shares[seat]
+  h.log.push({ seat, kind: 'collect', text: '收分', amount: p.shares[seat], pot: k, potCount: h.pots.length })
+  if (h.pots.every((x) => x.left === 0)) finish(t)
+  return { ok: true }
+}
+// 还没收的份额：[{ k, seat, amount }]
+export const unpaid = (t) => (t.hand && t.hand.street === 'payout' ? t.hand.pots.flatMap((p, k) => Object.keys(p.shares).map(Number).filter((i) => !p.taken[i]).map((i) => ({ k, seat: i, amount: p.shares[i] }))) : [])
+function finish(t) {
+  const h = t.hand
+  const won = {}
+  h.pots.forEach((p) => Object.keys(p.shares).forEach((i) => { won[i] = (won[i] || 0) + p.shares[i] }))
   const delta = {}
   h.order.forEach((i) => { delta[i] = (won[i] || 0) - h.players[i].committed })
-  h.result = { pots, won, delta }
+  h.result = { pots: h.pots.map((p) => ({ amount: p.amount, elig: p.elig, winners: p.winners })), won, delta }
   h.street = 'done'
+}
+// 一步到位：指定赢家并让所有赢家收分（测试、演示里没人操作时用）
+export function award(t, picks) {
+  const r = designate(t, picks)
+  if (!r.ok) return r
+  unpaid(t).forEach((u) => collect(t, u.k, u.seat))
   return { ok: true }
 }
 // 离桌（或被移出）：本手还没弃牌的算弃牌；出分时轮到他就交给下一位；收分时从各个池里去掉他的资格
 export function forfeit(t, i) {
   const h = t.hand
   if (!h || h.street === 'done' || !h.players[i] || h.players[i].folded) return
+  if (h.street === 'payout') { unpaid(t).filter((u) => u.seat === i).forEach((u) => collect(t, u.k, u.seat)); return }
   h.players[i].folded = true
   h.players[i].last = '离桌'
   if (h.street === 'collect') {
     if (live(h).length === 0) return abortHand(t)
     h.pots = computePots(h)
-    if (h.pots.every((p) => p.winners)) award(t, h.pots.map((p) => p.winners))
+    if (h.pots.every((p) => p.winners)) designate(t, h.pots.map((p) => p.winners))
     return
   }
   if (h.toAct === i) return advance(t, i)
@@ -241,6 +276,7 @@ export function forfeit(t, i) {
 export function abortHand(t) {
   const h = t.hand
   if (!h || h.street === 'done') return
+  if (h.street === 'payout') { unpaid(t).forEach((u) => collect(t, u.k, u.seat)); return }
   h.order.forEach((i) => { h.seatRef[i].stack += h.players[i].committed; h.players[i].committed = 0; h.players[i].bet = 0 })
   h.street = 'done'
   h.toAct = -1
