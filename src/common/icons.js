@@ -145,6 +145,8 @@ export const ICONS = {
   'backspace': "<path d=\"M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5l11 0\" /><path d=\"M12 10l4 4m0 -4l-4 4\" />",
   'pin': "<path d=\"M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4\" /><path d=\"M9 15l-4.5 4.5\" /><path d=\"M14.5 4l5.5 5.5\" />",
   'arrow-back-up': "<path d=\"M9 14l-4 -4l4 -4\" /><path d=\"M5 10h11a4 4 0 1 1 0 8h-1\" />",
+  'abacus': "<path d=\"M5 3v18\" /><path d=\"M19 21v-18\" /><path d=\"M5 7h14\" /><path d=\"M5 15h14\" /><path d=\"M8 13v4\" /><path d=\"M11 13v4\" /><path d=\"M16 13v4\" /><path d=\"M14 5v4\" /><path d=\"M11 5v4\" /><path d=\"M8 5v4\" /><path d=\"M3 21h18\" />",
+  'chart-bar-popular': "<path d=\"M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6\" /><path d=\"M9 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10\" /><path d=\"M15 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14\" /><path d=\"M4 20h14\" />",
 }
 
 export const FILLED = {

@@ -70,20 +70,20 @@
                   </view>
                 </view>
 
-                <!-- 玩法：经典德扑（没入座时是牌桌列表，入座后是自己的牌桌） -->
-                <view v-else-if="p.key === 'holdem'" class="hp">
-                  <z-holdem-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="holdem.blinds" :dense="stageH < 290" @leave="leaveHoldem" />
+                <!-- 玩法：记分工具（没入座时是牌桌列表；入座后是自己这桌：玩家纵向排列，右上角看排行） -->
+                <view v-else-if="p.key === 'tally'" class="hp">
+                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="tally.blinds" :height="stageH - 24" :pick-pot="pickPot" :pick-sel="pickSel" :members="tally.members" :assets="tally.assets" :start="tally.start" @leave="leaveTally" @pick="togglePick" />
                   <view v-else class="tl">
-                    <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">我的记分 {{ fmtNum(holdem.assets[ME_NAME]) }}</text></view>
-                    <view v-for="t in holdem.tables" :key="t.id" class="tl-card">
+                    <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">我的记分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
+                    <view v-for="t in tally.tables" :key="t.id" class="tl-card">
                       <view class="tl-top">
                         <view class="tl-main"><text class="tl-name">{{ t.name }}</text><text class="tl-sub">{{ t.size }} 人桌 · {{ seatedOf(t) }}/{{ t.size }} 已入座 · {{ t.hand && t.hand.street !== 'done' ? '第 ' + t.handNo + ' 手进行中' : '等待开局' }}</text></view>
-                        <view class="tl-join" :class="{ 'tl-join-off': seatedOf(t) >= t.size }" hover-class="press" @tap="joinHoldem(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size ? '坐满了' : '加入' }}</text></view>
+                        <view class="tl-join" :class="{ 'tl-join-off': seatedOf(t) >= t.size }" hover-class="press" @tap="joinTally(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size ? '坐满了' : '加入' }}</text></view>
                       </view>
                       <view class="tl-seats"><view v-for="(st, k) in t.seats" :key="k" class="tl-seat" :class="{ 'tl-seat-empty': !st }" :style="st ? 'background:' + st.bg + ';color:' + st.fg : ''"><text v-if="st">{{ st.c }}</text></view></view>
                     </view>
-                    <text v-if="!holdem.tables.length" class="play-s">主持人还没开桌</text>
-                    <text class="play-s">盲注跟着房间当前的级别：{{ fmtNum(holdem.blinds.sb) }}/{{ fmtNum(holdem.blinds.bb) }}{{ holdem.blinds.ante ? '，前注 ' + fmtNum(holdem.blinds.ante) : '' }}</text>
+                    <text v-if="!tally.tables.length" class="play-s">主持人还没开桌</text>
+                    <text class="play-s">盲注跟着房间当前的级别：{{ fmtNum(tally.blinds.sb) }}/{{ fmtNum(tally.blinds.bb) }}{{ tally.blinds.ante ? '，前注 ' + fmtNum(tally.blinds.ante) : '' }}</text>
                   </view>
                 </view>
 
@@ -125,7 +125,7 @@
 
       <view class="col-b">
         <!-- 气泡弹幕：靠左，最近几条，越早越淡；点了打开完整的房间弹幕列表 -->
-        <view class="dm-area"><z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" @open="openChat" /><z-holdem-act v-if="spot" :table="spot.t" :seat="spot.i" :turn-left="holdem.turnLeft" @act="onHoldemAct" /></view>
+        <view class="dm-area"><z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" @open="openChat" /><z-tally-act v-if="spot" :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" :pick-pot="pickPot" :pick-sel="pickSel" @act="onTallyAct" @confirm="onConfirmPick" /></view>
 
         <!-- 抽屉打开时输入栏和抽屉一起浮在屏幕底部，这里留出输入栏的位置，房间内容不会被顶上去 -->
         <view v-if="drawer.show" class="bottom-spacer"></view>
@@ -186,10 +186,10 @@
                     </view>
                   </block>
                   <text v-else class="dp-s">只有主持人可以控制计时、发布公告和抽座位</text>
-                  <!-- 经典德扑的牌桌：开桌（2 到 10 人）和删桌 -->
-                  <block v-if="playsOn.includes('holdem')">
-                    <text class="dp-h">经典德扑牌桌</text>
-                    <view v-for="t in holdem.tables" :key="t.id" class="tb-row">
+                  <!-- 记分工具的牌桌：开桌（2 到 10 人）和删桌 -->
+                  <block v-if="playsOn.includes('tally')">
+                    <text class="dp-h">记分桌</text>
+                    <view v-for="t in tally.tables" :key="t.id" class="tb-row">
                       <text class="tb-n">{{ t.name }}</text><text class="tb-s">{{ t.size }} 人桌 · {{ seatedOf(t) }} 人在座</text>
                       <view v-if="isHost" class="tb-del" hover-class="press" @tap="deleteTable(t)"><text class="tb-del-t">删除</text></view>
                     </view>
@@ -209,12 +209,12 @@
                     <text v-else class="pl-st" :class="{ 'pl-st-on': playsOn.includes(pl.key) }">{{ playsOn.includes(pl.key) ? '已开启' : '未开启' }}</text>
                   </view>
                   <text class="dp-s">开启后排在 Timer 后面，左右滑动查看{{ isHost ? '' : '；只有主持人可以开关玩法' }}</text>
-                  <block v-if="playsOn.includes('holdem')">
+                  <block v-if="playsOn.includes('tally')">
                     <text class="dp-h">玩家资产{{ isHost ? '（点头像调整）' : '' }}</text>
                     <view class="as-grid">
                       <view v-for="m in members" :key="m.name" class="as-i" hover-class="press" @tap="openAssets(m)">
                         <view class="as-av" :style="'background:' + m.bg + ';color:' + m.fg"><text>{{ m.c }}</text></view>
-                        <text class="as-n">{{ m.name }}</text><text class="as-v">{{ fmtNum(holdem.assets[m.name]) }}</text>
+                        <text class="as-n">{{ m.name }}</text><text class="as-v">{{ fmtNum(tally.assets[m.name]) }}</text>
                       </view>
                     </view>
                   </block>
@@ -292,9 +292,9 @@ import ZFlap from '@/components/z-flap/z-flap.vue'
 import ZRoomInput from '@/components/z-room-input/z-room-input.vue'
 import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
 import ZDanmaku from '@/components/z-danmaku/z-danmaku.vue'
-import ZHoldemTable from '@/components/z-holdem-table/z-holdem-table.vue'
-import ZHoldemAct from '@/components/z-holdem-act/z-holdem-act.vue'
-import { holdem, initHoldem, runHoldem, mySpot, join, leaveTable, myAct, createTable, removeTable, setAssets } from '@/common/holdem-room.js'
+import ZTallyTable from '@/components/z-tally-table/z-tally-table.vue'
+import ZTallyAct from '@/components/z-tally-act/z-tally-act.vue'
+import { tally, initTally, runTally, mySpot, join, leaveTable, myAct, createTable, removeTable, setAssets, currentPot, togglePick, confirmPick } from '@/common/tally-room.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
@@ -495,7 +495,7 @@ function shuffleSeats() {
 
 /* ---------- 内容展示区：分页按 key 记，开关玩法时停在原来的页面 ---------- */
 const PLAYS = [
-  { key: 'holdem', name: '经典德扑', icon: 'cards', desc: '主持人开桌，玩家入座后按顺序出分' },
+  { key: 'tally', name: '记分工具', icon: 'abacus', desc: '主持人开桌，玩家入座后按顺序出分、收分；排行看累计资产' },
   { key: 'ticker', name: '走字灯', icon: 'speakerphone', desc: '滚动显示房间公告和最新消息' },
   { key: 'pot', name: '边池计算', icon: 'calculator', desc: '按每人投入分出主池和边池' }
 ]
@@ -519,22 +519,22 @@ function togglePlay(pl) {
   }
 }
 
-/* ---------- 玩法：经典德扑（牌局在 common/holdem-room.js 里跑；资产就是记分） ---------- */
+/* ---------- 玩法：记分工具（只管出分和收分，牌局在 common/tally-room.js 里跑；资产就是记分） ---------- */
 const ME_NAME = me.nickname
-initHoldem(members.value, ME_NAME, room.startScore)
-const holdemOn = computed(() => playsOn.value.includes('holdem'))
-const spot = computed(() => (holdemOn.value ? mySpot() : null))
+initTally(members.value, ME_NAME, room.startScore)
+const tallyOn = computed(() => playsOn.value.includes('tally'))
+const spot = computed(() => (tallyOn.value ? mySpot() : null))
 const seatedOf = (t) => t.seats.filter(Boolean).length
 // 盲注跟着房间当前的级别（休息时用下一级），下一手开始生效
-watch(blindOf, (e) => { if (e) holdem.blinds = { sb: e.sb, bb: e.bb, ante: e.ante || 0 } }, { immediate: true })
-watch(holdemOn, (on) => runHoldem(on && pageShown.value))
+watch(blindOf, (e) => { if (e) tally.blinds = { sb: e.sb, bb: e.bb, ante: e.ante || 0 } }, { immediate: true })
+watch(tallyOn, (on) => runTally(on && pageShown.value))
 const pageShown = ref(true)
-function joinHoldem(t) {
+function joinTally(t) {
   const err = join(t.id)
   if (err) return toast(err)
   addSystem(`${ME_NAME} 坐上了${t.name}`)
 }
-function leaveHoldem() {
+function leaveTally() {
   uni.showModal({
     title: '离开牌桌',
     content: '这一手还没结束的话，离桌算弃牌。',
@@ -542,7 +542,14 @@ function leaveHoldem() {
     success: ({ confirm }) => { if (confirm) leaveTable() }
   })
 }
-function onHoldemAct(action, to) {
+// 收分：自己这桌正在选赢家的池，和已经点选的人
+const pickPot = computed(() => (spot.value ? currentPot() : null))
+const pickSel = computed(() => (tally.pick ? tally.pick.sel : []))
+function onConfirmPick() {
+  const err = confirmPick()
+  if (err) toast(err)
+}
+function onTallyAct(action, to) {
   const err = myAct(action, to)
   if (err) toast(err)
 }
@@ -567,12 +574,12 @@ const assetsDraft = ref('')
 function openAssets(m) {
   if (!isHost.value) return toast('只有主持人可以调整资产')
   assetsEdit.value = m
-  assetsDraft.value = String(holdem.assets[m.name] || 0)
+  assetsDraft.value = String(tally.assets[m.name] || 0)
 }
 function saveAssets() {
   const m = assetsEdit.value
   setAssets(m.name, assetsDraft.value)
-  addSystem(`主持人把 ${m.name} 的资产调整为 ${fmtNum(holdem.assets[m.name])}`)
+  addSystem(`主持人把 ${m.name} 的资产调整为 ${fmtNum(tally.assets[m.name])}`)
   assetsEdit.value = null
 }
 
@@ -611,13 +618,13 @@ const pots = computed(() => {
   }).filter((p) => p.amount > 0)
 })
 
-/* ---------- 记分：和经典德扑的资产是同一份 ---------- */
-const ranked = computed(() => members.value.map((m) => ({ ...m, score: holdem.assets[m.name] || 0 })).sort((a, b) => b.score - a.score))
+/* ---------- 记分：和记分工具里的资产是同一份 ---------- */
+const ranked = computed(() => members.value.map((m) => ({ ...m, score: tally.assets[m.name] || 0 })).sort((a, b) => b.score - a.score))
 const totalScore = computed(() => ranked.value.reduce((a, s) => a + s.score, 0))
 const avgScore = computed(() => Math.round(totalScore.value / Math.max(1, ranked.value.length)))
 function adjustScore(s, d) {
   if (!isHost.value) return
-  setAssets(s.name, Math.max(0, (holdem.assets[s.name] || 0) + d))
+  setAssets(s.name, Math.max(0, (tally.assets[s.name] || 0) + d))
 }
 
 /* ---------- 消息：气泡弹幕和完整列表共用一份数据 ---------- */
@@ -761,9 +768,9 @@ function sendPhotos() {
   toast(`已发送 ${n} 张照片`)
 }
 
-onShow(() => { start(); startDemoFeed('room'); pageShown.value = true; runHoldem(holdemOn.value) })
-onHide(() => { stop(); stopDemoFeed('room'); pageShown.value = false; runHoldem(false) })
-onUnload(() => { stop(); stopDemoFeed('room'); runHoldem(false); uni.offWindowResize && uni.offWindowResize(onResize) })
+onShow(() => { start(); startDemoFeed('room'); pageShown.value = true; runTally(tallyOn.value) })
+onHide(() => { stop(); stopDemoFeed('room'); pageShown.value = false; runTally(false) })
+onUnload(() => { stop(); stopDemoFeed('room'); runTally(false); uni.offWindowResize && uni.offWindowResize(onResize) })
 onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入座`, path: '/pages/invite/index' }))
 </script>
 
@@ -859,7 +866,7 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .mq-msg { margin-right: 28px; font-size: 16px; }
 .mq-notice { color: #FFC53A; }
 .mq-danmaku { color: #F3EEE6; }
-/* 经典德扑：牌桌列表 */
+/* 记分工具：牌桌列表 */
 .hp { min-height: 100%; }
 .tl { padding: 16px 12px 24px; }
 .tl-head { display: flex; align-items: baseline; justify-content: space-between; }
