@@ -7,18 +7,25 @@ const person = (p) => ({ name: p.name, c: p.c, bg: p.bg, fg: p.fg })
 const mySeat = room.seats.find((s) => s.me) || room.seats[0]
 export const ME = { name: me.nickname, c: me.char, bg: mySeat.bg, fg: mySeat.fg }
 let seq = 1000
-export const chat = reactive({
-  list: room.chat.map((m) => ({ id: m.id, kind: 'text', from: person(room.seats.find((s) => s.no === m.seat)), text: m.text, at: Date.now() - m.minutesAgo * 60000 })),
-  online: true
-})
+const seat = (no) => person(room.seats.find((s) => s.no === no))
+const seed = room.chat.map((m) => ({ id: m.id, kind: 'text', from: seat(m.seat), text: m.text, at: Date.now() - m.minutesAgo * 60000, reactions: {} }))
+// 演示：七七连着说了两句（会合并显示），第一句有人点了喜欢；老周回复了七七
+const qq = seed.find((m) => m.from.name === '七七')
+if (qq) {
+  qq.reactions = { '❤️': ['阿林', '老周'], '🧋': ['Momo'] }
+  seed.splice(seed.indexOf(qq) + 1, 0, { id: 901, kind: 'text', from: qq.from, text: '珍珠奶茶还是水果茶？', at: qq.at + 20000, reactions: {} })
+  seed.push({ id: 902, kind: 'text', from: seat(9), text: '我要珍珠的，少冰', at: Date.now() - 30000, reactions: {}, reply: { id: qq.id, name: qq.from.name, text: qq.text } })
+}
+export const chat = reactive({ list: seed, online: true })
 // 网络状态：断网时发送失败，房间状态显示「连接中断」
 uni.onNetworkStatusChange && uni.onNetworkStatusChange((r) => { chat.online = !!r.isConnected })
 uni.getNetworkType && uni.getNetworkType({ success: (r) => { chat.online = r.networkType !== 'none' } })
 
 // 发文字：先显示为发送中；失败时从列表里拿掉，返回 false，输入框里的内容由页面保留，方便重试。
 // 演示：断网，或者消息里带「失败」两个字时模拟发送失败
-export function sendText(text) {
-  const msg = { id: ++seq, kind: 'text', from: ME, text, at: Date.now(), mine: true, sending: true }
+// reply：回复的那条 { id, name, text }
+export function sendText(text, reply) {
+  const msg = { id: ++seq, kind: 'text', from: ME, text, at: Date.now(), mine: true, sending: true, reactions: {}, reply: reply || null }
   chat.list.push(msg)
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -33,7 +40,17 @@ export function sendText(text) {
   })
 }
 export function sendImage(src) {
-  chat.list.push({ id: ++seq, kind: 'image', from: ME, text: '[图片]', src, at: Date.now(), mine: true })
+  chat.list.push({ id: ++seq, kind: 'image', from: ME, text: '[图片]', src, at: Date.now(), mine: true, reactions: {} })
+}
+// 反应：同一个表情再点一次是取消
+export function toggleReaction(id, emoji) {
+  const m = chat.list.find((x) => x.id === id)
+  if (!m || m.kind === 'system') return
+  const r = { ...(m.reactions || {}) }
+  const who = r[emoji] || []
+  r[emoji] = who.includes(ME.name) ? who.filter((n) => n !== ME.name) : who.concat([ME.name])
+  if (!r[emoji].length) delete r[emoji]
+  m.reactions = r
 }
 // 系统消息：主持人的操作（暂停、换级、公告、抽座位、开关玩法）
 export function addSystem(text) {
@@ -51,7 +68,7 @@ export function startDemoFeed(owner = 'room') {
   feed = setInterval(() => {
     const others = room.seats.filter((s) => !s.me)
     const p = others[Math.floor(Math.random() * others.length)]
-    chat.list.push({ id: ++seq, kind: 'text', from: person(p), text: LINES[Math.floor(Math.random() * LINES.length)], at: Date.now() })
+    chat.list.push({ id: ++seq, kind: 'text', from: person(p), text: LINES[Math.floor(Math.random() * LINES.length)], at: Date.now(), reactions: {} })
   }, 11000)
 }
 export function stopDemoFeed(owner = 'room') {

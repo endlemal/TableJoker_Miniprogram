@@ -144,6 +144,7 @@ export const ICONS = {
   'minus': "<path d=\"M5 12l14 0\" />",
   'backspace': "<path d=\"M20 6a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-11l-5 -5a1.5 1.5 0 0 1 0 -2l5 -5l11 0\" /><path d=\"M12 10l4 4m0 -4l-4 4\" />",
   'pin': "<path d=\"M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4\" /><path d=\"M9 15l-4.5 4.5\" /><path d=\"M14.5 4l5.5 5.5\" />",
+  'arrow-back-up': "<path d=\"M9 14l-4 -4l4 -4\" /><path d=\"M5 10h11a4 4 0 1 1 0 8h-1\" />",
 }
 
 export const FILLED = {
