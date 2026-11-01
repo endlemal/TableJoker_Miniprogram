@@ -1,7 +1,7 @@
 <template>
   <!-- 排行：累计资产的条形赛马——按资产从高到低，条的长度对应资产；每手结束后条和名次一起动 -->
   <view class="ztr">
-    <view class="ztr-head"><text class="ztr-t">排行 · 累计资产</text><text class="ztr-s">每手结束后更新</text></view>
+    <view class="ztr-head"><text class="ztr-t">记分排行</text><text class="ztr-s">结算后更新</text></view>
     <view class="ztr-list" :style="'height:' + list.length * ROW + 'px'">
       <view v-for="r in list" :key="r.name" class="ztr-row" :class="{ 'ztr-me': r.name === me, 'ztr-hl': highlight.includes(r.name) }" :style="'transform:translateY(' + r.rank * ROW + 'px)'">
         <text class="ztr-rank" :class="{ 'ztr-rank-top': r.rank < 3 }">{{ r.rank + 1 }}</text>

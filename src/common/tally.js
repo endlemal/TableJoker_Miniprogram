@@ -4,7 +4,7 @@
 // 然后每位赢家收取自己那份（collect）。所有池都收完，这一手结束。
 // 纯逻辑，不依赖页面：房间页负责显示，演示里其他玩家的行动由 botAction / botPicks 给出。正式环境由服务端跑同样的规则
 
-export const ROUND_NAME = { preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', collect: '指定赢家', payout: '收分', done: '已结束' }
+export const ROUND_NAME = { preflop: '翻前', flop: '翻牌', turn: '转牌', river: '河牌', collect: '定胜', payout: '收分', done: '结束' }
 
 // 可以传种子的随机数（mulberry32），测试时结果可复现
 export function makeRng(seed) {
@@ -113,6 +113,32 @@ export function options(t, i) {
 }
 const ROUNDS = ['preflop', 'flop', 'turn', 'river']
 export const potTotal = (h) => (h ? h.order.reduce((a, i) => a + h.players[i].committed, 0) : 0)
+
+// 下注中的实时分池：仅在有人全下后按其「本手累计投入」封顶；普通加注不制造边池。
+// 尚无人跟上的超额单列为 pending，不混进已形成的边池，也不改动结算用的 h.pots。
+export function livePots(h) {
+  if (!h || !ROUNDS.includes(h.street)) return []
+  const contrib = h.order.map((i) => ({ ...h.players[i], c: h.players[i].committed }))
+  const allIns = contrib.filter((p) => p.allIn && !p.folded)
+  if (!allIns.length) return []
+  const sorted = contrib.slice().sort((a, b) => b.c - a.c)
+  const firstCap = Math.min(...allIns.map((p) => p.c))
+  const pending = sorted[0].folded ? 0 : Math.max(0, sorted[0].c - Math.max(firstCap, sorted[1]?.c || 0))
+  sorted[0].c -= pending
+  const cap = Math.max(0, ...contrib.filter((p) => !p.folded).map((p) => p.c))
+  const levels = [...new Set([...allIns.map((p) => p.c).filter((c) => c > 0 && c < cap), cap])].sort((a, b) => a - b)
+  const pots = []
+  let prev = 0
+  levels.forEach((lv, k) => {
+    let amount = contrib.reduce((sum, p) => sum + Math.max(0, Math.min(p.c, lv) - prev), 0)
+    // 弃牌者的投入仍归牌池；超出最高存活玩家的部分归最上层池。
+    if (k === levels.length - 1) amount += contrib.reduce((sum, p) => sum + Math.max(0, p.c - lv), 0)
+    if (amount) pots.push({ kind: pots.length ? 'side' : 'main', amount, cap: lv })
+    prev = lv
+  })
+  if (pending) pots.push({ kind: 'pending', amount: pending })
+  return pots
+}
 
 // 出分：fold 弃牌 / check 过牌 / call 跟注 / raise 加注到 to（本轮总出分）/ allin 全下
 export function act(t, i, action, to) {

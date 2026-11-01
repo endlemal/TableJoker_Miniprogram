@@ -74,16 +74,16 @@
                 <view v-else-if="p.key === 'tally'" class="hp">
                   <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" @leave="leaveTally" />
                   <view v-else class="tl">
-                    <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">我的记分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
+                    <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">余分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
                     <view v-for="t in tally.tables" :key="t.id" class="tl-card">
                       <view class="tl-top">
-                        <view class="tl-main"><text class="tl-name">{{ t.name }}</text><text class="tl-sub">{{ t.size }} 人桌 · {{ seatedOf(t) }}/{{ t.size }} 已入座 · {{ t.hand && t.hand.street !== 'done' ? '第 ' + t.handNo + ' 手进行中' : '等待开局' }}</text></view>
-                        <view class="tl-join" :class="{ 'tl-join-off': seatedOf(t) >= t.size }" hover-class="press" @tap="joinTally(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size ? '坐满了' : '加入' }}</text></view>
+                        <view class="tl-main"><text class="tl-name">{{ t.name }}</text><text class="tl-sub">{{ seatedOf(t) }}/{{ t.size }} 人 · {{ t.hand && t.hand.street !== 'done' ? t.handNo + '手 · 进行中' : '待开' }}</text></view>
+                        <view class="tl-join" :class="{ 'tl-join-off': seatedOf(t) >= t.size }" hover-class="press" @tap="joinTally(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size ? '满员' : '入座' }}</text></view>
                       </view>
                       <view class="tl-seats"><view v-for="(st, k) in t.seats" :key="k" class="tl-seat" :class="{ 'tl-seat-empty': !st }" :style="st ? 'background:' + st.bg + ';color:' + st.fg : ''"><text v-if="st">{{ st.c }}</text></view></view>
                     </view>
-                    <text v-if="!tally.tables.length" class="play-s">主持人还没开桌</text>
-                    <text class="play-s">盲注跟着房间当前的级别：{{ fmtNum(tally.blinds.sb) }}/{{ fmtNum(tally.blinds.bb) }}{{ tally.blinds.ante ? '，前注 ' + fmtNum(tally.blinds.ante) : '' }}</text>
+                    <text v-if="!tally.tables.length" class="play-s">待主持人开桌</text>
+                    <text class="play-s">盲注 {{ fmtNum(tally.blinds.sb) }}/{{ fmtNum(tally.blinds.bb) }}{{ tally.blinds.ante ? ' · 前注 ' + fmtNum(tally.blinds.ante) : '' }}</text>
                   </view>
                 </view>
 
@@ -115,6 +115,11 @@
           <view class="dots"><view v-for="(p, i) in pages" :key="p.key" class="dot" :class="{ 'dot-on': i === pageIdx }"></view></view>
         </view>
 
+        <!-- 桌面分紧接玩法面板；主池 / 边池实时更新，结算时在此选赢家和收分。 -->
+        <view v-if="spot && !compact" class="table-pot">
+          <z-tally-pot :table="spot.t" :my-seat="spot.i" :is-host="isHost" :picks="tally.picks" :turn-left="tally.turnLeft" :max-pots="potListH" @pick="onPick" @designate="onDesignate" @collect="onCollect" />
+        </view>
+
         <!-- 成员概览：叠放头像和人数，点开是签到墙 -->
         <view v-if="!onTallyPage" class="members" hover-class="press-soft" @tap="pageKey = 'wall'">
           <view class="stack"><view v-for="(m, i) in members.slice(0, 3)" :key="m.name" class="sk-av" :style="'background:' + m.bg + ';color:' + m.fg + ';z-index:' + (3 - i)"><text>{{ m.c }}</text></view></view>
@@ -125,7 +130,12 @@
 
       <view class="col-b">
         <!-- 气泡弹幕：靠左，最近几条，越早越淡；点了打开完整的房间弹幕列表 -->
-        <view class="dm-area"><view class="dm-msgs"><z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" @open="openChat" /></view><z-tally-pot v-if="spot" :table="spot.t" :my-seat="spot.i" :is-host="isHost" :picks="tally.picks" :turn-left="tally.turnLeft" @pick="onPick" @designate="onDesignate" @collect="onCollect" /><z-tally-act v-if="myTurn" :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" @act="onTallyAct" /></view>
+        <view class="dm-area" :class="{ 'dm-area-table': onTallyPage }">
+          <view class="dm-msgs" :class="{ 'dm-msgs-float': onTallyPage }">
+            <z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" :floating="onTallyPage" @open="openChat" />
+          </view>
+          <view v-if="myTurn" class="tally-actions"><z-tally-act :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" @act="onTallyAct" @expand="tallyRaising = $event" /></view>
+        </view>
 
         <!-- 抽屉打开时输入栏和抽屉一起浮在屏幕底部，这里留出输入栏的位置，房间内容不会被顶上去 -->
         <view v-if="drawer.show" class="bottom-spacer"></view>
@@ -190,12 +200,12 @@
                   <block v-if="playsOn.includes('tally')">
                     <text class="dp-h">记分桌</text>
                     <view v-for="t in tally.tables" :key="t.id" class="tb-row">
-                      <text class="tb-n">{{ t.name }}</text><text class="tb-s">{{ t.size }} 人桌 · {{ seatedOf(t) }} 人在座</text>
+                      <text class="tb-n">{{ t.name }}</text><text class="tb-s">{{ seatedOf(t) }}/{{ t.size }} 人</text>
                       <view v-if="isHost" class="tb-del" hover-class="press" @tap="deleteTable(t)"><text class="tb-del-t">删除</text></view>
                     </view>
                     <block v-if="isHost">
                       <view class="sz-row"><text v-for="n in 9" :key="n" class="sz" :class="{ 'sz-on': newSize === n + 1 }" @tap="newSize = n + 1">{{ n + 1 }}</text></view>
-                      <view class="tb-add" hover-class="press" @tap="addTable"><z-icon name="plus" :size="16" color="#FFFFFF" /><text class="tb-add-t">开一张 {{ newSize }} 人桌</text></view>
+                      <view class="tb-add" hover-class="press" @tap="addTable"><z-icon name="plus" :size="16" color="#FFFFFF" /><text class="tb-add-t">开桌 · {{ newSize }} 人</text></view>
                     </block>
                   </block>
                 </block>
@@ -210,7 +220,7 @@
                   </view>
                   <text class="dp-s">开启后排在 Timer 后面，左右滑动查看{{ isHost ? '' : '；只有主持人可以开关玩法' }}</text>
                   <block v-if="playsOn.includes('tally')">
-                    <text class="dp-h">玩家资产{{ isHost ? '（点头像调整）' : '' }}</text>
+                    <text class="dp-h">玩家记分{{ isHost ? ' · 点头像调整' : '' }}</text>
                     <view class="as-grid">
                       <view v-for="m in members" :key="m.name" class="as-i" hover-class="press" @tap="openAssets(m)">
                         <view class="as-av" :style="'background:' + m.bg + ';color:' + m.fg"><text>{{ m.c }}</text></view>
@@ -496,7 +506,7 @@ function shuffleSeats() {
 
 /* ---------- 内容展示区：分页按 key 记，开关玩法时停在原来的页面 ---------- */
 const PLAYS = [
-  { key: 'tally', name: '记分工具', icon: 'abacus', desc: '主持人开桌，玩家入座后按顺序出分、收分；排行看累计资产' },
+  { key: 'tally', name: '记分工具', icon: 'abacus', desc: '入座出分 · 定胜收分 · 记分排行' },
   { key: 'ticker', name: '走字灯', icon: 'speakerphone', desc: '滚动显示房间公告和最新消息' },
   { key: 'pot', name: '边池计算', icon: 'calculator', desc: '按每人投入分出主池和边池' }
 ]
@@ -543,17 +553,29 @@ function leaveTally() {
     success: ({ confirm }) => { if (confirm) leaveTable() }
   })
 }
-// 记分工具页：所有在座的人一屏放得下（每人 40px），展示区跟着加高（最多窗口的 62%）；这一页上成员概览先收起，dm-area 留给桌面分
+// 牌桌空间与本手最初人数关联，弃牌后面板不缩小，剩余玩家行可利用空出的空间。
+// 先预留桌面分、操作栏、输入栏和弹幕的位置；矮屏下玩家列表可滚动。
 const onTallyPage = computed(() => pageKey.value === 'tally' && !!spot.value)
-const tallyStageH = computed(() => {
-  const n = spot.value ? spot.value.t.seats.filter(Boolean).length : 0
-  return Math.round(Math.min(win.value.h * 0.62, Math.max(stageH.value, 34 + 6 + n * 40 + 24 + 8)))
+const tallyRaising = ref(false)
+const settling = computed(() => !!(spot.value && ['collect', 'payout'].includes(spot.value.t.hand?.street)))
+const potListH = computed(() => Math.max(60, Math.min(150, Math.round(win.value.h * (land.value ? 0.2 : 0.18)))))
+const tallyStageCap = computed(() => {
+  const potH = settling.value ? potListH.value + 104 : 80
+  const below = land.value ? 8 : 100 + (settling.value ? 0 : tallyRaising.value ? 200 : 100) + 64
+  // 最少保留标题、一个完整玩家行和分页点，避免展开加注时只露出半行。
+  return Math.max(100, win.value.h - nav.statusBar - nav.navH - 40 - potH - below)
 })
-const curStageH = computed(() => (onTallyPage.value ? tallyStageH.value : stageH.value))
+const tallyStageH = computed(() => {
+  const t = spot.value?.t
+  const n = t ? Math.max(t.seats.filter(Boolean).length, t.hand?.order.length || 0) : 0
+  return Math.round(Math.min(tallyStageCap.value, Math.max(stageH.value, 42 + n * 40 + 24)))
+})
+const curStageH = computed(() => onTallyPage.value ? tallyStageH.value : spot.value ? Math.min(stageH.value, Math.max(80, tallyStageCap.value - 56)) : stageH.value)
 const myTurn = computed(() => {
   const h = spot.value && spot.value.t.hand
   return !!(h && ['preflop', 'flop', 'turn', 'river'].includes(h.street) && h.toAct === spot.value.i)
 })
+watch(myTurn, (v) => { if (!v) tallyRaising.value = false })
 // 主持人给每个池指定赢家（平手多选）；赢家自己收分
 watch(isHost, (v) => { tally.iAmHost = v }, { immediate: true })
 const onPick = (k, seat) => togglePick(k, seat)
@@ -800,10 +822,10 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .nav-back { width: 44px; height: 44px; flex: none; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
 .nav-name { margin-left: 12px; flex: 1; min-width: 0; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 24px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.col-a { flex: none; display: flex; flex-direction: column; }
+.col-a { flex: none; min-height: 0; display: flex; flex-direction: column; }
 .col-b { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* 赛事状态栏 */
-.status { height: 40px; padding: 0 16px; display: flex; align-items: center; }
+.status { flex: none; height: 40px; padding: 0 16px; display: flex; align-items: center; }
 .st-lv { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 22px; color: #F3EEE6; }
 .st-el { margin-left: 8px; font-size: 13px; color: #A9AEB8; }
 .st-state { margin-left: auto; display: flex; align-items: center; font-size: 15px; font-weight: 600; }
@@ -815,7 +837,8 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .sm-b { margin-left: 12px; flex: 1; min-width: 0; font-size: 14px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sm-s { margin-left: 8px; font-size: 13px; font-weight: 600; }
 /* 内容展示区 */
-.stage { position: relative; margin: 0 12px; border-radius: 16px; background: #0D0E11; overflow: hidden; display: flex; flex-direction: column; transition: height 240ms ease, opacity 200ms ease; }
+.stage { position: relative; flex: none; margin: 0 12px; border-radius: 16px; background: #0D0E11; overflow: hidden; display: flex; flex-direction: column; transition: height 240ms ease, opacity 200ms ease; }
+.table-pot { flex: none; margin: 0 12px; }
 .stage-hide { height: 0 !important; opacity: 0; }
 .pages { width: 100%; flex: 1; min-height: 0; }
 .pg { height: 100%; box-sizing: border-box; }
@@ -914,9 +937,12 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .mb-s { margin-left: 8px; font-size: 12px; color: #A9AEB8; }
 /* 气泡弹幕区：在成员概览和输入栏之间，靠左、贴着下沿 */
 .dm-area { flex: 1; min-height: 0; padding: 0 16px 8px; overflow: hidden; display: flex; flex-direction: column; }
-/* 气泡弹幕只占剩下的空间（贴着下沿、顶部渐隐）；桌面分和出分区按自己的高度排在下面，不会被挤到上面去 */
+/* 普通聊天顶部渐隐；牌桌弹幕独立浮起，空间紧张时允许向上溢出，不被面板或渐隐遮住。 */
 .dm-msgs { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
-.bottom { flex: none; background: #1B1D22; transition: padding-bottom 200ms ease; }
+.dm-area-table { position: relative; overflow: visible; }
+.dm-msgs-float { position: relative; z-index: 30; overflow: visible; -webkit-mask-image: none; mask-image: none; pointer-events: none; }
+.tally-actions { position: relative; z-index: 40; flex: none; }
+.bottom { position: relative; z-index: 40; flex: none; background: #1B1D22; transition: padding-bottom 200ms ease; }
 /* 横屏：左边赛事区，右边交流区 */
 .room-land .main { flex-direction: row; }
 .room-land .col-a { width: 56%; }

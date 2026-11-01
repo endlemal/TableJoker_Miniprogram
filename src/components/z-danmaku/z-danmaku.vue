@@ -1,6 +1,6 @@
 <template>
   <!-- 直播间式气泡弹幕：靠左，最新的在最下面，越早的越淡 -->
-  <view class="dmk">
+  <view class="dmk" :class="{ 'dmk-floating': floating }">
     <view v-for="(m, i) in shown" :key="m.id" class="dmk-i" :class="{ 'dmk-ev': m.kind === 'event' }" :style="'opacity:' + fadeOf(i)" @tap="emit('open')">
       <view v-if="m.kind === 'system'" class="dmk-av dmk-sys"><z-icon name="pin" :size="13" color="#C9CDD4" /></view>
       <view v-else class="dmk-av" :style="'background:' + m.from.bg + ';color:' + m.from.fg"><text class="dmk-c">{{ m.from.c }}</text></view>
@@ -19,7 +19,7 @@
 import { computed } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 
-const props = defineProps({ list: { type: Array, default: () => [] }, max: { type: Number, default: 5 } })
+const props = defineProps({ list: { type: Array, default: () => [] }, max: { type: Number, default: 5 }, floating: { type: Boolean, default: false } })
 const emit = defineEmits(['open'])
 const shown = computed(() => props.list.slice(-props.max))
 // 从最新往前：1、0.82、0.62、0.42、0.25
@@ -29,6 +29,8 @@ const fadeOf = (i) => FADE[Math.min(FADE.length - 1, shown.value.length - 1 - i)
 
 <style>
 .dmk { display: flex; flex-direction: column; align-items: flex-start; }
+.dmk-floating { position: absolute; left: 0; right: 0; bottom: 0; pointer-events: none; }
+.dmk-floating .dmk-i { pointer-events: auto; }
 .dmk-i { max-width: 82%; margin-top: 8px; display: flex; align-items: flex-start; transition: opacity 260ms ease; animation: dmk-in 260ms cubic-bezier(.2, .8, .2, 1); }
 @keyframes dmk-in { from { transform: translateY(14px); opacity: 0; } to { transform: none; } }
 .dmk-av { width: 28px; height: 28px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; }

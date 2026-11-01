@@ -2,6 +2,7 @@
 // 以及 2 到 10 人桌的压力测试（每手都结束、记分守恒、机器人不做不合规则的动作）。
 // 运行：node tools/tally-test.mjs（全部通过时退出码为 0）
 const T = await import(new URL('../src/common/tally.js', import.meta.url).href);
+const { playerStatus } = await import(new URL('../src/common/tally-labels.js', import.meta.url).href);
 let fails = 0;
 const check = (name, ok, extra = '') => { if (!ok) fails++; console.log((ok ? '✓ ' : '✗ ') + name + (extra ? '  ' + extra : '')); };
 const P = (name, stack) => ({ pid: name, name, stack });
@@ -132,8 +133,56 @@ T.startHand(t, { sb: 100, bb: 200, ante: 0 });
 T.act(t, t.hand.toAct, 'raise', 600); T.act(t, t.hand.toAct, 'call'); T.act(t, t.hand.toAct, 'fold');
 const kinds = t.hand.log.map((x) => x.kind + ':' + x.text + ':' + x.amount);
 check('动作记录：盲注、加注、跟注都有，弃牌不算出分', JSON.stringify(kinds) === JSON.stringify(['blind:小盲:100', 'blind:大盲:200', 'bet:加注:600', 'bet:跟注:500']), JSON.stringify(kinds));
+// 状态回归：余额为 0 的候场玩家不能和本手全下、尚未收分的赢家混为一谈。
+t = T.createTable({ id: 'labels', name: '状态', size: 5 });
+T.sit(t, 0, P('阿林', 0)); T.sit(t, 1, P('A', 1000)); T.sit(t, 2, P('B', 1000));
+check('未开局的零分玩家显示无分', playerStatus(t.hand, t.seats[0], 0).label === '无分');
+T.startHand(t, { sb: 100, bb: 200, ante: 0 });
+T.sit(t, 3, P('中途入座', 1000));
+check('本手未参与：零分显示无分，有分的中途入座者显示候场', playerStatus(t.hand, t.seats[0], 0).label === '无分' && playerStatus(t.hand, t.seats[3], 3).label === '候场');
+const allInSeat = t.hand.toAct;
+check('当前行动者有独立状态', playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '行动');
+T.act(t, allInSeat, 'allin');
+check('本手全下后余额虽为零，仍显示全下', t.seats[allInSeat].stack === 0 && playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '全下');
+const winningSeat = t.hand.toAct;
+T.act(t, winningSeat, 'call');
+T.designate(t, [[winningSeat]]);
+check('零余额但尚未收分的赢家显示赢', t.seats[winningSeat].stack === 0 && playerStatus(t.hand, t.seats[winningSeat], winningSeat).label === '赢');
+payAll(t);
+check('全下输光并结算后才显示无分', t.hand.street === 'done' && playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '无分');
+T.startHand(t, { sb: 100, bb: 200, ante: 0 });
+check('候场玩家进入下一手后不再显示候场，零分玩家仍不入局', !!t.hand.players[3] && playerStatus(t.hand, t.seats[3], 3).label !== '候场' && !t.hand.players[allInSeat] && playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '无分');
+// 实时分池：封顶看本手累计投入，跨轮保持；无人跟的超额不能提前算成边池。
+t = T.createTable({ id: 'live', name: '实时边池', size: 3 });
+[1000, 5000, 5000].forEach((stack, k) => T.sit(t, k, P('p' + k, stack)));
+T.startHand(t, { sb: 100, bb: 200, ante: 0 });
+check('没有全下时，普通盲注不生成边池标签', T.livePots(t.hand).length === 0);
+T.act(t, 0, 'allin');
+check('刚全下但未跟齐，主池只统计已投入', JSON.stringify(T.livePots(t.hand).map((p) => [p.kind, p.amount])) === '[["main",1300]]');
+T.act(t, 1, 'call'); T.act(t, 2, 'call');
+const shape = () => JSON.stringify(T.livePots(t.hand).map((p) => [p.kind, p.amount]));
+check('短码全下跟齐后主池 3000，进入翻牌仍保留', t.hand.street === 'flop' && shape() === '[["main",3000]]');
+T.act(t, 1, 'raise', 500);
+const beforePreview = JSON.stringify(t.hand);
+check('下一轮先下注 500：主池 3000，待跟 500', shape() === '[["main",3000],["pending",500]]');
+check('实时分池不改动牌局或正式结算池', JSON.stringify(t.hand) === beforePreview && t.hand.pots === null);
+T.act(t, 2, 'call');
+check('另一人跟注后形成边池 1000，跨到转牌不清空', t.hand.street === 'turn' && shape() === '[["main",3000],["side",1000]]');
+T.act(t, 1, 'check'); T.act(t, 2, 'raise', 1000);
+check('再次加注保留原边池，新增未跟额独立展示', shape() === '[["main",3000],["side",1000],["pending",1000]]');
+T.act(t, 1, 'call');
+const lastPreview = T.livePots(t.hand).map((p) => p.amount);
+T.act(t, 1, 'check'); T.act(t, 2, 'check');
+check('最后一轮跟齐后，实时池与结算池金额一致', t.hand.street === 'collect' && JSON.stringify(lastPreview) === JSON.stringify(t.hand.pots.map((p) => p.amount)));
+const snapshot = (spec) => ({ street: 'flop', order: spec.map((_, i) => i), players: Object.fromEntries(spec.map(([committed, allIn = false, folded = false], i) => [i, { committed, allIn, folded, bet: 0 }])) });
+const multi = snapshot([[100, true], [200, true], [400], [400], [150, false, true]]);
+check('多人短码全下与弃牌死钱：主池 500，边池 350 / 400', JSON.stringify(T.livePots(multi).map((p) => p.amount)) === '[500,350,400]');
+const anteOnly = snapshot([[25, true], [225], [225]]);
+check('只够前注的全下也以累计投入封顶：75 / 400', JSON.stringify(T.livePots(anteOnly).map((p) => p.amount)) === '[75,400]');
+const foldedExcess = snapshot([[100, true], [200], [200], [900, false, true]]);
+check('弃牌者超额不当作待跟或丢失：400 / 1000', JSON.stringify(T.livePots(foldedExcess).map((p) => [p.kind, p.amount])) === '[["main",400],["side",1000]]');
 // 8) 压力测试：2 到 10 人桌，机器人出分、随机选赢家
-const rng = T.makeRng(42); let hands = 0, maxSteps = 0, ok = true, illegal = 0, collects = 0, splits = 0; const sizes = new Set();
+const rng = T.makeRng(42); let hands = 0, maxSteps = 0, ok = true, illegal = 0, collects = 0, splits = 0, liveValid = true, previews = 0; const sizes = new Set();
 for (let g = 0; g < 200; g++) {
   const size = 2 + (g % 9); sizes.add(size);
   const tb = T.createTable({ id: 'g' + g, name: 'x', size });
@@ -157,6 +206,11 @@ for (let g = 0; g < 200; g++) {
         if (total(tb) !== start) { ok = false; console.log('收分途中不守恒', g, n); break; }
         continue;
       }
+      const preview = T.livePots(tb.hand);
+      if (preview.length) {
+        previews++;
+        if (preview.some((p) => p.amount <= 0) || preview.reduce((s, p) => s + p.amount, 0) !== T.potTotal(tb.hand)) liveValid = false;
+      }
       const a = T.botAction(tb, tb.hand.toAct, rng);
       if (!T.act(tb, tb.hand.toAct, a.action, a.to).ok) { illegal++; const o = T.options(tb, tb.hand.toAct); T.act(tb, tb.hand.toAct, o.canCheck ? 'check' : 'fold'); }
       if (++steps > 400) throw new Error('牌局停不下来');
@@ -166,6 +220,7 @@ for (let g = 0; g < 200; g++) {
   }
 }
 check('机器人不会做出不合规则的动作', illegal === 0, `不合规则 ${illegal} 次`);
+check('下注中主池、边池、待跟之和始终等于桌面分', liveValid && previews > 0, `${previews} 次实时分池`);
 check(`压力测试：${hands} 手（${[...sizes].sort((a, b) => a - b).join('、')} 人桌），每手都结束，记分守恒`, ok && hands > 1500, `其中 ${collects} 手要选赢家，${splits} 手平分；单手最多 ${maxSteps} 步`);
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过');
 process.exit(fails ? 1 : 0);
