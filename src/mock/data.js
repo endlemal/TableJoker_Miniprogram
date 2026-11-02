@@ -108,7 +108,14 @@ export const room = {
     { name: '陈默', c: '陈', bg: '#2F4A3A', fg: '#B8E6C8' },
     { name: '童童', c: '童', bg: '#4A3626', fg: '#F2CDA6' },
     { name: '林夕', c: '林', bg: '#3A3550', fg: '#D9CFFF' },
-    { name: '安然', c: '安', bg: '#33404F', fg: '#C9DAF0' }
+    { name: '安然', c: '安', bg: '#33404F', fg: '#C9DAF0' },
+    { name: '小北', c: '北', bg: '#3B4A6B', fg: '#C9D6FF' },
+    { name: '阿南', c: '南', bg: '#4A2E1F', fg: '#F2C9A0' },
+    { name: '木木', c: '木', bg: '#2E4A3B', fg: '#A8E0C2' },
+    { name: '苏苏', c: '苏', bg: '#3D3550', fg: '#D6CCFF' },
+    { name: '白白', c: '白', bg: '#24404A', fg: '#A6DDEB' },
+    { name: '阿泽', c: '泽', bg: '#3F3A2A', fg: '#E6D3A3' },
+    { name: '星星', c: '星', bg: '#4A2433', fg: '#F5B5C8' }
   ],
   // 起始记分（每人）；记分页按这个算平均
   startScore: 20000

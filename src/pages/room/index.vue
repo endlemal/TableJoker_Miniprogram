@@ -4,26 +4,38 @@
     <view class="nav" :style="navStyle">
       <view class="nav-back" hover-class="press" @tap="goBackOrHome"><z-icon name="arrow-left" :size="20" color="#F3EEE6" /></view>
       <text class="nav-name" :class="{ 'font-sys': !fitsDisplay(room.name) }">{{ room.name }}</text>
+      <view v-if="spot" class="nav-exit" role="button" :aria-label="spot.observing ? '退出观战' : '离开牌桌'" hover-class="press" @longpress="toast(spot.observing ? '退出观战' : '离开牌桌')" @tap="leaveTally"><z-icon name="table-exit" :size="19" color="#C9CDD4" /></view>
     </view>
 
     <view class="main">
       <view class="col-a">
-        <!-- 赛事状态栏：级别、已进行时长、运行状态（颜色配文字） -->
+        <!-- Timer 保留赛事状态；其他页显示迷你盲注，记分工具突出当前牌局阶段。 -->
         <view class="status">
           <text class="st-lv">{{ isBreak ? '休息' : '第 ' + cur.no + ' 级' }}</text>
-          <text class="st-el">已进行 {{ elapsedMin }} 分钟</text>
-          <view class="st-state" :style="'color:' + stateInfo.color"><view class="st-dot" :style="'background:' + stateInfo.color"></view><text>{{ stateInfo.text }}</text></view>
+          <template v-if="pageKey === 'timer'">
+            <text class="st-el">已进行 {{ elapsedMin }} 分钟</text>
+            <view class="st-state" :style="'color:' + stateInfo.color"><view class="st-dot" :style="'background:' + stateInfo.color"></view><text>{{ stateInfo.text }}</text></view>
+          </template>
+          <template v-else>
+            <view class="st-blinds" :aria-label="blindText">
+              <view v-for="(b, i) in blindItems" :key="i" class="st-blind">
+                <text class="st-blind-k">{{ ['SB', 'BB', 'ANTE'][i] }}</text>
+                <z-flap :value="b.value" :w="miniFlap.w" :h="miniFlap.h" :fs="miniFlap.fs" :hinge="0.5 / k" :pin="1.5 / k" :stack="1 / k" :radius="2 / k" />
+              </view>
+            </view>
+            <view v-if="pageKey === 'tally'" class="st-phase" :class="'st-phase-' + (spot?.t.hand?.street || 'idle')" aria-live="polite"><text :key="handPhase" class="st-phase-t">{{ handPhase }}</text></view>
+          </template>
         </view>
 
         <!-- 键盘或表情面板打开时：赛事区收成一行摘要 -->
-        <view class="summary" :class="{ 'summary-on': compact }">
+        <view v-if="pageKey === 'timer'" class="summary" :class="{ 'summary-on': compact }">
           <text class="sm-time" :style="'color:' + clockColor">{{ clockText }}</text>
           <text class="sm-b">{{ blindText }}</text>
           <text class="sm-s" :style="'color:' + stateInfo.color">{{ stateInfo.text }}</text>
         </view>
 
         <!-- 内容展示区：只能手动左右滑；签到墙、Timer（默认），主持人开启的玩法依次排在 Timer 后面 -->
-        <view class="stage" :class="{ 'stage-hide': compact }" :style="'height:' + curStageH + 'px'">
+        <view class="stage" :class="{ 'stage-hide': compact, 'stage-tally': pageKey === 'tally' }" :style="'height:' + curStageH + 'px'">
           <swiper class="pages" :current="pageIdx" :autoplay="false" :circular="false" :duration="260" @change="onPage">
             <swiper-item v-for="p in pages" :key="p.key">
               <scroll-view scroll-y class="pg" :class="'pg-' + p.key">
@@ -72,13 +84,14 @@
 
                 <!-- 玩法：记分工具（没入座时是牌桌列表；入座后是自己这桌：玩家纵向排列，右上角看排行） -->
                 <view v-else-if="p.key === 'tally'" class="hp">
-                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" @leave="leaveTally" />
+                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :observing="!!spot.observing" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" @join="joinTally(spot.t)" />
                   <view v-else class="tl">
                     <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">余分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
                     <view v-for="t in tally.tables" :key="t.id" class="tl-card">
                       <view class="tl-top">
                         <view class="tl-main"><text class="tl-name">{{ t.name }}</text><text class="tl-sub">{{ seatedOf(t) }}/{{ t.size }} 人 · {{ t.hand && t.hand.street !== 'done' ? t.handNo + '手 · 进行中' : '待开' }}</text></view>
-                        <view class="tl-join" :class="{ 'tl-join-off': seatedOf(t) >= t.size }" hover-class="press" @tap="joinTally(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size ? '满员' : '入座' }}</text></view>
+                        <view v-if="seatedOf(t) < t.size && tally.assets[ME_NAME] > 0" class="tl-ob" hover-class="press" @tap="observeTally(t)"><text>OB</text></view>
+                        <view class="tl-join" hover-class="press" @tap="seatedOf(t) >= t.size || tally.assets[ME_NAME] <= 0 ? observeTally(t) : joinTally(t)"><text class="tl-join-t">{{ seatedOf(t) >= t.size || tally.assets[ME_NAME] <= 0 ? 'OB 观战' : '入座' }}</text></view>
                       </view>
                       <view class="tl-seats"><view v-for="(st, k) in t.seats" :key="k" class="tl-seat" :class="{ 'tl-seat-empty': !st }" :style="st ? 'background:' + st.bg + ';color:' + st.fg : ''"><text v-if="st">{{ st.c }}</text></view></view>
                     </view>
@@ -115,26 +128,22 @@
           <view class="dots"><view v-for="(p, i) in pages" :key="p.key" class="dot" :class="{ 'dot-on': i === pageIdx }"></view></view>
         </view>
 
-        <!-- 桌面分紧接玩法面板；主池 / 边池实时更新，结算时在此选赢家和收分。 -->
+        <!-- 桌面分紧接玩法面板；主池 / 边池实时更新，定胜和收分由下方独立面板处理。 -->
         <view v-if="spot && !compact" class="table-pot">
-          <z-tally-pot :table="spot.t" :my-seat="spot.i" :is-host="isHost" :picks="tally.picks" :turn-left="tally.turnLeft" :max-pots="potListH" @pick="onPick" @designate="onDesignate" @collect="onCollect" />
+          <z-tally-pot :table="spot.t" />
         </view>
 
-        <!-- 成员概览：叠放头像和人数，点开是签到墙 -->
-        <view v-if="!onTallyPage" class="members" hover-class="press-soft" @tap="pageKey = 'wall'">
-          <view class="stack"><view v-for="(m, i) in members.slice(0, 3)" :key="m.name" class="sk-av" :style="'background:' + m.bg + ';color:' + m.fg + ';z-index:' + (3 - i)"><text>{{ m.c }}</text></view></view>
-          <text class="mb-n">+{{ Math.max(0, members.length - 3) }}</text>
-          <text class="mb-s">{{ members.length }} 人已签到</text>
-        </view>
       </view>
 
       <view class="col-b">
         <!-- 气泡弹幕：靠左，最近几条，越早越淡；点了打开完整的房间弹幕列表 -->
         <view class="dm-area" :class="{ 'dm-area-table': onTallyPage }">
-          <view class="dm-msgs" :class="{ 'dm-msgs-float': onTallyPage }">
+          <view v-if="choosingWinner" class="winner-area"><z-tally-settle :table="spot.t" :picks="tally.picks" :turn-left="tally.turnLeft" @pick="onPick" @designate="onDesignate" /></view>
+          <view v-else class="dm-msgs" :class="{ 'dm-msgs-float': onTallyPage }">
             <z-danmaku :list="danmakuList" :max="spot ? 2 : land ? 6 : 5" :floating="onTallyPage" @open="openChat" />
           </view>
           <view v-if="myTurn" class="tally-actions"><z-tally-act :table="spot.t" :seat="spot.i" :turn-left="tally.turnLeft" @act="onTallyAct" @expand="tallyRaising = $event" /></view>
+          <view v-else-if="payingOut" class="tally-actions"><z-tally-collect :table="spot.t" :my-seat="spot.i" :turn-left="spot.t._deadline ? tally.turnLeft : 0" @collect="onCollect" /></view>
         </view>
 
         <!-- 抽屉打开时输入栏和抽屉一起浮在屏幕底部，这里留出输入栏的位置，房间内容不会被顶上去 -->
@@ -229,25 +238,11 @@
                     </view>
                   </block>
                 </block>
-                <!-- 记分 -->
-                <block v-else-if="drawer.tab === 'score'">
-                  <view class="sc-head"><text class="dp-t">记分</text><text class="sc-sum">合计 {{ fmtNum(totalScore) }} · 平均 {{ fmtNum(avgScore) }}</text></view>
-                  <view v-for="(s, i) in ranked" :key="s.name" class="sc-row">
-                    <text class="sc-rank" :class="{ 'sc-rank-top': i < 3 }">{{ i + 1 }}</text>
-                    <view class="sc-av" :style="'background:' + s.bg + ';color:' + s.fg"><text>{{ s.c }}</text></view>
-                    <text class="sc-n">{{ s.name }}</text>
-                    <view v-if="isHost" class="sc-step">
-                      <view class="sc-b" hover-class="press" @tap="adjustScore(s, -1000)"><z-icon name="minus" :size="14" color="#F3EEE6" /></view>
-                      <text class="sc-v">{{ fmtNum(s.score) }}</text>
-                      <view class="sc-b" hover-class="press" @tap="adjustScore(s, 1000)"><z-icon name="plus" :size="14" color="#F3EEE6" /></view>
-                    </view>
-                    <text v-else class="sc-v">{{ fmtNum(s.score) }}</text>
-                  </view>
-                  <text class="dp-s">{{ isHost ? '每次加减 1,000；只有主持人可以改记分' : '只有主持人可以改记分' }}</text>
-                </block>
+                <!-- 房间排行：自定义排序不改变牌桌的资产排行与实际记分 -->
+                <z-room-ranking v-else-if="drawer.tab === 'score'" :members="members" :assets="tally.assets" :state="tally.ranking" :editable="isHost" :height="rankingHeight" @mode="setRankingMode" @index="setRankingIndex" @order="setRankingOrder" />
               </view>
             </scroll-view>
-            <!-- 悬浮导航：图片｜弹幕｜主持人｜玩法｜记分 -->
+            <!-- 悬浮导航：图片｜弹幕｜主持人｜玩法｜排行 -->
             <view class="dr-nav">
               <view v-for="t in TABS" :key="t.key" class="dn" :class="{ 'dn-on': drawer.tab === t.key }" hover-class="press" @tap="pickTab(t.key)">
                 <z-icon :name="t.icon" :size="22" :color="drawer.tab === t.key ? '#F3EEE6' : '#8E929B'" />
@@ -262,17 +257,18 @@
     <!-- 盲注表：全屏浮层，暗色遮罩加背景模糊；点表外面的地方退出 -->
     <view v-if="structOpen" class="bt" @tap="structOpen = false" @touchmove.stop.prevent="noop">
       <view class="bt-card" @tap.stop="noop">
-        <view class="bt-head"><text class="bt-title">盲注结构</text><text class="bt-sub">共 {{ totalLevels }} 级 · 点表外面关闭</text></view>
+        <view class="bt-head"><text class="bt-title">盲注结构</text><text class="bt-sub">共 {{ totalLevels }} 级</text><view class="bt-close" role="button" aria-label="关闭盲注结构" hover-class="press" @tap="structOpen = false"><z-icon name="x" :size="18" color="#9CA3AF" /></view></view>
+        <view class="bt-table">
         <view class="tr tr-head"><text class="tc">级别</text><text class="tc">盲注</text><text class="tc">前注</text><text class="tc">时长</text><text class="tc">开始</text></view>
         <scroll-view scroll-y class="bt-body" :scroll-into-view="'lv' + Math.max(0, idx - 2)">
-          <view v-for="r in fullTable" :id="'lv' + r.key" :key="r.key" class="tr" :class="{ 'tr-cur': r.current, 'tr-past': r.past, 'tr-break': r.isBreak }">
-            <text class="tc" :style="r.current ? 'color:' + tstate.color : ''">{{ r.lv }}</text>
-            <text class="tc">{{ r.blinds }}</text>
-            <text class="tc">{{ r.ante }}</text>
-            <text class="tc">{{ r.dur }} 分</text>
-            <text class="tc" :style="r.current ? 'color:' + tstate.color : ''">{{ r.start }}</text>
+          <view v-for="r in fullTable" :id="'lv' + r.key" :key="r.key" class="tr" :class="{ 'tr-cur': r.current, 'tr-past': r.past, 'tr-break': r.isBreak, 'tr-last': r.key === fullTable.length - 1 }">
+            <view v-if="r.isBreak" class="bt-break"><z-icon name="coffee" :size="14" color="#FFC53A" /><text>休息</text></view>
+            <template v-else><text class="tc">{{ r.lv }}</text><text class="tc">{{ r.blinds }}</text><text class="tc">{{ r.ante }}</text></template>
+            <view class="tc tc-dur"><text>{{ r.dur }}</text><text class="tc-unit">分</text></view>
+            <text class="tc tc-start" :class="{ 'tc-status': r.current || r.past }" :style="r.current ? 'color:' + tstate.color : ''">{{ r.start }}</text>
           </view>
         </scroll-view>
+        </view>
       </view>
     </view>
     <!-- 调整资产（主持人） -->
@@ -282,7 +278,7 @@
         <input v-model="assetsDraft" class="as-in" type="number" maxlength="9" placeholder="记分" placeholder-class="ph" />
         <view class="as-quick"><text v-for="d in [-5000, -1000, 1000, 5000]" :key="d" class="as-q" @tap="assetsDraft = String(Math.max(0, (Number(assetsDraft) || 0) + d))">{{ d > 0 ? '+' : '−' }}{{ fmtNum(Math.abs(d)) }}</text></view>
         <view class="as-acts"><view class="as-btn" hover-class="press" @tap="assetsEdit = null"><text class="as-btn-t">取消</text></view><view class="as-btn as-btn-ok" hover-class="press" @tap="saveAssets"><text class="as-btn-t">保存</text></view></view>
-        <text class="dp-s">在座的玩家立即生效（已经投入这一手的不变）；记分面板同步</text>
+        <text class="dp-s">在座的玩家立即生效（已经投入这一手的不变）；排行总分同步</text>
       </view>
     </view>
     <!-- 抽屉的遮罩：盖住上面的房间内容，点一下收起 -->
@@ -291,8 +287,8 @@
 </template>
 
 <script setup>
-// 房间：顶部导航、赛事状态栏、可手动横滑的内容展示区（签到墙、Timer、主持人开启的玩法）、成员概览和气泡弹幕、底部消息输入栏。
-// 「更多」打开底部抽屉：图片｜弹幕｜主持人｜玩法｜记分；「弹幕」打开完整的房间弹幕列表页。
+// 房间：顶部导航、赛事状态栏、可手动横滑的内容展示区（签到墙、Timer、主持人开启的玩法）、气泡弹幕、底部消息输入栏。
+// 「更多」打开底部抽屉：图片｜弹幕｜主持人｜玩法｜排行；「弹幕」打开完整的房间弹幕列表页。
 // 系统键盘、表情面板、更多抽屉三者互斥；键盘或表情面板打开时，赛事区收成一行摘要
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { onLoad, onShow, onHide, onUnload, onShareAppMessage } from '@dcloudio/uni-app'
@@ -302,10 +298,13 @@ import ZFlap from '@/components/z-flap/z-flap.vue'
 import ZRoomInput from '@/components/z-room-input/z-room-input.vue'
 import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
 import ZDanmaku from '@/components/z-danmaku/z-danmaku.vue'
+import ZRoomRanking from '@/components/z-room-ranking/z-room-ranking.vue'
 import ZTallyTable from '@/components/z-tally-table/z-tally-table.vue'
 import ZTallyAct from '@/components/z-tally-act/z-tally-act.vue'
 import ZTallyPot from '@/components/z-tally-pot/z-tally-pot.vue'
-import { tally, initTally, runTally, mySpot, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect } from '@/common/tally-room.js'
+import ZTallySettle from '@/components/z-tally-settle/z-tally-settle.vue'
+import ZTallyCollect from '@/components/z-tally-collect/z-tally-collect.vue'
+import { tally, initTally, runTally, viewSpot, observe, leaveObservation, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect } from '@/common/tally-room.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
@@ -345,8 +344,8 @@ const k = computed(() => win.value.w / 375) // 设计稿 px → 实际 px
 const sc = computed(() => Math.min(win.value.w, win.value.h) / 375) // 实际大小跟着手机短边缩放
 // Timer 页里除翻牌数字以外的高度（标签行、进度条、盲注一行、内边距、分页点），这些是固定的 px，只有盲注的翻牌跟着缩放
 const fixedH = computed(() => 150 + 24 * sc.value)
-// 展示区最多能用的高度：竖屏占窗口的 56%；横屏是左栏去掉状态栏和成员行以后剩下的
-const stageCap = computed(() => (land.value ? win.value.h - (nav.statusBar + nav.navH) - 40 - 56 - 8 : Math.round(win.value.h * 0.56)))
+// 展示区最多能用的高度：竖屏占窗口的 56%；横屏是左栏去掉状态栏以后剩下的
+const stageCap = computed(() => (land.value ? win.value.h - (nav.statusBar + nav.navH) - 40 - 8 : Math.round(win.value.h * 0.56)))
 // 翻牌数字：四位数字 + 冒号占满展示区的宽度；同时不超过窗口高度的 26%（横屏 30%），也不能让 Timer 页超出展示区
 const flapPx = computed(() => {
   const colW = land.value ? win.value.w * 0.56 : win.value.w
@@ -358,6 +357,7 @@ const flapPx = computed(() => {
 })
 const flap = computed(() => ({ w: Math.round(flapPx.value.w / k.value), h: Math.round(flapPx.value.h / k.value), fs: Math.round((flapPx.value.h * 1.08) / k.value) }))
 const bflap = computed(() => ({ w: Math.round((46 * sc.value) / k.value), h: Math.round((24 * sc.value) / k.value), fs: Math.round((20 * sc.value) / k.value) }))
+const miniFlap = computed(() => ({ w: 34 / k.value, h: 18 / k.value, fs: 14 / k.value }))
 // 展示区的高度（px）：所有分页一样大，正好放下 Timer 页；签到墙、玩法页内容长了在页面里滚动
 const stageH = computed(() => Math.min(Math.round(flapPx.value.h + fixedH.value), stageCap.value))
 const wallCols = computed(() => Math.max(4, Math.floor((land.value ? win.value.w * 0.56 : win.value.w) / 72)))
@@ -493,7 +493,7 @@ function addTime(sec) {
   toast(sec > 0 ? '本级加了 1 分钟' : '本级减了 1 分钟')
 }
 
-/* ---------- 成员：座位上的人 + 已签到候补；签到墙、成员概览、记分都用 ---------- */
+/* ---------- 成员：座位上的人 + 已签到候补；签到墙、排行、记分都用 ---------- */
 const members = ref(room.seats.map((s) => ({ name: s.name, c: s.c, bg: s.bg, fg: s.fg, seat: s.no })).concat(room.waiting.map((p) => ({ ...p, seat: 0 }))))
 // 抽座位：打乱后前 9 位入座（1 到 9 号），其余候补
 function shuffleSeats() {
@@ -534,7 +534,11 @@ function togglePlay(pl) {
 const ME_NAME = me.nickname
 initTally(members.value, ME_NAME, room.startScore)
 const tallyOn = computed(() => playsOn.value.includes('tally'))
-const spot = computed(() => (tallyOn.value ? mySpot() : null))
+const spot = computed(() => (tallyOn.value ? viewSpot() : null))
+const handPhase = computed(() => {
+  if (!spot.value) return '待入桌'
+  return ({ preflop: '翻牌前', flop: '翻牌', turn: '转牌', river: '河牌', collect: '摊牌', payout: '摊牌', done: '本手结束' })[spot.value.t.hand?.street] || '待开局'
+})
 const seatedOf = (t) => t.seats.filter(Boolean).length
 // 盲注跟着房间当前的级别（休息时用下一级），下一手开始生效
 watch(blindOf, (e) => { if (e) tally.blinds = { sb: e.sb, bb: e.bb, ante: e.ante || 0 } }, { immediate: true })
@@ -545,7 +549,12 @@ function joinTally(t) {
   if (err) return toast(err)
   addSystem(`${ME_NAME} 坐上了${t.name}`)
 }
+function observeTally(t) {
+  const err = observe(t.id)
+  if (err) toast(err)
+}
 function leaveTally() {
+  if (spot.value?.observing) { leaveObservation(); return }
   uni.showModal({
     title: '离开牌桌',
     content: '这一手还没结束的话，离桌算弃牌。',
@@ -557,18 +566,19 @@ function leaveTally() {
 // 先预留桌面分、操作栏、输入栏和弹幕的位置；矮屏下玩家列表可滚动。
 const onTallyPage = computed(() => pageKey.value === 'tally' && !!spot.value)
 const tallyRaising = ref(false)
-const settling = computed(() => !!(spot.value && ['collect', 'payout'].includes(spot.value.t.hand?.street)))
-const potListH = computed(() => Math.max(60, Math.min(150, Math.round(win.value.h * (land.value ? 0.2 : 0.18)))))
+const choosingWinner = computed(() => onTallyPage.value && isHost.value && !compact.value && spot.value.t.hand?.street === 'collect')
+const payingOut = computed(() => !!(spot.value && spot.value.t.hand?.street === 'payout'))
 const tallyStageCap = computed(() => {
-  const potH = settling.value ? potListH.value + 104 : 80
-  const below = land.value ? 8 : 100 + (settling.value ? 0 : tallyRaising.value ? 200 : 100) + 64
+  const potH = 80
+  const controls = choosingWinner.value ? Math.max(240, Math.min(360, win.value.h * 0.46)) : (payingOut.value || !spot.value?.observing) ? (tallyRaising.value ? 200 : 100) : 0
+  const below = land.value ? 8 : 100 + controls + (choosingWinner.value ? 0 : 64)
   // 最少保留标题、一个完整玩家行和分页点，避免展开加注时只露出半行。
-  return Math.max(100, win.value.h - nav.statusBar - nav.navH - 40 - potH - below)
+  return Math.max(118, win.value.h - nav.statusBar - nav.navH - 40 - potH - below)
 })
 const tallyStageH = computed(() => {
   const t = spot.value?.t
   const n = t ? Math.max(t.seats.filter(Boolean).length, t.hand?.order.length || 0) : 0
-  return Math.round(Math.min(tallyStageCap.value, Math.max(stageH.value, 42 + n * 40 + 24)))
+  return Math.round(Math.min(tallyStageCap.value, Math.max(stageH.value, 42 + n * 56 + 24)))
 })
 const curStageH = computed(() => onTallyPage.value ? tallyStageH.value : spot.value ? Math.min(stageH.value, Math.max(80, tallyStageCap.value - 56)) : stageH.value)
 const myTurn = computed(() => {
@@ -656,17 +666,18 @@ const pots = computed(() => {
   }).filter((p) => p.amount > 0)
 })
 
-/* ---------- 记分：和记分工具里的资产是同一份 ---------- */
-const ranked = computed(() => members.value.map((m) => ({ ...m, score: tally.assets[m.name] || 0 })).sort((a, b) => b.score - a.score))
-const totalScore = computed(() => ranked.value.reduce((a, s) => a + s.score, 0))
-const avgScore = computed(() => Math.round(totalScore.value / Math.max(1, ranked.value.length)))
-function adjustScore(s, d) {
+/* ---------- 房间排行：总分 / 可选 index / 手动排序 ---------- */
+const rankingHeight = computed(() => Math.max(112, Math.min(360, win.value.h * 0.64 - 228)))
+function setRankingMode(mode) { if (isHost.value && ['score', 'index', 'manual'].includes(mode)) tally.ranking.mode = mode }
+function setRankingIndex(name, value) { if (isHost.value) tally.ranking.index = { ...tally.ranking.index, [name]: value } }
+function setRankingOrder(order) {
   if (!isHost.value) return
-  setAssets(s.name, Math.max(0, (tally.assets[s.name] || 0) + d))
+  tally.ranking.order = order
+  tally.ranking.mode = 'manual'
 }
 
 /* ---------- 消息：气泡弹幕和完整列表共用一份数据 ---------- */
-const danmakuList = computed(() => chat.list.slice(-6))
+const danmakuList = computed(() => chat.list.filter((m) => !spot.value || !m.tableId || m.tableId === spot.value.t.id).slice(-6))
 const openChat = () => uni.navigateTo({ url: '/pages/room/chat' })
 const draft = ref('')
 const cursor = ref(-1)
@@ -730,7 +741,7 @@ const TABS = [
   { key: 'chat', name: '弹幕', icon: 'message-circle' },
   { key: 'host', name: '主持人', icon: 'crown' },
   { key: 'play', name: '玩法', icon: 'puzzle' },
-  { key: 'score', name: '记分', icon: 'trophy' }
+  { key: 'score', name: '排行', icon: 'trophy' }
 ]
 const drawer = reactive({ show: false, open: false, tab: 'image', dir: 'r', drag: 0 })
 let drawerTimer = null
@@ -821,15 +832,28 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .nav { flex: none; padding-left: 12px; box-sizing: border-box; display: flex; align-items: center; }
 .nav-back { width: 44px; height: 44px; flex: none; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
 .nav-name { margin-left: 12px; flex: 1; min-width: 0; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 24px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-exit { flex: none; width: 40px; height: 40px; margin-left: 6px; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
+.nav-exit .z-icon { width: 19px !important; height: 19px !important; }
 .main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .col-a { flex: none; min-height: 0; display: flex; flex-direction: column; }
 .col-b { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* 赛事状态栏 */
-.status { flex: none; height: 40px; padding: 0 16px; display: flex; align-items: center; }
-.st-lv { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 22px; color: #F3EEE6; }
+.status { flex: none; height: 40px; padding: 0 12px; display: flex; align-items: center; line-height: 1.2; }
+.st-lv { flex: none; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 22px; color: #F3EEE6; white-space: nowrap; }
 .st-el { margin-left: 8px; font-size: 13px; color: #A9AEB8; }
 .st-state { margin-left: auto; display: flex; align-items: center; font-size: 15px; font-weight: 600; }
 .st-dot { width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
+.st-blinds { flex: none; display: flex; align-items: center; margin-left: 10px; }
+.st-blind { flex: none; display: flex; flex-direction: column; align-items: center; margin-right: 5px; }
+.st-blind:last-child { margin-right: 0; }
+.st-blind-k { margin-bottom: 2px; font-size: 8px; line-height: 10px; letter-spacing: .5px; font-weight: 600; color: #A9AEB8; }
+.st-phase { flex: none; margin-left: auto; padding-left: 8px; color: #F3EEE6; font-size: 18px; line-height: 24px; font-weight: 800; white-space: nowrap; }
+.st-phase-collect, .st-phase-payout { color: #FFD27A; }
+.st-phase-done { font-size: 15px; color: #3FCF84; }
+.st-phase-idle { font-size: 15px; color: #A9AEB8; }
+.st-phase-t { display: inline-block; animation: phase-in 180ms ease-out; }
+@keyframes phase-in { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .st-phase-t { animation: none; } }
 /* 摘要（键盘或表情面板打开时） */
 .summary { height: 0; margin: 0 12px; padding: 0 16px; border-radius: 16px; background: #0D0E11; overflow: hidden; opacity: 0; display: flex; align-items: center; transition: height 240ms ease, opacity 200ms ease; }
 .summary-on { height: 48px; opacity: 1; }
@@ -838,7 +862,8 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .sm-s { margin-left: 8px; font-size: 13px; font-weight: 600; }
 /* 内容展示区 */
 .stage { position: relative; flex: none; margin: 0 12px; border-radius: 16px; background: #0D0E11; overflow: hidden; display: flex; flex-direction: column; transition: height 240ms ease, opacity 200ms ease; }
-.table-pot { flex: none; margin: 0 12px; }
+.stage-tally { margin-left: 6px; margin-right: 6px; }
+.table-pot { flex: none; margin: 0 6px; }
 .stage-hide { height: 0 !important; opacity: 0; }
 .pages { width: 100%; flex: 1; min-height: 0; }
 .pg { height: 100%; box-sizing: border-box; }
@@ -874,25 +899,36 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .tm-struct-t { margin-top: 4px; font-size: 12px; color: #C9CDD4; }
 .bl { display: flex; flex-direction: column; align-items: center; }
 .bl-cap { margin-top: 6px; font-size: 12px; color: #C9CDD4; }
-.tr { height: 36px; display: flex; align-items: center; border-bottom: 1px solid #22252B; }
-.tr-head { height: 28px; }
-.tr-head .tc { font-size: 12px; color: #8E929B; }
-.tr-cur { background: #1D2027; }
-.tr-past .tc { color: #6E737C; }
-.tr-break .tc { color: #3FCF84; }
 /* 计时器：本级最后 30 秒呼吸闪烁 */
 .clock-breathe { animation: breathe 1.6s ease-in-out infinite; }
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: .38; } }
 /* 盲注表、调整资产：全屏浮层，暗色遮罩 + 背景模糊 */
 .bt { position: fixed; z-index: 260; left: 0; top: 0; right: 0; bottom: 0; background: rgba(8, 9, 12, .55); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); display: flex; align-items: center; justify-content: center; animation: bt-in 220ms ease; }
 @keyframes bt-in { from { opacity: 0; } to { opacity: 1; } }
-.bt-card { width: calc(100% - 32px); max-width: 480px; max-height: 78vh; padding: 16px 12px 8px; box-sizing: border-box; border-radius: 16px; background: #111317; display: flex; flex-direction: column; animation: bt-up 240ms cubic-bezier(.2, .8, .2, 1); }
+.bt-card { width: calc(100% - 32px); max-width: 480px; max-height: 78vh; padding: 16px; box-sizing: border-box; border-radius: 28px; background: #181A20; display: flex; flex-direction: column; animation: bt-up 240ms cubic-bezier(.2, .8, .2, 1); }
 @keyframes bt-up { from { transform: translateY(16px) scale(.98); } to { transform: none; } }
-.bt-head { padding: 0 4px 8px; display: flex; align-items: baseline; justify-content: space-between; }
-.bt-title { font-size: 17px; font-weight: 700; color: #F3EEE6; }
-.bt-sub { font-size: 12px; color: #A9AEB8; }
-.bt-body { flex: 1; min-height: 0; max-height: calc(78vh - 96px); }
-.tc { flex: 1; text-align: center; font-size: 13px; color: #E5E2DB; }
+.bt-head { flex: none; min-height: 36px; margin-bottom: 10px; display: flex; align-items: center; }
+.bt-title { font-size: 15px; font-weight: 500; color: #FFFFFF; }
+.bt-sub { margin-left: auto; font-size: 12px; color: #9CA3AF; }
+.bt-close { flex: none; margin-left: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.bt-close .z-icon { width: 18px !important; height: 18px !important; }
+/* 对齐邀请页 sheet > tt：近黑底、BoardNum 数字、粗分隔线。保留房间独有的开始列。 */
+.bt-table { min-height: 0; padding: 2px 12px; border-radius: 12px; background: #050505; overflow: hidden; display: flex; flex-direction: column; }
+.bt-card .tr { flex: none; display: grid; grid-template-columns: 32px minmax(72px, 1.4fr) minmax(32px, .7fr) 32px 58px; align-items: center; height: 34px; border-bottom: 2px solid #262626; }
+.bt-card .tr-last { border-bottom: 0; }
+.bt-card .tr-head { height: 28px; }
+.bt-card .tc { min-width: 0; text-align: center; white-space: nowrap; font-family: "BoardNum", "DIN Alternate", sans-serif; font-weight: 700; font-size: 17px; line-height: 24px; color: #F2F2EE; }
+.bt-card .tr-head .tc { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 12px; color: #8F8F8A; }
+.bt-card .tc-dur { display: flex; align-items: baseline; justify-content: center; }
+.bt-card .tc-unit { margin-left: 1px; font-family: "BoardHei", "PingFang SC", sans-serif; font-size: 11px; font-weight: 900; }
+.bt-card .tc-start { font-size: 15px; }
+.bt-card .tc-status { font-family: "BoardHei", "PingFang SC", sans-serif; font-weight: 900; font-size: 11px; }
+.bt-card .tr-cur { background: #20221D; box-shadow: inset 2px 0 0 #FFC53A; }
+.bt-card .tr-past .tc { color: #777972; }
+.bt-break { grid-column: 1 / 4; display: flex; align-items: center; padding-left: 12px; font-family: "BoardHei", "PingFang SC", sans-serif; font-size: 13px; font-weight: 900; color: #FFC53A; }
+.bt-break text { margin-left: 6px; }
+.bt-break .z-icon { width: 14px !important; height: 14px !important; }
+.bt-body { flex: 1; min-height: 0; max-height: calc(78vh - 114px); }
 /* 玩法页 */
 .play { padding: 16px 16px 32px; }
 .play-t { display: block; font-size: 16px; font-weight: 700; color: #F3EEE6; }
@@ -929,17 +965,13 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .pot-res-k { font-size: 14px; color: #C9CDD4; }
 .pot-res-v { margin-left: 8px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 20px; color: #F3EEE6; }
 .pot-res-s { width: 100%; margin-top: 4px; font-size: 12px; color: #A9AEB8; }
-/* 成员概览 */
-.members { height: 56px; padding: 0 16px; display: flex; align-items: center; }
-.stack { display: flex; }
-.sk-av { position: relative; width: 36px; height: 36px; margin-right: -10px; border-radius: 50%; border: 2px solid #1B1D22; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; }
-.mb-n { margin-left: 18px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 22px; color: #F3EEE6; }
-.mb-s { margin-left: 8px; font-size: 12px; color: #A9AEB8; }
-/* 气泡弹幕区：在成员概览和输入栏之间，靠左、贴着下沿 */
+/* 气泡弹幕区：在展示区和输入栏之间，靠左、贴着下沿 */
 .dm-area { flex: 1; min-height: 0; padding: 0 16px 8px; overflow: hidden; display: flex; flex-direction: column; }
 /* 普通聊天顶部渐隐；牌桌弹幕独立浮起，空间紧张时允许向上溢出，不被面板或渐隐遮住。 */
 .dm-msgs { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px); mask-image: linear-gradient(to bottom, transparent 0, #000 28px); }
-.dm-area-table { position: relative; overflow: visible; }
+.dm-area-table { position: relative; overflow: visible; padding-left: 6px; padding-right: 6px; }
+.winner-area { position: relative; z-index: 40; flex: 1; min-height: 0; margin-top: 8px; }
+.tl-ob { flex: none; margin-left: 8px; padding: 8px 10px; border-radius: 12px; background: #33363E; color: #C9CDD4; font-size: 12px; }
 .dm-msgs-float { position: relative; z-index: 30; overflow: visible; -webkit-mask-image: none; mask-image: none; pointer-events: none; }
 .tally-actions { position: relative; z-index: 40; flex: none; }
 .bottom { position: relative; z-index: 40; flex: none; background: #1B1D22; transition: padding-bottom 200ms ease; }

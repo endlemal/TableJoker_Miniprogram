@@ -33,7 +33,7 @@
 </template>
 
 <script setup>
-// 自己的出分区，在房间页的 dm-area 里（桌面分和收分在 z-tally-pot）。出分通过 emit('act', action, to) 交给 common/tally-room.js
+// 自己的出分区，在输入栏上方；收分阶段由同位置的 z-tally-collect 接替。
 import { ref, computed, watch } from 'vue'
 import { options } from '@/common/tally.js'
 import { playerStatus } from '@/common/tally-labels.js'

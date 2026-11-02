@@ -82,7 +82,7 @@ export function startHand(t, blinds) {
   const players = {}
   const seatRef = {}
   act.forEach((i) => { players[i] = { bet: 0, committed: 0, folded: false, allIn: false, acted: false, last: '' }; seatRef[i] = t.seats[i] })
-  const h = { street: 'preflop', players, seatRef, order: act, button, sb, bb, toAct: -1, currentBet: 0, minRaise: blinds.bb, blinds: { ...blinds }, pots: null, result: null, log: [] }
+  const h = { street: 'preflop', players, seatRef, order: act, button, sb, bb, toAct: -1, currentBet: 0, minRaise: blinds.bb, blinds: { ...blinds }, pots: null, result: null, log: [], actions: [] }
   t.hand = h
   // 前注是死注：算进桌面分，不算本轮的出分
   if (blinds.ante > 0) act.forEach((i) => { const a = pay(h, i, blinds.ante); players[i].bet -= a })
@@ -115,7 +115,7 @@ const ROUNDS = ['preflop', 'flop', 'turn', 'river']
 export const potTotal = (h) => (h ? h.order.reduce((a, i) => a + h.players[i].committed, 0) : 0)
 
 // 下注中的实时分池：仅在有人全下后按其「本手累计投入」封顶；普通加注不制造边池。
-// 尚无人跟上的超额单列为 pending，不混进已形成的边池，也不改动结算用的 h.pots。
+// 超出全下上限即显示边池；尚未被跟齐的份额标在该池内，不改动结算用的 h.pots。
 export function livePots(h) {
   if (!h || !ROUNDS.includes(h.street)) return []
   const contrib = h.order.map((i) => ({ ...h.players[i], c: h.players[i].committed }))
@@ -123,8 +123,7 @@ export function livePots(h) {
   if (!allIns.length) return []
   const sorted = contrib.slice().sort((a, b) => b.c - a.c)
   const firstCap = Math.min(...allIns.map((p) => p.c))
-  const pending = sorted[0].folded ? 0 : Math.max(0, sorted[0].c - Math.max(firstCap, sorted[1]?.c || 0))
-  sorted[0].c -= pending
+  const matchedCap = sorted[0].folded ? sorted[0].c : Math.max(firstCap, sorted[1]?.c || 0)
   const cap = Math.max(0, ...contrib.filter((p) => !p.folded).map((p) => p.c))
   const levels = [...new Set([...allIns.map((p) => p.c).filter((c) => c > 0 && c < cap), cap])].sort((a, b) => a - b)
   const pots = []
@@ -133,10 +132,10 @@ export function livePots(h) {
     let amount = contrib.reduce((sum, p) => sum + Math.max(0, Math.min(p.c, lv) - prev), 0)
     // 弃牌者的投入仍归牌池；超出最高存活玩家的部分归最上层池。
     if (k === levels.length - 1) amount += contrib.reduce((sum, p) => sum + Math.max(0, p.c - lv), 0)
-    if (amount) pots.push({ kind: pots.length ? 'side' : 'main', amount, cap: lv })
+    const pending = Math.max(0, Math.min(sorted[0].c, lv) - Math.max(prev, matchedCap))
+    if (amount) pots.push({ kind: pots.length ? 'side' : 'main', amount, cap: lv, pending })
     prev = lv
   })
-  if (pending) pots.push({ kind: 'pending', amount: pending })
   return pots
 }
 
@@ -175,6 +174,10 @@ export function act(t, i, action, to) {
   // 出分了（跟注、加注、全下）就记一笔，页面会把它插进气泡弹幕
   const paid = p.committed - before
   if (paid > 0) h.log.push({ seat: i, kind: 'bet', text: p.last, amount: paid, to: p.bet })
+  // 独立动作流供桌况动效使用，过牌 / 弃牌也记录；在换街清空 bet 之前保存金额。
+  const kind = ({ '全下': 'allin', '过牌': 'check', '弃牌': 'fold', '跟注': 'call', '加注': 'raise' })[p.last]
+  if (!h.actions) h.actions = []
+  h.actions.push({ seat: i, kind, amount: paid, bet: p.bet, committed: p.committed, street: h.street })
   advance(t, i)
   return { ok: true }
 }

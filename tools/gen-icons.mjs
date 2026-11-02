@@ -33,6 +33,9 @@ const inner = (file) => fs.readFileSync(file, 'utf8')
 const lines = ['// 由 tools/gen-icons.mjs 生成，图标来自 Tabler Icons（MIT License）', '']
 lines.push('export const ICONS = {')
 for (const n of OUTLINE) lines.push(`  '${n}': ${JSON.stringify(inner(path.join(base, 'outline', n + '.svg')))},`)
+// 本项目自绘：保留牌桌退出图标，重新生成 Tabler 图标时不覆盖丢失。
+lines.push(`  'table-exit': '<path d="M10 4H5v16h5M10 12h11m-4-4 4 4-4 4" />',`)
+lines.push(`  'rank-sort': '<path d="M4 6h9M4 12h6M4 18h3M18 5v14m-3-3 3 3 3-3" />',`)
 lines.push('}', '', 'export const FILLED = {')
 for (const [k, n] of Object.entries(FILLED)) lines.push(`  '${k}': ${JSON.stringify(inner(path.join(base, 'filled', n + '.svg')))},`)
 lines.push('}', '')

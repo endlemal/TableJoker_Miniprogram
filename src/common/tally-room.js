@@ -12,7 +12,8 @@ export const DESIGNATE_SECONDS = 30 // 主持人指定赢家
 export const COLLECT_SECONDS = 20 // 赢家收分
 export const tally = reactive({
   tables: [], assets: {}, start: {}, members: [], me: '', iAmHost: false, blinds: { sb: 100, bb: 200, ante: 0 },
-  turnLeft: 0, on: false,
+  turnLeft: 0, on: false, observing: '',
+  ranking: { mode: 'score', index: {}, order: [] },
   picks: {} // 主持人正在指定的赢家：{ [池的下标]: [座位号] }（自己这桌）
 })
 let seq = 0
@@ -20,7 +21,7 @@ const memberOf = (name) => tally.members.find((m) => m.name === name)
 const asPlayer = (m) => ({ pid: m.name, name: m.name, c: m.c, bg: m.bg, fg: m.fg, stack: tally.assets[m.name] || 0, bot: m.name !== tally.me })
 const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
-// 第一次进房间时：每人的资产（起始记分上下浮动），开一张 9 人桌，先坐 6 个人（不包括自己）
+// 演示预设：1 号桌 10 人满员，2 号桌已有 9 人；空位随离桌和淘汰动态开放。
 export function initTally(members, me, startScore) {
   if (tally.members.length) return
   tally.me = me
@@ -29,15 +30,18 @@ export function initTally(members, me, startScore) {
     tally.assets[m.name] = startScore + ((i * 7919) % 9 - 4) * 1500
     tally.start[m.name] = tally.assets[m.name]
   })
-  const t = createTable(9)
-  members.filter((m) => m.name !== me).slice(0, 6).forEach((m, i) => T.sit(t, i, asPlayer(m)))
+  const others = tally.members.filter((m) => m.name !== me)
+  const full = createTable(10)
+  others.slice(0, 10).forEach((m, i) => T.sit(full, i, asPlayer(m)))
+  const open = createTable(10)
+  others.slice(10, 19).forEach((m, i) => T.sit(open, i, asPlayer(m)))
 }
 export function createTable(size) {
   const used = tally.tables.map((t) => t.no)
   let no = 1
   while (used.includes(no)) no++
   const t = T.createTable({ id: 't' + ++seq, name: no + ' 号桌', size })
-  Object.assign(t, { no, turnStart: 0, turnEnd: 0 })
+  Object.assign(t, { no, turnStart: 0, turnEnd: 0, observers: [] })
   tally.tables.push(t)
   tally.tables.sort((a, b) => a.no - b.no)
   return tally.tables.find((x) => x.id === t.id)
@@ -50,14 +54,45 @@ export function removeTable(id) {
   flushLog(t)
   syncAssets(t)
   tally.tables = tally.tables.filter((x) => x.id !== id)
+  if (tally.observing === id) { tally.observing = ''; tally.picks = {} }
 }
 const syncAssets = (t) => t.seats.forEach((s) => { if (s) tally.assets[s.pid] = s.stack })
+// 只在本手结算完毕后清走无分席位；All-in / 等待收分的玩家仍属于本手。
+// seatRef 保留原玩家对象，结算排行、收分记录不会因腾空座位而丢失。
+export function moveBustedToOb(t) {
+  t.seats.forEach((s, i) => {
+    if (!s || s.stack > 0) return
+    const h = t.hand
+    if (h && h.street !== 'done' && h.seatRef[i] === s) return
+    tally.assets[s.pid] = s.stack
+    if (!t.observers.some((o) => o.pid === s.pid)) t.observers.push(s)
+    t.seats[i] = null
+    if (s.pid === tally.me) { tally.observing = t.id; tally.turnLeft = 0; tally.picks = {} }
+  })
+}
 export const mySpot = () => {
   for (const t of tally.tables) {
     const i = t.seats.findIndex((s) => s && s.pid === tally.me)
     if (i >= 0) return { t, i }
   }
   return null
+}
+export const viewSpot = () => {
+  const t = tally.tables.find((t) => t.id === tally.observing)
+  return t ? { t, i: -1, observing: true } : mySpot()
+}
+export function observe(id) {
+  const t = tally.tables.find((t) => t.id === id)
+  if (!t) return '这张桌已经关了'
+  if (mySpot()) return '请先离开当前牌桌再观战'
+  leaveObservation()
+  t.observers.push(asPlayer(memberOf(tally.me)))
+  tally.observing = id; tally.picks = {}; tally.turnLeft = 0
+  return ''
+}
+export function leaveObservation() {
+  tally.tables.forEach((t) => { t.observers = t.observers.filter((s) => s.pid !== tally.me) })
+  tally.observing = ''; tally.picks = {}; tally.turnLeft = 0
 }
 export function join(id) {
   const t = tally.tables.find((x) => x.id === id)
@@ -69,6 +104,7 @@ export function join(id) {
   if (idx < 0) return '这张桌坐满了'
   if (cur) leaveTable()
   T.sit(t, idx, asPlayer(memberOf(tally.me)))
+  leaveObservation()
   return ''
 }
 export function leaveTable() {
@@ -85,7 +121,10 @@ export function setAssets(name, value) {
   const v = Math.max(0, Math.round(Number(value) || 0))
   tally.start[name] = (tally.start[name] || 0) + (v - (tally.assets[name] || 0))
   tally.assets[name] = v
-  tally.tables.forEach((t) => t.seats.forEach((s) => { if (s && s.pid === name) s.stack = v }))
+  tally.tables.forEach((t) => {
+    t.seats.concat(t.observers).forEach((s) => { if (s && s.pid === name) s.stack = v })
+    moveBustedToOb(t)
+  })
 }
 export function myAct(action, to) {
   const cur = mySpot()
@@ -97,7 +136,7 @@ export function myAct(action, to) {
 
 /* ---------- 收分：主持人指定每个池的赢家（平手多选），赢家再各自收分 ---------- */
 export function togglePick(k, seat) {
-  const cur = mySpot()
+  const cur = viewSpot()
   if (!tally.iAmHost || !cur || !cur.t.hand || cur.t.hand.street !== 'collect') return
   const pot = cur.t.hand.pots[k]
   if (!pot || pot.winners || !pot.elig.includes(seat)) return
@@ -105,7 +144,8 @@ export function togglePick(k, seat) {
   tally.picks = { ...tally.picks, [k]: sel.includes(seat) ? sel.filter((x) => x !== seat) : sel.concat([seat]) }
 }
 export function confirmDesignation() {
-  const cur = mySpot()
+  if (!tally.iAmHost) return '只有主持人可以确认赢家'
+  const cur = viewSpot()
   if (!cur || !cur.t.hand || cur.t.hand.street !== 'collect') return '现在不能指定赢家'
   const picks = cur.t.hand.pots.map((p, k) => p.winners || tally.picks[k] || [])
   const r = T.designate(cur.t, picks)
@@ -116,7 +156,7 @@ export function myCollect(k) {
   const cur = mySpot()
   if (!cur) return '你还没入座'
   const r = T.collect(cur.t, k, cur.i)
-  if (r.ok) { flushLog(cur.t); cur.t._deadline = 0 }
+  if (r.ok) { flushLog(cur.t); cur.t._deadline = 0; moveBustedToOb(cur.t) }
   return r.ok ? '' : r.error
 }
 
@@ -135,7 +175,7 @@ function flushLog(t) {
     else if (e.text === '加注') text = `加注到 ${fmt(e.to)}`
     else text = `${e.text} ${fmt(e.amount)}`
     // 只有一张桌时不用写桌名
-    addEvent(s, tally.tables.length > 1 ? `${t.name} · ${text}` : text, e.kind === 'collect' ? 'collect' : 'bet')
+    addEvent(s, tally.tables.length > 1 ? `${t.name} · ${text}` : text, e.kind === 'collect' ? 'collect' : 'bet', t.id)
   }
 }
 // 轮到谁：换人的那一刻记下开始和结束时间（头像上的环形倒计时用）；自己的倒计时立刻从满格开始
@@ -155,7 +195,9 @@ function trackTurn(t, now) {
 /* ---------- 每 300ms 推进一次 ---------- */
 function step() {
   const now = Date.now()
+  tally.tables.forEach(moveBustedToOb)
   const mine = mySpot()
+  const viewing = viewSpot()
   tally.tables.forEach((t) => {
     const h = t.hand
     flushLog(t)
@@ -169,9 +211,11 @@ function step() {
       return
     }
     const atMine = !!(mine && mine.t.id === t.id)
-    // 指定赢家：自己是主持人、坐在这桌，由自己指定；否则模拟主持人自动指定
+    // 主持人在入座或 OB 的当前桌指定赢家；其他桌由演示主持人推进。
     if (h.street === 'collect') {
-      const byMe = atMine && tally.iAmHost
+      const byMe = viewing?.t.id === t.id && tally.iAmHost
+      // 从其他桌切入 OB 时重新给主持人完整的选择时间。
+      if (t._hostChoosing !== byMe) { t._deadline = 0; t._hostChoosing = byMe }
       if (!t._deadline) t._deadline = now + (byMe ? DESIGNATE_SECONDS * 1000 : 2500)
       if (byMe) tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
       if (now >= t._deadline) {
@@ -189,11 +233,11 @@ function step() {
       const bot = u.find((x) => !atMine || x.seat !== mine.i)
       if (bot) {
         if (!t._botAt) t._botAt = now + 900 + Math.random() * 700
-        if (now >= t._botAt) { t._botAt = 0; T.collect(t, bot.k, bot.seat); flushLog(t) }
+        if (now >= t._botAt) { t._botAt = 0; T.collect(t, bot.k, bot.seat); flushLog(t); moveBustedToOb(t) }
       } else if (u.length) {
         if (!t._deadline) t._deadline = now + COLLECT_SECONDS * 1000
         tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
-        if (now >= t._deadline) { t._deadline = 0; u.forEach((x) => T.collect(t, x.k, x.seat)); flushLog(t) }
+        if (now >= t._deadline) { t._deadline = 0; u.forEach((x) => T.collect(t, x.k, x.seat)); flushLog(t); moveBustedToOb(t) }
       }
       return
     }

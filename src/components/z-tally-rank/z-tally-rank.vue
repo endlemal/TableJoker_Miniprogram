@@ -1,7 +1,7 @@
 <template>
   <!-- 排行：累计资产的条形赛马——按资产从高到低，条的长度对应资产；每手结束后条和名次一起动 -->
   <view class="ztr">
-    <view class="ztr-head"><text class="ztr-t">记分排行</text><text class="ztr-s">结算后更新</text></view>
+    <view class="ztr-head"><text class="ztr-t">{{ delta ? '本桌结算' : '资产排行' }}</text><text class="ztr-s">总分</text></view>
     <view class="ztr-list" :style="'height:' + list.length * ROW + 'px'">
       <view v-for="r in list" :key="r.name" class="ztr-row" :class="{ 'ztr-me': r.name === me, 'ztr-hl': highlight.includes(r.name) }" :style="'transform:translateY(' + r.rank * ROW + 'px)'">
         <text class="ztr-rank" :class="{ 'ztr-rank-top': r.rank < 3 }">{{ r.rank + 1 }}</text>
@@ -30,16 +30,17 @@ const props = defineProps({
   assets: { type: Object, default: () => ({}) },
   start: { type: Object, default: () => ({}) },
   me: { type: String, default: '' },
-  highlight: { type: Array, default: () => [] }
+  highlight: { type: Array, default: () => [] },
+  delta: { type: Object, default: null }
 })
 const ROW = 34
 const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 // 列表按名字固定顺序渲染（这样每一行是同一个元素），名次只改变它的位置，换位时有动画
 const list = computed(() => {
-  const vals = props.members.map((m) => ({ ...m, v: props.assets[m.name] || 0, d: (props.assets[m.name] || 0) - (props.start[m.name] || 0) }))
+  const vals = props.members.map((m) => ({ ...m, v: props.assets[m.name] || 0, d: props.delta ? props.delta[m.name] || 0 : (props.assets[m.name] || 0) - (props.start[m.name] || 0) }))
   const order = vals.slice().sort((a, b) => b.v - a.v || a.name.localeCompare(b.name))
   const max = Math.max(1, order[0] ? order[0].v : 1)
-  return vals.map((r) => ({ ...r, rank: order.indexOf(r), w: Math.max(4, Math.round((r.v / max) * 100)), bar: r.d > 0 ? '#3FCF84' : r.d < 0 ? '#E0605A' : '#8E929B' }))
+  return vals.map((r) => ({ ...r, rank: order.indexOf(r), w: Math.max(0, Math.round((r.v / max) * 100)), bar: r.d > 0 ? '#3FCF84' : r.d < 0 ? '#E0605A' : '#8E929B' }))
 })
 </script>
 
@@ -49,14 +50,14 @@ const list = computed(() => {
 .ztr-t { font-size: 14px; font-weight: 700; color: #F3EEE6; }
 .ztr-s { font-size: 11px; color: #A9AEB8; }
 .ztr-list { position: relative; }
-.ztr-row { position: absolute; left: 0; right: 0; top: 0; height: 30px; display: flex; align-items: center; transition: transform 700ms cubic-bezier(.2, .8, .2, 1); }
+.ztr-row { position: absolute; left: 0; right: 0; top: 0; height: 30px; display: flex; align-items: center; transition: transform 1000ms cubic-bezier(.22, 1, .36, 1); }
 .ztr-rank { width: 20px; flex: none; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 14px; color: #8E929B; }
 .ztr-rank-top { color: #FFC53A; }
 .ztr-av { width: 24px; height: 24px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
 .ztr-main { flex: 1; min-width: 0; margin-left: 8px; }
 .ztr-bar-w { position: relative; height: 22px; border-radius: 4px; background: #1B1D22; overflow: hidden; }
-.ztr-bar { height: 100%; border-radius: 4px; opacity: .85; transition: width 700ms cubic-bezier(.2, .8, .2, 1), background 300ms ease; }
-.ztr-n { position: absolute; left: 8px; top: 0; font-size: 12px; line-height: 22px; color: #0D0E11; font-weight: 600; white-space: nowrap; }
+.ztr-bar { height: 100%; border-radius: 4px; opacity: .65; transition: width 1000ms cubic-bezier(.22, 1, .36, 1), background 400ms ease; }
+.ztr-n { position: absolute; left: 8px; top: 0; max-width: calc(100% - 70px); overflow: hidden; text-overflow: ellipsis; font-size: 12px; line-height: 22px; color: #F3EEE6; text-shadow: 0 1px 2px #0D0E11; font-weight: 600; white-space: nowrap; }
 .ztr-hl .ztr-bar-w { box-shadow: inset 0 0 0 1px rgba(243, 238, 230, .35); }
 .ztr-me .ztr-bar-w { box-shadow: inset 0 0 0 2px #8EA1FF; }
 .ztr-side { width: 64px; flex: none; margin-left: 8px; display: flex; flex-direction: column; align-items: flex-end; }
@@ -65,4 +66,5 @@ const list = computed(() => {
 .ztr-d { position: absolute; right: 4px; top: 3px; height: 16px; padding: 0 6px; border-radius: 8px; background: rgba(13, 14, 17, .62); font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 11px; line-height: 16px; color: #C9CDD4; }
 .ztr-up { color: #3FCF84; }
 .ztr-down { color: #FF8A8A; }
+@media (prefers-reduced-motion: reduce) { .ztr-row, .ztr-bar { transition: none; } }
 </style>

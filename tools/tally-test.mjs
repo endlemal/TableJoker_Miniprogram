@@ -152,7 +152,7 @@ payAll(t);
 check('全下输光并结算后才显示无分', t.hand.street === 'done' && playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '无分');
 T.startHand(t, { sb: 100, bb: 200, ante: 0 });
 check('候场玩家进入下一手后不再显示候场，零分玩家仍不入局', !!t.hand.players[3] && playerStatus(t.hand, t.seats[3], 3).label !== '候场' && !t.hand.players[allInSeat] && playerStatus(t.hand, t.seats[allInSeat], allInSeat).label === '无分');
-// 实时分池：封顶看本手累计投入，跨轮保持；无人跟的超额不能提前算成边池。
+// 实时分池：全下上限立即划开主池 / 边池，待跟金额包含在对应边池内，跨轮保持。
 t = T.createTable({ id: 'live', name: '实时边池', size: 3 });
 [1000, 5000, 5000].forEach((stack, k) => T.sit(t, k, P('p' + k, stack)));
 T.startHand(t, { sb: 100, bb: 200, ante: 0 });
@@ -164,12 +164,12 @@ const shape = () => JSON.stringify(T.livePots(t.hand).map((p) => [p.kind, p.amou
 check('短码全下跟齐后主池 3000，进入翻牌仍保留', t.hand.street === 'flop' && shape() === '[["main",3000]]');
 T.act(t, 1, 'raise', 500);
 const beforePreview = JSON.stringify(t.hand);
-check('下一轮先下注 500：主池 3000，待跟 500', shape() === '[["main",3000],["pending",500]]');
+check('下一轮先下注即分池：主池 3000，边池 500（含待跟 500）', shape() === '[["main",3000],["side",500]]' && T.livePots(t.hand)[1].pending === 500);
 check('实时分池不改动牌局或正式结算池', JSON.stringify(t.hand) === beforePreview && t.hand.pots === null);
 T.act(t, 2, 'call');
-check('另一人跟注后形成边池 1000，跨到转牌不清空', t.hand.street === 'turn' && shape() === '[["main",3000],["side",1000]]');
+check('另一人跟注后边池增至 1000，待跟清零，跨到转牌不清空', t.hand.street === 'turn' && shape() === '[["main",3000],["side",1000]]' && T.livePots(t.hand)[1].pending === 0);
 T.act(t, 1, 'check'); T.act(t, 2, 'raise', 1000);
-check('再次加注保留原边池，新增未跟额独立展示', shape() === '[["main",3000],["side",1000],["pending",1000]]');
+check('再次加注立即更新边池 2000，其中待跟 1000', shape() === '[["main",3000],["side",2000]]' && T.livePots(t.hand)[1].pending === 1000);
 T.act(t, 1, 'call');
 const lastPreview = T.livePots(t.hand).map((p) => p.amount);
 T.act(t, 1, 'check'); T.act(t, 2, 'check');
@@ -181,6 +181,29 @@ const anteOnly = snapshot([[25, true], [225], [225]]);
 check('只够前注的全下也以累计投入封顶：75 / 400', JSON.stringify(T.livePots(anteOnly).map((p) => p.amount)) === '[75,400]');
 const foldedExcess = snapshot([[100, true], [200], [200], [900, false, true]]);
 check('弃牌者超额不当作待跟或丢失：400 / 1000', JSON.stringify(T.livePots(foldedExcess).map((p) => [p.kind, p.amount])) === '[["main",400],["side",1000]]');
+const growing = snapshot([[100, true], [200, true], [500], [350]]);
+check('多个全下上限立刻形成多级边池，最上层含未跟齐金额', JSON.stringify(T.livePots(growing).map(p => [p.amount, p.pending])) === '[[400,0],[300,0],[450,150]]');
+t = T.createTable({ id: 'flop-cap', name: '翻牌全下', size: 3 });
+[5000, 900, 5000].forEach((stack, k) => T.sit(t, k, P('p' + k, stack)));
+T.startHand(t, { sb: 100, bb: 200, ante: 0 });
+T.act(t, 0, 'call'); T.act(t, 1, 'call'); T.act(t, 2, 'check');
+T.act(t, 1, 'allin'); T.act(t, 2, 'raise', 1400);
+check('翻牌全下后再次加注，未定胜即划出主池与边池', t.hand.street === 'flop' && t.hand.pots === null && JSON.stringify(T.livePots(t.hand).map(p => [p.amount, p.pending])) === '[[2000,0],[700,700]]');
+T.act(t, 0, 'call');
+check('后续跟注同时补足主池和边池，跨街仍保持全下上限', t.hand.street === 'turn' && JSON.stringify(T.livePots(t.hand).map(p => [p.amount, p.pending])) === '[[2700,0],[1400,0]]');
+// 动作动画必须包含零出分动作，且最后一个 CHECK 换街后仍能知道原下注值。
+t = T.createTable({ id: 'fx', name: '动作', size: 3 });
+[1000, 3000, 3000].forEach((stack, k) => T.sit(t, k, P('p' + k, stack)));
+T.startHand(t, { sb: 100, bb: 200, ante: 0 });
+T.act(t, 0, 'call'); T.act(t, 1, 'call'); T.act(t, 2, 'check');
+check('换街动作保留前一轮下注快照', t.hand.street === 'flop' && t.hand.actions[2].kind === 'check' && t.hand.actions[2].bet === 200 && t.hand.players[2].bet === 0);
+T.act(t, 1, 'check'); T.act(t, 2, 'check'); T.act(t, 0, 'check');
+check('连续 CHECK 逐次记录，支持每次重播', t.hand.actions.filter(a => a.kind === 'check').length === 4);
+const countBeforeInvalid = t.hand.actions.length;
+T.act(t, 0, 'raise', 1);
+check('被拒绝的动作不播放动画', t.hand.actions.length === countBeforeInvalid);
+T.act(t, 1, 'raise', 1000); T.act(t, 2, 'fold'); T.act(t, 0, 'call');
+check('弃牌和被动跟注全下正确标识', t.hand.actions.at(-2).kind === 'fold' && t.hand.actions.at(-1).kind === 'allin');
 // 8) 压力测试：2 到 10 人桌，机器人出分、随机选赢家
 const rng = T.makeRng(42); let hands = 0, maxSteps = 0, ok = true, illegal = 0, collects = 0, splits = 0, liveValid = true, previews = 0; const sizes = new Set();
 for (let g = 0; g < 200; g++) {
@@ -220,7 +243,7 @@ for (let g = 0; g < 200; g++) {
   }
 }
 check('机器人不会做出不合规则的动作', illegal === 0, `不合规则 ${illegal} 次`);
-check('下注中主池、边池、待跟之和始终等于桌面分', liveValid && previews > 0, `${previews} 次实时分池`);
+check('下注中主池与边池之和始终等于桌面分（待跟不重复计入）', liveValid && previews > 0, `${previews} 次实时分池`);
 check(`压力测试：${hands} 手（${[...sizes].sort((a, b) => a - b).join('、')} 人桌），每手都结束，记分守恒`, ok && hands > 1500, `其中 ${collects} 手要选赢家，${splits} 手平分；单手最多 ${maxSteps} 步`);
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过');
 process.exit(fails ? 1 : 0);

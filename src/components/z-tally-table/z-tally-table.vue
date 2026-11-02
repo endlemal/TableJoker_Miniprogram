@@ -1,21 +1,20 @@
 <template>
-  <!-- 记分桌：所有玩家纵向排列（一屏放得下）；每行是这一轮的出分条和「跟注线」，追平了变绿；
+  <!-- 记分桌：存桌玩家纵向排列，空间不足时在外层页面滚动；每行是本轮出分条，追平了变绿；
        轮到谁头像外面是环形倒计时；弃牌的人淡出缩小，下面的人往上补齐；右上角「排行」看累计资产 -->
-  <view class="ztt">
+  <view class="ztt" :style="'height:' + height + 'px'">
     <view class="ztt-head">
-      <text class="ztt-name">{{ table.name }}</text>
-      <view class="ztt-ic ztt-help" hover-class="ztt-press" aria-label="记分速查" @tap="showHelp"><z-icon name="help-circle" :size="16" color="#C9CDD4" /></view>
+      <text class="ztt-name">{{ table.name }}</text><text v-if="observing" class="ztt-ob">OB</text>
       <text class="ztt-sub">{{ subText }}</text>
-      <view class="ztt-ic" :class="{ 'ztt-ic-on': view === 'rank' }" hover-class="ztt-press" @tap="view = view === 'rank' ? 'table' : 'rank'">
-        <z-icon :name="view === 'rank' ? 'x' : 'chart-bar-popular'" :size="16" color="#F3EEE6" /><text class="ztt-ic-t">{{ view === 'rank' ? '返回' : '排行' }}</text>
+      <view v-if="canJoin" class="ztt-seat" role="button" hover-class="ztt-press" @tap="emit('join')">入座</view>
+      <view class="ztt-ic" :class="{ 'ztt-ic-on': view === 'rank' }" hover-class="ztt-press" role="button" :aria-label="view === 'rank' ? '返回桌况' : '资产排行'" @longpress="showViewHint" @tap="toggleRank">
+        <z-icon :name="view === 'rank' ? 'cards' : 'chart-bar-popular'" :size="16" color="#F3EEE6" />
       </view>
-      <view class="ztt-leave" hover-class="ztt-press" @tap="emit('leave')"><text class="ztt-leave-t">离桌</text></view>
     </view>
 
-    <z-tally-rank v-if="view === 'rank'" :members="members" :assets="assets" :start="start" :me="me" :highlight="seatedNames" />
+    <scroll-view v-show="view === 'rank'" scroll-y class="ztt-rank-view"><z-tally-rank :key="resultMode ? table.id + '-' + table.handNo : 'all'" :members="rankMembers" :assets="displayRankAssets" :start="start" :delta="resultMode ? rankDelta : null" :me="me" :highlight="seatedNames" /></scroll-view>
 
-    <view v-else class="ztt-list">
-      <view v-for="r in rows" :key="r.i" class="ztt-row" :class="{ 'ztt-out': r.out, 'ztt-turn': r.turn, 'ztt-me': r.me, 'ztt-wait': r.waiting, 'ztt-row-s': rowH < 40, 'ztt-row-l': rowH >= 60 }" :style="'height:' + rowH + 'px'">
+    <scroll-view v-show="view === 'table'" scroll-y class="ztt-list" :scroll-top="tableScroll" scroll-with-animation @scroll="onTableScroll">
+      <view v-for="r in rows" :key="r.s.pid" class="ztt-row" :class="{ 'ztt-out': r.out, 'ztt-turn': r.turn, 'ztt-me': r.me, 'ztt-wait': r.waiting, 'ztt-row-l': rowH >= 60 }" :style="'height:' + rowH + 'px'">
         <!-- 头像：轮到他时外面一圈是环形倒计时 -->
         <view class="ztt-ring" :style="ringStyle(r)">
           <view class="ztt-av" :style="'width:' + avSize + 'px;height:' + avSize + 'px;font-size:' + Math.round(avSize * 0.42) + 'px;background:' + r.s.bg + ';color:' + r.s.fg"><text>{{ r.s.c }}</text></view>
@@ -26,55 +25,107 @@
             <text v-if="r.pos" class="ztt-pos">{{ r.pos }}</text>
             <text v-if="r.tag" class="ztt-tag" :class="'ztt-tag-' + r.tagTone" :aria-label="r.detail" @tap.stop="showStatus(r)">{{ r.tag }}</text>
           </view>
-          <!-- 这一轮的出分条；虚线是跟注线（现在要跟到多少），追平了变绿 -->
+          <!-- 这一轮的出分条，追平后变绿 -->
           <view class="ztt-track">
             <view class="ztt-bar" :class="{ 'ztt-bar-ok': r.matched, 'ztt-bar-total': !betting }" :style="'width:' + r.barW + '%'"></view>
-            <view v-if="betting && lineX > 0" class="ztt-line" :style="'left:' + lineX + '%'"></view>
-            <text class="ztt-bar-t">{{ r.barText }}</text>
+            <view class="ztt-bar-right">
+              <text v-if="r.action" :key="r.fx ? r.fx.id : 'rest'" class="ztt-action" :class="[r.fx ? 'ztt-impact' : '', 'ztt-action-' + r.actionKind]">{{ r.action }}</text>
+              <view class="ztt-bet"><text>{{ fmt(r.value) }}</text></view>
+            </view>
           </view>
         </view>
-        <view class="ztt-side">
-          <view class="ztt-stack"><z-count :value="r.s.stack" /></view>
-          <view v-if="r.chip" class="ztt-chip" :class="r.up ? 'ztt-chip-up' : 'ztt-chip-down'"><text>{{ r.chip }}</text></view>
-        </view>
       </view>
-    </view>
+    </scroll-view>
   </view>
 </template>
 
 <script setup>
-// 一张记分桌的实时视图（没有扑克牌）。数据来自 common/tally-room.js；桌面分和收分紧接玩法面板（z-tally-pot）。
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+// 一张记分桌的实时视图（没有扑克牌）。桌面分紧接玩法面板；定胜区、收分栏位于其下方。
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
-import ZCount from '@/components/z-count/z-count.vue'
 import ZTallyRank from '@/components/z-tally-rank/z-tally-rank.vue'
-import { positions, ROUND_NAME } from '@/common/tally.js'
-import { playerStatus, TALLY_HELP } from '@/common/tally-labels.js'
+import { positions } from '@/common/tally.js'
+import { playerStatus } from '@/common/tally-labels.js'
 
 const props = defineProps({
   table: { type: Object, required: true },
   me: { type: String, default: '' },
+  observing: { type: Boolean, default: false },
   blinds: { type: Object, default: () => ({ sb: 0, bb: 0 }) },
   height: { type: Number, default: 300 }, // 这一页能用的高度（px）
   members: { type: Array, default: () => [] },
   assets: { type: Object, default: () => ({}) },
   start: { type: Object, default: () => ({}) }
 })
-const emit = defineEmits(['leave'])
+const emit = defineEmits(['join'])
 const view = ref('table')
+const canJoin = computed(() => props.observing && props.table.seats.some(s => !s) && props.assets[props.me] > 0)
 const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const hand = computed(() => props.table.hand)
 const betting = computed(() => !!(hand.value && ['preflop', 'flop', 'turn', 'river'].includes(hand.value.street)))
 const pos = computed(() => positions(props.table))
 const seatedNames = computed(() => props.table.seats.filter(Boolean).map((s) => s.name))
-const subText = computed(() => {
-  const h = hand.value
-  const round = h ? ROUND_NAME[h.street] : '待开'
-  const blinds = h ? h.blinds : props.blinds
-  return `${props.table.handNo}手 · ${round} · ${fmt(blinds.sb)}/${fmt(blinds.bb)}`
-})
-const showHelp = () => uni.showModal({ title: '记分速查', content: TALLY_HELP, showCancel: false, confirmText: '知道了' })
+const subText = computed(() => `${props.table.handNo}手 · ${props.table.seats.filter(Boolean).length}人`)
 const showStatus = (r) => uni.showToast({ title: r.detail, icon: 'none', duration: 2600 })
+const showViewHint = () => uni.showToast({ title: view.value === 'rank' ? '返回桌况' : '资产排行', icon: 'none' })
+// 保留开手前的资产快照。结算时先展示原位次，再一次性播放本手盈亏，避免收分途中反复跳榜。
+const resultMode = ref(false)
+const rankAssets = ref({})
+const rankDelta = ref({})
+let rankBefore = {}
+let rankTimer = null
+let rankVersion = 0
+const rankMembers = computed(() => resultMode.value ? props.members.filter((m) => Object.values(hand.value?.seatRef || {}).some((s) => s.name === m.name)) : props.members.filter((m) => seatedNames.value.includes(m.name)))
+const displayRankAssets = computed(() => resultMode.value ? rankAssets.value : assetSnapshot(hand.value?.street !== 'done'))
+function toggleRank() {
+  if (view.value === 'rank') { view.value = 'table'; return }
+  rankVersion++; clearTimeout(rankTimer)
+  resultMode.value = false; view.value = 'rank'
+}
+function assetSnapshot(before) {
+  const out = { ...props.assets }
+  const h = hand.value
+  if (h) h.order.forEach((i) => {
+    const s = h.seatRef[i]
+    const received = (h.pots || []).reduce((sum, p) => sum + (p.taken?.[i] ? p.shares[i] : 0), 0)
+    out[s.name] = s.stack + (before && !(h.street === 'done' && !h.result) ? h.players[i].committed - received : 0)
+  })
+  return out
+}
+watch(() => [props.table.id, props.table.handNo], () => {
+  rankVersion++; clearTimeout(rankTimer)
+  resultMode.value = false; view.value = 'table'; rankDelta.value = {}
+  rankBefore = assetSnapshot(true); rankAssets.value = { ...rankBefore }
+}, { immediate: true })
+watch(() => [props.table.id, props.table.handNo, hand.value?.street], async ([, , street]) => {
+  if (street !== 'done') return
+  const version = ++rankVersion
+  const after = assetSnapshot(false)
+  const delta = {}
+  hand.value.order.forEach((i) => { delta[hand.value.seatRef[i].name] = hand.value.result?.delta[i] || 0 })
+  clearTimeout(rankTimer)
+  resultMode.value = true; rankAssets.value = { ...rankBefore }; rankDelta.value = {}; view.value = 'rank'
+  await nextTick()
+  if (version !== rankVersion) return
+  rankTimer = setTimeout(() => { rankAssets.value = after; rankDelta.value = delta }, 180)
+}, { immediate: true })
+
+// 动作由独立序列触发，连续 CHECK 也能重播；过街前的下注快照保留到冲击动画结束。
+const ACTIONS = { allin: 'ALL IN', check: 'CHECK', fold: 'FOLD', call: 'CALL', raise: 'RAISE' }
+const effects = ref({})
+const effectTimers = new Map()
+watch(() => [props.table.id, props.table.handNo, hand.value?.actions?.length || 0], ([id, no, n], old) => {
+  if (!old || old[0] !== id || old[1] !== no) {
+    effectTimers.forEach(clearTimeout); effectTimers.clear(); effects.value = {}; return
+  }
+  ;(hand.value?.actions || []).slice(old[2], n).forEach((a, j) => {
+    clearTimeout(effectTimers.get(a.seat))
+    effects.value = { ...effects.value, [a.seat]: { ...a, id: `${no}-${old[2] + j}` } }
+    effectTimers.set(a.seat, setTimeout(() => {
+      const next = { ...effects.value }; delete next[a.seat]; effects.value = next; effectTimers.delete(a.seat)
+    }, 850))
+  })
+}, { immediate: true })
 // 出分条的比例尺：这一轮里最大的出分和跟注线
 const scale = computed(() => {
   const h = hand.value
@@ -82,38 +133,60 @@ const scale = computed(() => {
   if (betting.value) return Math.max(1, h.currentBet, ...h.order.map((i) => h.players[i].bet))
   return Math.max(1, ...h.order.map((i) => h.players[i].committed))
 })
-const lineX = computed(() => (hand.value && betting.value ? Math.round((hand.value.currentBet / scale.value) * 100) : 0))
 const rows = computed(() => {
   const h = hand.value
-  return props.table.seats.map((s, i) => ({ s, i })).filter((x) => x.s).map(({ s, i }) => {
-    const p = h && h.players[i]
+  return props.table.seats.map((s, i) => ({ s, i })).filter(({ s, i }) => s && (s.stack > 0 || (h && h.street !== 'done' && h.seatRef[i] === s))).map(({ s, i }) => {
+    const p = h && h.seatRef[i] === s && h.players[i]
     const done = !!(h && h.street === 'done')
-    const value = p ? (betting.value ? p.bet : p.committed) : 0
-    const delta = done && h.result && p ? h.result.delta[i] : 0
-    const status = playerStatus(h, s, i)
+    const fx = effects.value[i]
+    const value = fx ? fx.bet : p ? (betting.value ? p.bet : p.committed) : 0
+    const lastAction = h?.actions?.slice().reverse().find((a) => a.seat === i && a.street === h.street)
+    const actionKind = fx?.kind || lastAction?.kind || ''
+    const status = playerStatus(p ? h : null, s, i)
+    if (h && !p && h.street !== 'done') Object.assign(status, { label: '候场', tone: 'wait', detail: '本手未参与，从下一手加入。' })
     return {
       i, s, me: s.pid === props.me, pos: (p && !done && pos.value[i]) || '', tag: status.label, tagTone: status.tone, detail: status.detail,
       // 这一手进行中弃牌的人：淡出缩小，然后收起（下面的人往上补齐）
-      out: !!(p && p.folded && !done),
+      out: !!(p && p.folded && !done && !fx),
       waiting: !!(h && !p && !done),
       turn: !!(h && h.toAct === i && betting.value),
-      barW: value ? Math.max(4, Math.round((value / scale.value) * 100)) : 0,
+      barW: value ? Math.min(100, Math.max(4, Math.round((value / scale.value) * 100))) : 0,
       matched: !!(p && betting.value && h.currentBet > 0 && p.bet >= h.currentBet),
-      barText: value ? (betting.value ? '出 ' + fmt(value) : '本手 ' + fmt(value)) : '',
-      chip: done && delta ? (delta > 0 ? '+' : '−') + fmt(Math.abs(delta)) : '', up: delta > 0
+      value, fx, actionKind, action: ACTIONS[actionKind] || ''
     }
   })
 })
-// 只按仍可见的玩家分配高度，弃牌收起后释放空间；小屏保留 28px 底线，可在玩法页滚动。
+// 两行内容明确占 20 + 4 + 20px，再留上下各 4px；不压缩文字，矮屏交给外层滚动。
 const visibleCount = computed(() => rows.value.filter((r) => !r.out).length)
-const rowH = computed(() => Math.max(28, Math.min(88, Math.floor((props.height - 42) / Math.max(1, visibleCount.value)))))
+const rowH = computed(() => Math.max(52, Math.min(88, Math.floor((props.height - 42 - Math.max(0, visibleCount.value - 1) * 4) / Math.max(1, visibleCount.value)))))
 const avSize = computed(() => Math.max(20, Math.min(48, rowH.value - 12)))
 const nameSize = computed(() => Math.round(Math.max(12, Math.min(18, 12 + ((rowH.value - 28) / 60) * 6))))
+// 只在行动玩家、可见行数或视口改变时定位；手动浏览期间不持续抢回滚动位置。
+const tableScroll = ref(0)
+let tableActualScroll = 0, focusVersion = 0
+function onTableScroll(e) { tableActualScroll = e.detail.scrollTop }
+watch(() => [props.table.id, props.table.handNo, hand.value?.toAct, visibleCount.value, rowH.value, props.height, view.value], async () => {
+  const version = ++focusVersion
+  if (view.value !== 'table' || !betting.value) return
+  const visible = rows.value.filter(r => !r.out)
+  const index = visible.findIndex(r => r.turn)
+  if (index < 0) return
+  const top = index * (rowH.value + 4) + 4
+  const bottom = top + rowH.value
+  const viewport = Math.max(52, props.height - 42)
+  let target = tableActualScroll
+  if (top < target) target = Math.max(0, top - 4)
+  else if (bottom > target + viewport) target = bottom - viewport + 4
+  if (Math.abs(target - tableActualScroll) < 1) return
+  tableScroll.value = tableActualScroll
+  await nextTick()
+  if (version === focusVersion) tableScroll.value = target
+}, { immediate: true, flush: 'post' })
 // 环形倒计时：轮到的人头像外面一圈，从满到空；最后四分之一变黄
 const now = ref(Date.now())
 let ticker = null
 onMounted(() => { ticker = setInterval(() => { if (props.table.turnEnd) now.value = Date.now() }, 100) })
-onUnmounted(() => clearInterval(ticker))
+onUnmounted(() => { clearInterval(ticker); clearTimeout(rankTimer); rankVersion++; effectTimers.forEach(clearTimeout) })
 function ringStyle(r) {
   const size = avSize.value + 6
   const base = `width:${size}px;height:${size}px;`
@@ -126,22 +199,23 @@ function ringStyle(r) {
 </script>
 
 <style>
-.ztt { padding: 6px 10px 2px; }
-.ztt-head { height: 30px; display: flex; align-items: center; }
-.ztt-name { font-size: 15px; font-weight: 700; color: #F3EEE6; }
+.ztt { padding: 6px 10px 2px; line-height: 1.2; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+.ztt-head { flex: none; height: 30px; display: flex; align-items: center; }
+.ztt-name { flex: none; font-size: 15px; font-weight: 700; color: #F3EEE6; }
 .ztt-sub { margin-left: 8px; flex: 1; min-width: 0; font-size: 12px; color: #A9AEB8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ztt-ic { height: 26px; margin-left: 6px; padding: 0 10px; border-radius: 13px; background: #2C2F36; display: flex; align-items: center; }
+.ztt-ic { flex: none; width: 30px; height: 30px; margin-left: 6px; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
+.ztt-seat { flex: none; padding: 5px 10px; border-radius: 12px; background: #5865F2; color: #FFFFFF; font-size: 12px; line-height: 18px; }
 .ztt-ic-on { background: #5865F2; }
-.ztt-help { flex: none; width: 26px; padding: 0; justify-content: center; }
-.ztt-ic-t { margin-left: 4px; font-size: 12px; color: #F3EEE6; }
-.ztt-leave { height: 26px; margin-left: 6px; padding: 0 10px; border-radius: 13px; background: #2C2F36; display: flex; align-items: center; }
-.ztt-leave-t { font-size: 12px; color: #F3EEE6; }
+.ztt-ic .z-icon { width: 16px !important; height: 16px !important; }
 .ztt-press { opacity: .7; }
 .ztt-list { margin-top: 4px; }
-.ztt-row { padding: 0 6px; box-sizing: border-box; border-radius: 10px; overflow: hidden; display: flex; align-items: center; transform-origin: center left;
-  transition: height 260ms cubic-bezier(.2, .8, .2, 1), opacity 220ms ease, transform 220ms ease, background 200ms ease; }
+.ztt-list, .ztt-rank-view { flex: 1; min-height: 0; height: 0; }
+.ztt-ob { flex: none; margin-left: 6px; padding: 2px 5px; border-radius: 4px; background: #33363E; font-size: 10px; line-height: 14px; color: #C9CDD4; }
+.ztt-row { margin-bottom: 4px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; overflow: hidden; display: flex; align-items: center; transform-origin: center left;
+  transition: height 260ms cubic-bezier(.2, .8, .2, 1), margin-bottom 260ms ease, opacity 220ms ease, transform 220ms ease, background 200ms ease; }
 /* 弃牌行与其余行同步收放，避免先放大后收起造成瞬时溢出。 */
-.ztt-out { opacity: 0; transform: scale(.86); height: 0 !important;
+.ztt-row:last-child { margin-bottom: 0; }
+.ztt-out { margin-bottom: 0; opacity: 0; transform: scale(.86); height: 0 !important;
   transition: opacity 180ms ease, transform 220ms ease, height 260ms cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
 .ztt-turn { background: rgba(63, 207, 132, .10); }
 .ztt-wait .ztt-av { opacity: .55; }
@@ -149,8 +223,8 @@ function ringStyle(r) {
 .ztt-ring { flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: width 260ms ease, height 260ms ease; }
 .ztt-av { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; box-shadow: 0 0 0 2px #0D0E11; transition: width 260ms ease, height 260ms ease, font-size 260ms ease; }
 .ztt-main { flex: 1; min-width: 0; margin-left: 8px; display: flex; flex-direction: column; justify-content: center; }
-.ztt-top { min-width: 0; display: flex; align-items: center; }
-.ztt-n { min-width: 0; font-weight: 600; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ztt-top { flex: none; height: 20px; min-width: 0; display: flex; align-items: center; }
+.ztt-n { min-width: 0; line-height: 20px; font-weight: 600; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ztt-pos { margin-left: 6px; flex: none; padding: 0 4px; border-radius: 4px; background: #2C2F36; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 11px; line-height: 15px; color: #C9CDD4; }
 .ztt-tag { margin-left: 6px; flex: none; padding: 0 4px; border-radius: 4px; font-size: 11px; line-height: 15px; color: #A9AEB8; white-space: nowrap; }
 .ztt-tag-win { padding: 0 5px; border-radius: 4px; background: #FFC53A; color: #181A20; font-weight: 700; line-height: 15px; }
@@ -158,28 +232,32 @@ function ringStyle(r) {
 .ztt-tag-empty { background: rgba(255, 197, 58, .12); color: #FFC53A; }
 .ztt-tag-wait { background: #2C2F36; color: #C9CDD4; }
 .ztt-tag-turn { background: rgba(63, 207, 132, .12); color: #3FCF84; }
-.ztt-track { position: relative; margin-top: 3px; height: 14px; border-radius: 3px; background: #1B1D22; overflow: hidden; }
+.ztt-track { position: relative; flex: none; margin-top: 4px; height: 20px; border-radius: 4px; background: #1B1D22; }
 .ztt-bar { height: 100%; border-radius: 3px; background: #E2B04A; transition: width 260ms ease, background 200ms ease; }
 .ztt-bar-ok { background: #B7D28A; }
 .ztt-bar-total { background: #6B7A55; }
-.ztt-line { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed #F3EEE6; opacity: .75; transition: left 260ms ease; }
-.ztt-bar-t { position: absolute; left: 6px; top: 0; font-size: 10px; line-height: 14px; color: #1B2410; font-weight: 600; }
-.ztt-side { margin-left: 8px; min-width: 58px; display: flex; flex-direction: column; align-items: flex-end; }
-.ztt-stack { font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 13px; color: #C9CDD4; }
-.ztt-chip { margin-top: 2px; height: 16px; padding: 0 6px; border-radius: 8px; font-size: 10px; line-height: 16px; color: #FFFFFF; }
-.ztt-chip-down { background: #B3261E; }
-.ztt-chip-up { background: #3E8E2F; }
-/* 人少时同步放大数值和出分条，行内信息保持成组。 */
-.ztt-row-l .ztt-track { height: 18px; margin-top: 5px; }
-.ztt-row-l .ztt-bar-t { font-size: 11px; line-height: 18px; }
-.ztt-row-l .ztt-stack { font-size: 17px; }
-.ztt-row-l .ztt-chip { font-size: 11px; }
-/* 行比较矮（人多）时一行显示：出分条在名字右边 */
-.ztt-row-s .ztt-main { flex-direction: row; align-items: center; }
-.ztt-row-s .ztt-top { flex: 0 1 auto; max-width: 58%; }
-.ztt-row-s .ztt-tag, .ztt-row-s .ztt-pos { margin-left: 4px; }
-.ztt-row-s .ztt-track { flex: 1; margin: 0 0 0 8px; height: 12px; }
-.ztt-row-s .ztt-bar-t { font-size: 9px; line-height: 12px; }
-.ztt-row-s .ztt-side { flex-direction: row-reverse; align-items: center; }
-.ztt-row-s .ztt-chip { margin: 0 6px 0 0; }
+.ztt-bar-right { position: absolute; inset: 0 5px 0 0; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
+.ztt-bet { flex: none; min-width: 32px; margin-left: 6px; padding: 1px 5px; border-radius: 4px; text-align: right; background: rgba(13, 14, 17, .82); font-family: "BoardNum", sans-serif; font-size: 13px; line-height: 16px; font-weight: 800; color: #F3EEE6; }
+.ztt-action { flex: none; position: relative; padding: 1px 5px; border-radius: 3px; background: #252A28; color: #C9CDD4; font-family: "BoardNum", Impact, sans-serif; font-size: 12px; line-height: 16px; font-weight: 900; letter-spacing: .6px; transform-origin: right center; }
+.ztt-action-allin { background: #FFD27A; color: #291604; text-shadow: 1px 1px 0 rgba(255,255,255,.35); }
+.ztt-action-raise { background: #8EA1FF; color: #10162E; }
+.ztt-action-check { background: #B7D28A; color: #18220F; }
+.ztt-action-fold { background: #604447; color: #FFE1DC; }
+.ztt-impact { z-index: 2; animation: ztt-hit 720ms cubic-bezier(.2,.8,.2,1) both; box-shadow: 2px 2px 0 #0D0E11; }
+.ztt-impact::after { content: ''; position: absolute; inset: -4px; border: 2px solid currentColor; border-radius: 5px; pointer-events: none; animation: ztt-ring-hit 500ms ease-out both; }
+@keyframes ztt-hit {
+  0% { opacity: 0; transform: translateX(12px) scale(1.65) rotate(-10deg); }
+  20% { opacity: 1; transform: translateX(-3px) scale(.88) rotate(4deg); }
+  38% { transform: translateX(2px) scale(1.18) rotate(-3deg); }
+  58% { transform: translateX(-1px) scale(.97) rotate(1deg); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes ztt-ring-hit { 0% { opacity: .8; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.5); } }
+.ztt-row-l .ztt-track { height: 26px; margin-top: 6px; }
+.ztt-row-l .ztt-action { font-size: 15px; line-height: 20px; }
+.ztt-row-l .ztt-bet { font-size: 17px; line-height: 20px; }
+@media (prefers-reduced-motion: reduce) {
+  .ztt-impact, .ztt-impact::after { animation: none; }
+  .ztt-row, .ztt-bar, .ztt-ring, .ztt-av { transition: none; }
+}
 </style>
