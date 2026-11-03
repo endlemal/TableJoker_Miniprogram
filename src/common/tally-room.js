@@ -6,6 +6,8 @@
 import { reactive } from 'vue'
 import * as T from './tally.js'
 import { addEvent } from './room-chat.js'
+import { fmt } from './format.js'
+import { DEMO_MODE } from './config.js'
 
 export const ACT_SECONDS = 20 // 每人出分的决策时间（头像上的环形倒计时）
 export const DESIGNATE_SECONDS = 30 // 主持人指定赢家
@@ -19,7 +21,6 @@ export const tally = reactive({
 let seq = 0
 const memberOf = (name) => tally.members.find((m) => m.name === name)
 const asPlayer = (m) => ({ pid: m.name, name: m.name, c: m.c, bg: m.bg, fg: m.fg, stack: tally.assets[m.name] || 0, bot: m.name !== tally.me })
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 // 演示预设：1 号桌 10 人满员，2 号桌已有 9 人；空位随离桌和淘汰动态开放。
 export function initTally(members, me, startScore) {
@@ -30,6 +31,7 @@ export function initTally(members, me, startScore) {
     tally.assets[m.name] = startScore + ((i * 7919) % 9 - 4) * 1500
     tally.start[m.name] = tally.assets[m.name]
   })
+  if (!DEMO_MODE) return // 正式环境的牌桌由服务端给
   const others = tally.members.filter((m) => m.name !== me)
   const full = createTable(10)
   others.slice(0, 10).forEach((m, i) => T.sit(full, i, asPlayer(m)))
@@ -216,9 +218,11 @@ function step() {
       const byMe = viewing?.t.id === t.id && tally.iAmHost
       // 从其他桌切入 OB 时重新给主持人完整的选择时间。
       if (t._hostChoosing !== byMe) { t._deadline = 0; t._hostChoosing = byMe }
+      if (!byMe && !DEMO_MODE) return // 正式环境：等主持人在自己的手机上指定
       if (!t._deadline) t._deadline = now + (byMe ? DESIGNATE_SECONDS * 1000 : 2500)
       if (byMe) tally.turnLeft = Math.max(0, Math.ceil((t._deadline - now) / 1000))
-      if (now >= t._deadline) {
+      // 演示：超时随机指定（正式环境不自动指定）
+      if (DEMO_MODE && now >= t._deadline) {
         t._deadline = 0
         const picks = T.botPicks(t)
         if (byMe) h.pots.forEach((p, k) => { if (!p.winners && (tally.picks[k] || []).length) picks[k] = tally.picks[k] })
@@ -230,7 +234,7 @@ function step() {
     // 收分：机器人赢家依次收分（桌面分逐个倒数）；自己赢了的那份要自己点「收分」，20 秒没点自动收
     if (h.street === 'payout') {
       const u = T.unpaid(t)
-      const bot = u.find((x) => !atMine || x.seat !== mine.i)
+      const bot = DEMO_MODE ? u.find((x) => !atMine || x.seat !== mine.i) : null // 正式环境：别人在自己的手机上收分
       if (bot) {
         if (!t._botAt) t._botAt = now + 900 + Math.random() * 700
         if (now >= t._botAt) { t._botAt = 0; T.collect(t, bot.k, bot.seat); flushLog(t); moveBustedToOb(t) }
@@ -246,6 +250,7 @@ function step() {
     const seat = t.seats[h.toAct]
     if (!seat) { T.forfeit(t, h.toAct); return }
     if (seat.bot) {
+      if (!DEMO_MODE) return // 正式环境：别人在自己的手机上出分
       if (!t._botAt) t._botAt = now + 700 + Math.random() * 1100
       if (now >= t._botAt) {
         t._botAt = 0

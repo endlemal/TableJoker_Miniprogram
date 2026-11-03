@@ -324,9 +324,9 @@ import { onLoad, onReady, onPageScroll, onShareAppMessage } from '@dcloudio/uni-
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
-import ZHeat from '@/components/z-heat/z-heat.vue'
-import ZSubscribe from '@/components/z-subscribe/z-subscribe.vue'
-import ZChipLegend from '@/components/z-chip-legend/z-chip-legend.vue'
+import ZHeat from '@/pages/invite/components/z-heat/z-heat.vue'
+import ZSubscribe from '@/pages/invite/components/z-subscribe/z-subscribe.vue'
+import ZChipLegend from '@/pages/invite/components/z-chip-legend/z-chip-legend.vue'
 import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.vue'
 import { openScanner } from '@/common/scanner.js'
 import { addView } from '@/common/heat.js'
@@ -345,13 +345,13 @@ import { findPublicMatch } from '@/mock/plaza.js'
 import { TV_THEMES } from '@/mock/remote.js'
 import { tagOf, tagStatus } from '@/common/tags.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const topbarStyle = `height:${nav.statusBar + nav.navH}px;padding:${nav.statusBar}px ${nav.capsuleW}px 0`
 const navBtnStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
 
 const p2 = (n) => (n < 10 ? '0' : '') + n
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const noop = () => {}
 const WEEK = '日一二三四五六'
 

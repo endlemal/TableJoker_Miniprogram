@@ -102,7 +102,6 @@ onUnmounted(cancelDrag)
 .rr-head { height: 40px; }
 .rr-note { margin-left: auto; }
 .rr-sort { flex: none; width: 40px; height: 40px; margin-left: 8px; display: flex; align-items: center; justify-content: center; border-radius: 10px; }
-.rr-sort .z-icon { width: 20px !important; height: 20px !important; }
 .rr-sort-press { background: #383C45; }
 .rr-title { font-size: 20px; font-weight: 700; }
 .rr-note, .rr-hint, .rr-columns { font-size: 11px; color: #A9AEB8; }

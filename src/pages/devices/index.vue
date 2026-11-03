@@ -179,12 +179,12 @@ import { requireLogin } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline, parsePairPayload, findByCode, addDevice, renameDevice, unbindDevice, identifyDevice, suggestName, nameTaken } from '@/common/devices.js'
 import { NAME_CHIPS, PAIR_CODE } from '@/mock/devices.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const goBack = () => goBackOrHome()
 // 示意电视上显示的配对码（和演示环境的有效配对码保持一致）
 const pairCodeText = PAIR_CODE.slice(0, 3) + ' ' + PAIR_CODE.slice(3)

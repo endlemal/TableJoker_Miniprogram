@@ -7,7 +7,10 @@
     </view>
 
     <!-- 完整的消息记录：头像、昵称、时间、正文；和房间页的气泡弹幕是同一份数据 -->
-    <scroll-view scroll-y class="list" :scroll-into-view="anchor" :scroll-with-animation="smooth" @scroll="onScroll">
+    <scroll-view scroll-y class="list" :scroll-into-view="anchor" :scroll-with-animation="smooth" :upper-threshold="40" @scroll="onScroll" @scrolltoupper="showEarlier">
+      <!-- 更早的消息：往上翻到顶自动加载，也可以点 -->
+      <view v-if="hiddenCount" class="more" hover-class="press" @tap="showEarlier"><text class="more-t">查看更早的消息（还有 {{ hiddenCount }} 条）</text></view>
+      <view v-else-if="chat.trimmed" class="more"><text class="more-t more-t-off">更早的 {{ chat.trimmed }} 条消息已收起（演示里只保留最近 {{ MAX_KEEP }} 条）</text></view>
       <view v-for="m in rows" :id="'m' + m.id" :key="m.id" class="cm" :class="{ 'cm-sys': m.kind === 'system' || m.kind === 'event', 'cm-msg': m.kind !== 'system' && m.kind !== 'event', 'cm-grouped': m.grouped, 'cm-act': actOn === m.id }" @tap="tapMsg(m)">
         <!-- 记分工具的出分、收分事件：显示成系统消息 -->
         <block v-if="m.kind === 'event'">
@@ -90,28 +93,42 @@
 import { ref, computed, watch, nextTick, getCurrentInstance } from 'vue'
 import { onReady, onShow, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
-import ZRoomInput from '@/components/z-room-input/z-room-input.vue'
-import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
+import ZRoomInput from '@/pages/room/components/z-room-input/z-room-input.vue'
+import ZEmojiPanel from '@/pages/room/components/z-emoji-panel/z-emoji-panel.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
-import { chat, sendText, sendImage, startDemoFeed, stopDemoFeed, toggleReaction, ME } from '@/common/room-chat.js'
+import { chat, sendText, sendImage, startDemoFeed, stopDemoFeed, toggleReaction, ME, MAX_KEEP } from '@/common/room-chat.js'
 import { insertAt, deleteBefore } from '@/common/emoji.js'
+import { pad2, hhmm, toast } from '@/common/format.js'
 
 const instance = getCurrentInstance()
 const nav = getNavMetrics()
 const navStyle = `padding-top:${nav.statusBar}px;height:${nav.statusBar + nav.navH}px;padding-right:${nav.capsuleW + 8}px`
-const pad2 = (n) => (n < 10 ? '0' : '') + n
-const hhmm = (t) => { const d = new Date(t); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const noop = () => {}
 
 /* ---------- 合并：同一个人 5 分钟内连续发的消息只显示一次头像和名字（回复会重新显示） ---------- */
 const GROUP_MS = 5 * 60000
-const rows = computed(() => chat.list.map((m, i) => {
-  const prev = chat.list[i - 1]
+// 性能：只渲染最近 PAGE 条（合并判断仍然看完整列表里的上一条），往上翻到顶或点「查看更早的消息」再多显示 PAGE 条
+const PAGE = 50
+const shownN = ref(PAGE)
+const hiddenCount = computed(() => Math.max(0, chat.list.length - shownN.value))
+const rows = computed(() => {
+  const start = Math.max(0, chat.list.length - shownN.value)
   const plain = (x) => x.kind === 'text' || x.kind === 'image'
-  const grouped = !!(prev && plain(m) && plain(prev) && !m.reply && prev.from.name === m.from.name && m.at - prev.at < GROUP_MS)
-  return { ...m, grouped }
-}))
+  return chat.list.slice(start).map((m, k) => {
+    const prev = chat.list[start + k - 1]
+    const grouped = !!(prev && plain(m) && plain(prev) && !m.reply && prev.from.name === m.from.name && m.at - prev.at < GROUP_MS)
+    return { ...m, grouped }
+  })
+})
+// 显示更早的：记住现在最上面那条，加载后停在它那里，阅读位置不跳
+function showEarlier() {
+  if (!hiddenCount.value) return
+  const keep = rows.value[0] && rows.value[0].id
+  shownN.value += PAGE
+  smooth.value = false
+  anchor.value = ''
+  nextTick(() => { if (keep) anchor.value = 'm' + keep })
+}
 /* ---------- 点一条消息：喜欢、表情反应、回复 ---------- */
 const actOn = ref(0)
 const replyTo = ref(null)
@@ -132,6 +149,10 @@ function startReply(m) {
   focusKey.value += 1
 }
 function jumpTo(id) {
+  // 原消息还没显示出来：先把它包含进来
+  const idx = chat.list.findIndex((m) => m.id === id)
+  if (idx < 0) return toast('原消息太早，已经不在这里了')
+  if (idx < chat.list.length - shownN.value) shownN.value = chat.list.length - idx + 5
   smooth.value = true
   anchor.value = ''
   nextTick(() => { anchor.value = 'm' + id })
@@ -242,6 +263,9 @@ onUnload(() => stopDemoFeed('chat'))
 .cm-ev-n { color: #F3EEE6; font-weight: 600; }
 .cm-time-sys { margin-left: 0; margin-top: 2px; }
 .list-end { height: 16px; }
+.more { padding: 12px 0 4px; display: flex; justify-content: center; }
+.more-t { padding: 6px 14px; border-radius: 14px; background: #24272E; font-size: 13px; color: #C9CDD4; }
+.more-t-off { background: transparent; color: #8E929B; }
 .cm { position: relative; }
 .cm-grouped { padding-top: 1px; }
 .cm-act { background: #22252B; }

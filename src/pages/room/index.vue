@@ -295,27 +295,26 @@ import { onLoad, onShow, onHide, onUnload, onShareAppMessage } from '@dcloudio/u
 import { requireLogin } from '@/common/auth.js'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZFlap from '@/components/z-flap/z-flap.vue'
-import ZRoomInput from '@/components/z-room-input/z-room-input.vue'
-import ZEmojiPanel from '@/components/z-emoji-panel/z-emoji-panel.vue'
-import ZDanmaku from '@/components/z-danmaku/z-danmaku.vue'
-import ZRoomRanking from '@/components/z-room-ranking/z-room-ranking.vue'
-import ZTallyTable from '@/components/z-tally-table/z-tally-table.vue'
-import ZTallyAct from '@/components/z-tally-act/z-tally-act.vue'
-import ZTallyPot from '@/components/z-tally-pot/z-tally-pot.vue'
-import ZTallySettle from '@/components/z-tally-settle/z-tally-settle.vue'
-import ZTallyCollect from '@/components/z-tally-collect/z-tally-collect.vue'
+import ZRoomInput from '@/pages/room/components/z-room-input/z-room-input.vue'
+import ZEmojiPanel from '@/pages/room/components/z-emoji-panel/z-emoji-panel.vue'
+import ZDanmaku from '@/pages/room/components/z-danmaku/z-danmaku.vue'
+import ZRoomRanking from '@/pages/room/components/z-room-ranking/z-room-ranking.vue'
+import ZTallyTable from '@/pages/room/components/z-tally-table/z-tally-table.vue'
+import ZTallyAct from '@/pages/room/components/z-tally-act/z-tally-act.vue'
+import ZTallyPot from '@/pages/room/components/z-tally-pot/z-tally-pot.vue'
+import ZTallySettle from '@/pages/room/components/z-tally-settle/z-tally-settle.vue'
+import ZTallyCollect from '@/pages/room/components/z-tally-collect/z-tally-collect.vue'
 import { tally, initTally, runTally, viewSpot, observe, leaveObservation, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect } from '@/common/tally-room.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
 import { chat, sendText, sendImage, addSystem, startDemoFeed, stopDemoFeed } from '@/common/room-chat.js'
 import { insertAt, deleteBefore } from '@/common/emoji.js'
+import { pad2, hhmm, toast } from '@/common/format.js'
+import { DEMO_MODE } from '@/common/config.js'
 
 const noop = () => {}
-const toast = (title) => uni.showToast({ title, icon: 'none' })
-const pad2 = (n) => (n < 10 ? '0' : '') + n
 const mmss = (sec) => { const m = Math.min(99, Math.floor(sec / 60)); return pad2(m) + ':' + pad2(sec % 60) }
-const hhmm = (ms) => { const d = new Date(ms); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) }
 const fmtNum = (n) => {
   if (!n) return '—'
   if (n >= 10000) return (Math.round(n / 1000) / 10) + '万'
@@ -327,7 +326,7 @@ const asPlayer = ref(false)
 const isHost = computed(() => !asPlayer.value && room.hosts.some((h) => h.name === me.nickname))
 onLoad((q) => {
   if (!requireLogin()) return // 必须登录：未登录（比如扫码直接打开房间）转到登录页，登录后回到这里
-  if (q && q.role === 'player') asPlayer.value = true
+  if (DEMO_MODE && q && q.role === 'player') asPlayer.value = true
 })
 
 /* ---------- 尺寸：窄屏、常规、横屏；翻牌数字按容器宽度算，横屏或矮屏时限制高度 ---------- */
@@ -465,6 +464,7 @@ const stop = () => {
 }
 // 开发用：长按 Timer 跳到本级最后 15 秒，方便看最后一分钟变色和换级翻牌
 function jumpToEnd() {
+  if (!DEMO_MODE) return
   if (paused.value) return
   endAt = Date.now() + 15000
   tick()
@@ -833,7 +833,6 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .nav-back { width: 44px; height: 44px; flex: none; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
 .nav-name { margin-left: 12px; flex: 1; min-width: 0; font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 24px; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-exit { flex: none; width: 40px; height: 40px; margin-left: 6px; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
-.nav-exit .z-icon { width: 19px !important; height: 19px !important; }
 .main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .col-a { flex: none; min-height: 0; display: flex; flex-direction: column; }
 .col-b { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -911,7 +910,6 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .bt-title { font-size: 15px; font-weight: 500; color: #FFFFFF; }
 .bt-sub { margin-left: auto; font-size: 12px; color: #9CA3AF; }
 .bt-close { flex: none; margin-left: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-.bt-close .z-icon { width: 18px !important; height: 18px !important; }
 /* 对齐邀请页 sheet > tt：近黑底、BoardNum 数字、粗分隔线。保留房间独有的开始列。 */
 .bt-table { min-height: 0; padding: 2px 12px; border-radius: 12px; background: #050505; overflow: hidden; display: flex; flex-direction: column; }
 .bt-card .tr { flex: none; display: grid; grid-template-columns: 32px minmax(72px, 1.4fr) minmax(32px, .7fr) 32px 58px; align-items: center; height: 34px; border-bottom: 2px solid #262626; }
@@ -927,7 +925,6 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .bt-card .tr-past .tc { color: #777972; }
 .bt-break { grid-column: 1 / 4; display: flex; align-items: center; padding-left: 12px; font-family: "BoardHei", "PingFang SC", sans-serif; font-size: 13px; font-weight: 900; color: #FFC53A; }
 .bt-break text { margin-left: 6px; }
-.bt-break .z-icon { width: 14px !important; height: 14px !important; }
 .bt-body { flex: 1; min-height: 0; max-height: calc(78vh - 114px); }
 /* 玩法页 */
 .play { padding: 16px 16px 32px; }

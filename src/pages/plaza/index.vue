@@ -255,6 +255,7 @@ import ZComments from '@/components/z-comments/z-comments.vue'
 import { currentCity, userPosition, originFor, distanceKm, fmtKm, cityOfLocation } from '@/common/geo.js'
 import { filterMatches, emptyFilter, isFiltered, formatLabel } from '@/common/match-filter.js'
 import { commentsOf } from '@/common/comments.js'
+import { toast } from '@/common/format.js'
 
 const instance = getCurrentInstance()
 const nav = getNavMetrics()
@@ -266,7 +267,6 @@ const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const closeStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
 
 const p2 = (n) => (n < 10 ? '0' : '') + n
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const noop = () => {}
 const WEEK = '日一二三四五六'
 const ago = (t) => {

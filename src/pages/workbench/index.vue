@@ -250,18 +250,17 @@ import { useProfile } from '@/common/auth.js'
 import { tabItems, tapTab } from '@/common/tabs.js'
 import { hostMatches } from '@/mock/plaza.js'
 import { hostProfile, deskMetrics, rooms, todos, hostHeat, audience, hotProps, topPlayers, featureGroups } from '@/mock/workbench.js'
+import { fmt, toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const go = (url) => uni.navigateTo({ url })
 const who = useProfile()
 const TONE = { red: '#FF6B6B', amber: '#FFC53A', blue: '#7896DA', green: '#4CB582', gray: '#9CA3AF' }
 const p2 = (n) => (n < 10 ? '0' : '') + n
 const WEEK = '日一二三四五六'
-const fmt = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
 /* ---------- 身份卡：本周概览数字递增 ---------- */
 const shownMetric = ref(deskMetrics.map(() => '0'))

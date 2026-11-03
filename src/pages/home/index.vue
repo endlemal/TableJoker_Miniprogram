@@ -1,5 +1,6 @@
 <template>
-  <view class="home">
+  <!-- 首页是启动页：没登录时不渲染（requireLogin 会转到登录页），避免先闪一下首页 -->
+  <view v-if="authed" class="home">
     <!-- 服务器栏 -->
     <view class="rail" :style="railStyle">
       <view class="logo" hover-class="press" @tap="onLogoTap">
@@ -139,12 +140,14 @@ import { openScanner, parseJoinTarget } from '@/common/scanner.js'
 import ZHostOnly from '@/components/z-host-only/z-host-only.vue'
 import { useCertState, setHostMode } from '@/common/cert.js'
 import { onLoad } from '@dcloudio/uni-app'
-import { requireLogin, useProfile } from '@/common/auth.js'
+import { requireLogin, useProfile, isLoggedIn } from '@/common/auth.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
 import { me, featuredEvent as event } from '@/mock/data.js'
 import { listChannels, joinChannel } from '@/common/channels.js'
 import { publicMatches } from '@/mock/plaza.js'
+import { toast } from '@/common/format.js'
+import { DEMO_MODE } from '@/common/config.js'
 
 const nav = getNavMetrics()
 // 频道栏：默认频道 + 从广场「主办」进入过的主办方频道
@@ -157,11 +160,11 @@ const mainStyle = `padding-top:${nav.statusBar}px`
 const topbarStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW + 12}px`
 const bannerStyle = `background-image:url("${svgUri(bloodMoonBanner())}")`
 
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const toProfile = () => uni.navigateTo({ url: '/pages/profile/index' })
 
 /* ---------- 我：登录时填的头像和昵称；必须登录才能进首页 ---------- */
 const who = useProfile()
+const authed = isLoggedIn()
 onLoad((q) => {
   if (!requireLogin()) return
   // 刚登录进来：弹一条欢迎提示
@@ -189,6 +192,7 @@ function popMsg(text, icon, tone, ms) {
   popTimer = setTimeout(() => { pop.show = false }, ms)
 }
 function onLogoTap() {
+  if (!DEMO_MODE) return
   const now = Date.now()
   taps = now - lastTap < 1200 ? taps + 1 : 1
   lastTap = now

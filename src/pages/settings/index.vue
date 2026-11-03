@@ -69,13 +69,13 @@ import { onLoad } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import { useProfile, logout, requireLogin } from '@/common/auth.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const navStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const backStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 40) / 2)}px`
 const bodyStyle = `padding-top:${nav.statusBar + nav.navH + 8}px`
 
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 /* ---------- 我：和首页底部用户栏同一份身份信息 ---------- */
 const who = useProfile()

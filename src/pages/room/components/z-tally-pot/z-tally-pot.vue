@@ -25,13 +25,13 @@
 <script setup>
 // 只显示桌面分摘要；定胜、收分由独立组件处理。
 import { computed } from 'vue'
-import ZCount from '@/components/z-count/z-count.vue'
+import ZCount from '@/pages/room/components/z-count/z-count.vue'
 import { potTotal, livePots } from '@/common/tally.js'
+import { fmt } from '@/common/format.js'
 
 const props = defineProps({
   table: { type: Object, required: true },
 })
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const hand = computed(() => props.table.hand || {})
 const stage = computed(() => {
   const st = hand.value.street

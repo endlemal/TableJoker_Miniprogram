@@ -2,6 +2,7 @@
 // 演示：消息存在内存里，其他人的消息定时模拟进来；正式环境走 WebSocket，由服务端广播、保存完整记录
 import { reactive } from 'vue'
 import { room, me } from '../mock/data.js'
+import { DEMO_MODE } from './config.js'
 
 const person = (p) => ({ name: p.name, c: p.c, bg: p.bg, fg: p.fg })
 const mySeat = room.seats.find((s) => s.me) || room.seats[0]
@@ -16,7 +17,15 @@ if (qq) {
   seed.splice(seed.indexOf(qq) + 1, 0, { id: 901, kind: 'text', from: qq.from, text: '珍珠奶茶还是水果茶？', at: qq.at + 20000, reactions: {} })
   seed.push({ id: 902, kind: 'text', from: seat(9), text: '我要珍珠的，少冰', at: Date.now() - 30000, reactions: {}, reply: { id: qq.id, name: qq.from.name, text: qq.text } })
 }
-export const chat = reactive({ list: seed, online: true })
+export const chat = reactive({ list: seed, online: true, trimmed: 0 })
+// 性能：内存里最多留最近 400 条（每次出分都会插一条事件，长时间对局后会越积越多）。
+// 更早的只记一个数（trimmed）；正式环境由服务端保存完整记录，列表页往上翻时分页加载
+export const MAX_KEEP = 400
+function push(msg) {
+  chat.list.push(msg)
+  const over = chat.list.length - MAX_KEEP
+  if (over > 0) { chat.list.splice(0, over); chat.trimmed += over }
+}
 // 网络状态：断网时发送失败，房间状态显示「连接中断」
 uni.onNetworkStatusChange && uni.onNetworkStatusChange((r) => { chat.online = !!r.isConnected })
 uni.getNetworkType && uni.getNetworkType({ success: (r) => { chat.online = r.networkType !== 'none' } })
@@ -26,7 +35,7 @@ uni.getNetworkType && uni.getNetworkType({ success: (r) => { chat.online = r.net
 // reply：回复的那条 { id, name, text }
 export function sendText(text, reply) {
   const msg = { id: ++seq, kind: 'text', from: ME, text, at: Date.now(), mine: true, sending: true, reactions: {}, reply: reply || null }
-  chat.list.push(msg)
+  push(msg)
   return new Promise((resolve) => {
     setTimeout(() => {
       const i = chat.list.findIndex((x) => x.id === msg.id)
@@ -40,7 +49,7 @@ export function sendText(text, reply) {
   })
 }
 export function sendImage(src) {
-  chat.list.push({ id: ++seq, kind: 'image', from: ME, text: '[图片]', src, at: Date.now(), mine: true, reactions: {} })
+  push({ id: ++seq, kind: 'image', from: ME, text: '[图片]', src, at: Date.now(), mine: true, reactions: {} })
 }
 // 反应：同一个表情再点一次是取消
 export function toggleReaction(id, emoji) {
@@ -54,11 +63,11 @@ export function toggleReaction(id, emoji) {
 }
 // 记分工具的事件：玩家出分（盲注、跟注、加注、全下）和收分。气泡弹幕里靠右显示，房间弹幕列表里显示成系统消息
 export function addEvent(p, text, tone = 'bet', tableId = '') {
-  chat.list.push({ id: ++seq, kind: 'event', from: person(p), text, tone, tableId, at: Date.now() })
+  push({ id: ++seq, kind: 'event', from: person(p), text, tone, tableId, at: Date.now() })
 }
 // 系统消息：主持人的操作（暂停、换级、公告、抽座位、开关玩法）
 export function addSystem(text) {
-  chat.list.push({ id: ++seq, kind: 'system', text, at: Date.now() })
+  push({ id: ++seq, kind: 'system', text, at: Date.now() })
 }
 
 // 演示：房间打开时，其他人每隔十来秒说一句
@@ -67,12 +76,13 @@ const LINES = ['这级盲注涨得有点快', '有人要奶茶吗', '刚才那�
 let feed = null
 const owners = new Set()
 export function startDemoFeed(owner = 'room') {
+  if (!DEMO_MODE) return
   owners.add(owner)
   if (feed) return
   feed = setInterval(() => {
     const others = room.seats.filter((s) => !s.me)
     const p = others[Math.floor(Math.random() * others.length)]
-    chat.list.push({ id: ++seq, kind: 'text', from: person(p), text: LINES[Math.floor(Math.random() * LINES.length)], at: Date.now(), reactions: {} })
+    push({ id: ++seq, kind: 'text', from: person(p), text: LINES[Math.floor(Math.random() * LINES.length)], at: Date.now(), reactions: {} })
   }, 11000)
 }
 export function stopDemoFeed(owner = 'room') {

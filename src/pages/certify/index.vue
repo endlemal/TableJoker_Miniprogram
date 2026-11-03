@@ -171,6 +171,7 @@ import ZIcon from '@/components/z-icon/z-icon.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { getCertState, setCertState } from '@/common/cert.js'
 import { STATE_INFO, rules } from '@/mock/host.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const noop = () => {}
@@ -258,7 +259,6 @@ const barHint = computed(() => {
   if (others.length) return '还差：' + others.slice(0, 2).join('、') + (others.length > 2 ? ' 等' : '')
   return agreed.value ? '资料已齐全，可以提交' : '请先同意认证规则'
 })
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 function runAction() {
   const i = step.value
   if (i < 3) {

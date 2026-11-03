@@ -60,6 +60,9 @@
         },
         "usingComponents" : true,
         "lazyCodeLoading" : "requiredComponents",
+        "optimization" : {
+            "subPackages" : true
+        },
         "darkmode" : false,
         "requiredPrivateInfos" : [ "chooseLocation", "getFuzzyLocation" ],
         "permission" : {

@@ -16,7 +16,12 @@
     <scroll-view v-show="view === 'table'" scroll-y class="ztt-list" :scroll-top="tableScroll" scroll-with-animation @scroll="onTableScroll">
       <view v-for="r in rows" :key="r.s.pid" class="ztt-row" :class="{ 'ztt-out': r.out, 'ztt-turn': r.turn, 'ztt-me': r.me, 'ztt-wait': r.waiting, 'ztt-row-l': rowH >= 60 }" :style="'height:' + rowH + 'px'">
         <!-- 头像：轮到他时外面一圈是环形倒计时 -->
-        <view class="ztt-ring" :style="ringStyle(r)">
+        <view class="ztt-ring" :style="ringBox">
+          <!-- 环形倒计时：纯 CSS 动画（两个半圆依次转过去，把绿色一圈慢慢盖掉），不用定时器刷新整张桌 -->
+          <view v-if="r.turn && table.turnEnd" :key="'pie' + table.turnStart" class="ztt-pie" :style="pieStyle()">
+            <view class="ztt-half ztt-half-r"><view class="ztt-cover ztt-cover-r" :style="coverStyle(0)"></view></view>
+            <view class="ztt-half ztt-half-l"><view class="ztt-cover ztt-cover-l" :style="coverStyle(1)"></view></view>
+          </view>
           <view class="ztt-av" :style="'width:' + avSize + 'px;height:' + avSize + 'px;font-size:' + Math.round(avSize * 0.42) + 'px;background:' + r.s.bg + ';color:' + r.s.fg"><text>{{ r.s.c }}</text></view>
         </view>
         <view class="ztt-main">
@@ -43,9 +48,10 @@
 // 一张记分桌的实时视图（没有扑克牌）。桌面分紧接玩法面板；定胜区、收分栏位于其下方。
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
-import ZTallyRank from '@/components/z-tally-rank/z-tally-rank.vue'
+import ZTallyRank from '@/pages/room/components/z-tally-rank/z-tally-rank.vue'
 import { positions } from '@/common/tally.js'
 import { playerStatus } from '@/common/tally-labels.js'
+import { fmt } from '@/common/format.js'
 
 const props = defineProps({
   table: { type: Object, required: true },
@@ -60,7 +66,6 @@ const props = defineProps({
 const emit = defineEmits(['join'])
 const view = ref('table')
 const canJoin = computed(() => props.observing && props.table.seats.some(s => !s) && props.assets[props.me] > 0)
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const hand = computed(() => props.table.hand)
 const betting = computed(() => !!(hand.value && ['preflop', 'flop', 'turn', 'river'].includes(hand.value.street)))
 const pos = computed(() => positions(props.table))
@@ -183,19 +188,17 @@ watch(() => [props.table.id, props.table.handNo, hand.value?.toAct, visibleCount
   if (version === focusVersion) tableScroll.value = target
 }, { immediate: true, flush: 'post' })
 // 环形倒计时：轮到的人头像外面一圈，从满到空；最后四分之一变黄
-const now = ref(Date.now())
-let ticker = null
-onMounted(() => { ticker = setInterval(() => { if (props.table.turnEnd) now.value = Date.now() }, 100) })
-onUnmounted(() => { clearInterval(ticker); clearTimeout(rankTimer); rankVersion++; effectTimers.forEach(clearTimeout) })
-function ringStyle(r) {
-  const size = avSize.value + 6
-  const base = `width:${size}px;height:${size}px;`
-  if (!r.turn || !props.table.turnEnd) return base + 'background:transparent'
-  const total = Math.max(1, props.table.turnEnd - props.table.turnStart)
-  const left = Math.max(0, Math.min(1, (props.table.turnEnd - now.value) / total))
-  const c = left > 0.25 ? '#3FCF84' : '#FFC53A'
-  return base + `background:conic-gradient(${c} ${(left * 360).toFixed(1)}deg, rgba(243, 238, 230, .12) 0)`
+// 环形倒计时（性能）：原来每 100ms 刷新一次整张桌来画渐变，现在交给 CSS 动画。
+// 总时长 D、已经过去 e（毫秒）：用负的 animation-delay 对上进度；换人时按 turnStart 重新挂载，动画从头开始
+const ringBox = computed(() => { const size = avSize.value + 6; return `width:${size}px;height:${size}px` })
+function ringTiming() {
+  const D = Math.max(1, props.table.turnEnd - props.table.turnStart)
+  return { D, e: Math.max(0, Math.min(D, Date.now() - props.table.turnStart)) }
 }
+function pieStyle() { const { D, e } = ringTiming(); return `animation-duration:${D}ms;animation-delay:${-e}ms` }
+// 右半边在前一半时间里盖完，左半边在后一半时间里盖完
+function coverStyle(half) { const { D, e } = ringTiming(); const d = D / 2; return `animation-duration:${d}ms;animation-delay:${half === 0 ? -e : d - e}ms` }
+onUnmounted(() => { clearTimeout(rankTimer); rankVersion++; effectTimers.forEach(clearTimeout) })
 </script>
 
 <style>
@@ -206,7 +209,6 @@ function ringStyle(r) {
 .ztt-ic { flex: none; width: 30px; height: 30px; margin-left: 6px; border-radius: 50%; background: #2C2F36; display: flex; align-items: center; justify-content: center; }
 .ztt-seat { flex: none; padding: 5px 10px; border-radius: 12px; background: #5865F2; color: #FFFFFF; font-size: 12px; line-height: 18px; }
 .ztt-ic-on { background: #5865F2; }
-.ztt-ic .z-icon { width: 16px !important; height: 16px !important; }
 .ztt-press { opacity: .7; }
 .ztt-list { margin-top: 4px; }
 .ztt-list, .ztt-rank-view { flex: 1; min-height: 0; height: 0; }
@@ -220,8 +222,8 @@ function ringStyle(r) {
 .ztt-turn { background: rgba(63, 207, 132, .10); }
 .ztt-wait .ztt-av { opacity: .55; }
 .ztt-me .ztt-n { color: #8EA1FF; }
-.ztt-ring { flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: width 260ms ease, height 260ms ease; }
-.ztt-av { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; box-shadow: 0 0 0 2px #0D0E11; transition: width 260ms ease, height 260ms ease, font-size 260ms ease; }
+.ztt-ring { position: relative; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: width 260ms ease, height 260ms ease; }
+.ztt-av { position: relative; z-index: 1; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; box-shadow: 0 0 0 2px #0D0E11; transition: width 260ms ease, height 260ms ease, font-size 260ms ease; }
 .ztt-main { flex: 1; min-width: 0; margin-left: 8px; display: flex; flex-direction: column; justify-content: center; }
 .ztt-top { flex: none; height: 20px; min-width: 0; display: flex; align-items: center; }
 .ztt-n { min-width: 0; line-height: 20px; font-weight: 600; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -260,4 +262,15 @@ function ringStyle(r) {
   .ztt-impact, .ztt-impact::after { animation: none; }
   .ztt-row, .ztt-bar, .ztt-ring, .ztt-av { transition: none; }
 }
+
+/* 环形倒计时：绿色圆底，两个半圆（轨道色）按时间转过来盖住；最后四分之一变黄 */
+.ztt-pie { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border-radius: 50%; overflow: hidden; background: #3FCF84; animation-name: ztt-pie-color; animation-timing-function: linear; animation-fill-mode: both; }
+@keyframes ztt-pie-color { 0%, 74.9% { background-color: #3FCF84; } 75%, 100% { background-color: #FFC53A; } }
+.ztt-half { position: absolute; top: 0; width: 50%; height: 100%; overflow: hidden; }
+.ztt-half-r { right: 0; }
+.ztt-half-l { left: 0; }
+.ztt-cover { position: absolute; top: 0; width: 200%; height: 100%; border-radius: 50%; animation-name: ztt-pie-turn; animation-timing-function: linear; animation-fill-mode: both; }
+.ztt-cover-r { left: -100%; background: linear-gradient(to right, #26332C 50%, transparent 50%); }
+.ztt-cover-l { left: 0; background: linear-gradient(to right, transparent 50%, #26332C 50%); }
+@keyframes ztt-pie-turn { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
 </style>

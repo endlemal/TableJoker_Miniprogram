@@ -1,78 +1,29 @@
 {
   "pages": [
     {
-      "path": "pages/login/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "登录", "backgroundColor": "#0E0F14" }
-    },
-    {
       "path": "pages/home/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "首页" }
-    },
-    {
-      "path": "pages/profile/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "个人主页" }
-    },
-    {
-      "path": "pages/settings/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "设置" }
-    },
-    {
-      "path": "pages/create/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "创建比赛" }
-    },
-    {
-      "path": "pages/invite/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "比赛邀请" }
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "首页"
+      }
     },
     {
       "path": "pages/plaza/index",
       "style": {
-        "navigationStyle": "custom", "navigationBarTitleText": "广场",
-        "enablePullDownRefresh": true, "backgroundTextStyle": "light", "backgroundColor": "#181A20", "onReachBottomDistance": 160
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "广场",
+        "enablePullDownRefresh": true,
+        "backgroundTextStyle": "light",
+        "backgroundColor": "#181A20",
+        "onReachBottomDistance": 160
       }
     },
     {
-      "path": "pages/host/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "平台认证", "backgroundColor": "#121419" }
-    },
-    {
-      "path": "pages/workbench/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "主办方工作台", "backgroundColor": "#181A20" }
-    },
-    {
-      "path": "pages/devices/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "设备管理", "backgroundColor": "#181A20" }
-    },
-    {
-      "path": "pages/posters/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "海报广告", "backgroundColor": "#181A20" }
-    },
-    {
-      "path": "pages/remote/index",
-      "style": { "navigationStyle": "custom", "navigationBarTitleText": "遥控切屏", "disableScroll": true, "backgroundColor": "#07080B" }
-    },
-    {
-			"path": "pages/certify/index",
-			"style": {
-				"navigationStyle": "custom",
-				"navigationBarTitleText": "主办方认证"
-			}
-		},
-		{
-			"path": "pages/room/chat",
-			"style": {
-				"navigationStyle": "custom",
-				"navigationBarTitleText": "房间弹幕列表"
-			}
-		},
-		{
-      "path": "pages/webview/index",
-      "style": { "navigationStyle": "default", "navigationBarTitleText": "活动", "navigationBarBackgroundColor": "#181A20", "navigationBarTextStyle": "white" }
-    },
-    {
-      "path": "pages/room/index",
+      "path": "pages/profile/index",
       "style": {
-				"pageOrientation": "auto", "navigationStyle": "custom", "navigationBarTitleText": "房间", "disableScroll": true }
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "个人主页"
+      }
     }
   ],
   "globalStyle": {
@@ -84,5 +35,201 @@
     "backgroundColorTop": "#181A20",
     "backgroundColorBottom": "#181A20",
     "backgroundTextStyle": "light"
+  },
+  "subPackages": [
+    {
+      "root": "pages/login",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "登录",
+            "backgroundColor": "#0E0F14"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/settings",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "设置"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/create",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "创建比赛"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/invite",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "比赛邀请"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/host",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "平台认证",
+            "backgroundColor": "#121419"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/workbench",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "主办方工作台",
+            "backgroundColor": "#181A20"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/devices",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "设备管理",
+            "backgroundColor": "#181A20"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/posters",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "海报广告",
+            "backgroundColor": "#181A20"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/remote",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "遥控切屏",
+            "disableScroll": true,
+            "backgroundColor": "#07080B"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/certify",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "主办方认证"
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/room",
+      "pages": [
+        {
+          "path": "chat",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "房间弹幕列表"
+          }
+        },
+        {
+          "path": "index",
+          "style": {
+            "pageOrientation": "auto",
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "房间",
+            "disableScroll": true
+          }
+        }
+      ]
+    },
+    {
+      "root": "pages/webview",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "default",
+            "navigationBarTitleText": "活动",
+            "navigationBarBackgroundColor": "#181A20",
+            "navigationBarTextStyle": "white"
+          }
+        }
+      ]
+    }
+  ],
+  "preloadRule": {
+    "pages/home/index": {
+      "network": "all",
+      "packages": [
+        "pages/room",
+        "pages/invite",
+        "pages/create",
+        "pages/login"
+      ]
+    },
+    "pages/plaza/index": {
+      "network": "all",
+      "packages": [
+        "pages/invite"
+      ]
+    },
+    "pages/host/index": {
+      "network": "all",
+      "packages": [
+        "pages/certify",
+        "pages/workbench"
+      ]
+    },
+    "pages/workbench/index": {
+      "network": "all",
+      "packages": [
+        "pages/remote",
+        "pages/devices",
+        "pages/posters"
+      ]
+    }
   }
 }

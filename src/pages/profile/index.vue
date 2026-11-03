@@ -108,6 +108,7 @@ import ZTabbar from '@/components/z-tabbar/z-tabbar.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri, diceFacesPattern } from '@/common/svg.js'
 import { me, activity, badgeRows, badgeTone, badgeTotal } from '@/mock/data.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const tabs = ['主页', '战绩', '我的配置']
@@ -134,7 +135,6 @@ badgeRows.forEach((row, r) => {
   })
 })
 
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 // 底部导航：第四个入口随认证状态变化（认证后模式切换时自动更新）
 const who = useProfile()

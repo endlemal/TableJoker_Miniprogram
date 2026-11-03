@@ -106,7 +106,7 @@
         @tap="emit('login')"
       >
         <view v-if="busy" class="ticket__spinner"><z-icon name="loader-2" :size="16" :stroke="2.5" color="#FFFFFF" /></view>
-        <text class="ticket__login-text">{{ busy ? '登录中' : '登录' }}</text>
+        <text class="ticket__login-text">{{ busy ? action + '中' : action }}</text>
       </button>
     </view>
   </view>
@@ -127,6 +127,7 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
   leaving: { type: Boolean, default: false },
   locating: { type: Boolean, default: false },
+  action: { type: String, default: '登录' }, // 按钮上的字：新用户注册时是「注册」
 })
 
 const emit = defineEmits([
@@ -182,13 +183,13 @@ function onAvatarTap() {
   top: -9.8rpx;
   width: 681.312rpx;
   height: 721.1rpx;
-  background-image: url('../../static/login/ticket-main.svg');
+  background-image: url('./art/ticket-main.svg');
   background-size: 681.312rpx 721.1rpx;
 }
 .ticket__content { position: relative; z-index: 1; }
 .ticket__header { display: flex; height: 64rpx; align-items: center; justify-content: space-between; }
 .ticket__brand { display: flex; height: 64rpx; align-items: center; }
-.ticket__logo { width: 40rpx; height: 40rpx; flex: none; background: url('../../static/login/ticket-logo.svg') center / 40rpx 40rpx no-repeat; }
+.ticket__logo { width: 40rpx; height: 40rpx; flex: none; background: url('./art/ticket-logo.svg') center / 40rpx 40rpx no-repeat; }
 .ticket__brand-title { margin-left: 12rpx; font-family: "TicketDisplay", sans-serif; font-size: 36rpx; line-height: 48rpx; letter-spacing: -.5rpx; color: #FFFFFF; }
 .ticket__notice {
   display: flex;
@@ -244,7 +245,7 @@ function onAvatarTap() {
 }
 .ticket__avatar-button--selected { border: 4rpx solid #DC0000; }
 .ticket__avatar-image { display: block; width: 128rpx; height: 128rpx; flex: none; }
-.ticket__avatar-placeholder { width: 112.9908rpx; height: 50.8294rpx; flex: none; background: url('../../static/login/ticket-avatar.svg') center / 112.9908rpx 50.8294rpx no-repeat; }
+.ticket__avatar-placeholder { width: 112.9908rpx; height: 50.8294rpx; flex: none; background: url('./art/ticket-avatar.svg') center / 112.9908rpx 50.8294rpx no-repeat; }
 .ticket__date { flex: 1; min-width: 0; height: 52rpx; margin: 5rpx 0 0 16rpx; font-family: "TicketDisplay", sans-serif; font-size: 48rpx; line-height: 52rpx; white-space: nowrap; }
 .ticket__control { position: relative; flex: 1; min-width: 0; height: 52rpx; margin: 5rpx 0 0 16rpx; box-sizing: border-box; border-bottom: 1rpx solid rgba(255, 255, 255, .45); }
 .ticket__control--complete { border-bottom-color: transparent; }
@@ -253,12 +254,12 @@ function onAvatarTap() {
 .ticket__city-picker { flex: 1; min-width: 0; }
 .ticket__city { display: flex; align-items: center; padding-left: 20rpx; }
 .ticket__city-value { flex: 1; min-width: 0; overflow: hidden; font-size: 26rpx; line-height: 51rpx; text-overflow: ellipsis; white-space: nowrap; }
-.ticket__location { flex: none; width: 26rpx; height: 26rpx; background: url('../../static/login/ticket-location.svg') center / 26rpx 26rpx no-repeat; }
+.ticket__location { flex: none; width: 26rpx; height: 26rpx; background: url('./art/ticket-location.svg') center / 26rpx 26rpx no-repeat; }
 .ticket__city-loading { flex: none; width: 24rpx; height: 24rpx; box-sizing: border-box; border: 3rpx solid rgba(255, 255, 255, .25); border-top-color: #FF6B6B; border-radius: 50%; animation: ticket-spin .9s linear infinite; }
 
 .ticket__stub { position: relative; display: flex; height: 196rpx; padding: 32rpx 40rpx 36rpx; align-items: center; justify-content: space-between; box-sizing: border-box; transition: transform .45s cubic-bezier(.34, 1.3, .64, 1), opacity .45s ease; }
-.ticket__paper--stub { left: 0; top: 0; width: 640rpx; height: 196rpx; background: url('../../static/login/ticket-stub.svg') center / 640rpx 196rpx no-repeat; }
-.ticket__perforation { position: absolute; top: 0; left: 40rpx; width: 560rpx; height: 2rpx; background: url('../../static/login/ticket-perforation.svg') center / 560rpx 2rpx no-repeat; }
+.ticket__paper--stub { left: 0; top: 0; width: 640rpx; height: 196rpx; background: url('./art/ticket-stub.svg') center / 640rpx 196rpx no-repeat; }
+.ticket__perforation { position: absolute; top: 0; left: 40rpx; width: 560rpx; height: 2rpx; background: url('./art/ticket-perforation.svg') center / 560rpx 2rpx no-repeat; }
 .ticket__seat { position: relative; display: flex; width: 140rpx; height: 128rpx; flex-direction: column; }
 .ticket__seat-label { height: 28rpx; font-size: 20rpx; font-weight: 900; line-height: 28rpx; letter-spacing: 5rpx; color: var(--ticket-label); }
 .ticket__seat-number { height: 100rpx; font-family: "BoardNum", "DIN Alternate", sans-serif; font-size: 100rpx; font-weight: 800; line-height: 100rpx; color: #FF3B30; }

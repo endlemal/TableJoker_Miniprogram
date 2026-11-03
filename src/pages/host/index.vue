@@ -31,7 +31,7 @@
         <view class="sl-line"></view>
       </view>
       <view class="poster">
-        <image class="poster-img" src="/static/host/poster.jpg" mode="aspectFill" />
+        <image class="poster-img" :src="POSTER" mode="aspectFill" />
         <view class="poster-fade"></view>
       </view>
       <!-- Lottie 动画位：接入时在这里放 <canvas type="2d">，现在是静态占位 -->
@@ -214,6 +214,8 @@
 </template>
 
 <script setup>
+// 海报放在这个分包自己的 static 目录里（不占主包）；路径写在脚本里，模板编译不会把它当成模块导入
+const POSTER = '/pages/host/static/poster.jpg'
 import { requireLogin } from '@/common/auth.js'
 import { ref, reactive, computed, getCurrentInstance, watch } from 'vue'
 import { onLoad, onReady, onUnload, onPageScroll, onShareAppMessage } from '@dcloudio/uni-app'
@@ -226,6 +228,8 @@ import { svgUri } from '@/common/svg.js'
 import { lottiePlaceholder } from '@/common/host-art.js'
 import { me } from '@/mock/data.js'
 import { STATE_INFO, benefits, privileges, metrics, metricsNote, steps, faqs, rules } from '@/mock/host.js'
+import { toast } from '@/common/format.js'
+import { DEMO_MODE } from '@/common/config.js'
 
 const instance = getCurrentInstance()
 const nav = getNavMetrics()
@@ -233,7 +237,6 @@ const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.status
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const lottieArt = `background-image:url("${svgUri(lottiePlaceholder())}")`
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 /* ---------- 认证状态 ---------- */
 const STATES = ['none', 'pending', 'verified', 'rejected']
@@ -350,7 +353,7 @@ const canBack = ref(false)
 const goBack = () => uni.navigateBack()
 onLoad((q) => {
   if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
-  if (q && STATES.includes(q.state)) {
+  if (DEMO_MODE && q && STATES.includes(q.state)) {
     state.value = q.state
     previewing = true
   }
@@ -358,7 +361,7 @@ onLoad((q) => {
 })
 onReady(observe)
 onUnload(() => observers.forEach((o) => o.disconnect()))
-onShareAppMessage(() => ({ title: '平台认证：点亮认证标识', path: '/pages/host/index', imageUrl: '/static/host/poster.jpg' }))
+onShareAppMessage(() => ({ title: '平台认证：点亮认证标识', path: '/pages/host/index', imageUrl: POSTER }))
 
 /* ---------- 底部导航 ---------- */
 // 底部导航：跟着账号的模式（认证后模式时第四个入口是「主办方工作台」）

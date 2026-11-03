@@ -16,11 +16,11 @@
 </template>
 <script setup>
 import { computed } from 'vue'
+import { fmt } from '@/common/format.js'
 defineOptions({ options: { virtualHost: true } })
 const props = defineProps({ table: { type: Object, required: true }, picks: { type: Object, default: () => ({}) }, turnLeft: { type: Number, default: 0 } })
 const emit = defineEmits(['pick', 'designate'])
 const pots = computed(() => props.table.hand?.pots || [])
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const seat = (i) => props.table.hand?.seatRef[i] || props.table.seats[i] || { name: '已离座', c: '?', bg: '#33363E', fg: '#A9AEB8' }
 const selected = (p, k, i) => (p.winners || props.picks[k] || []).includes(i)
 const ready = computed(() => pots.value.length > 0 && pots.value.every((p, k) => p.winners || (props.picks[k] || []).length))

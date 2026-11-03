@@ -154,13 +154,13 @@ import { requireLogin, persistAvatar } from '@/common/auth.js'
 import { requireHost } from '@/common/cert.js'
 import { listDevices, isOnline } from '@/common/devices.js'
 import { FITS, RATIOS, DWELLS, MAX_IMAGES, STATUS_TEXT, ratioName, listGroups, createGroup, updateGroup, submitGroup, deleteGroup } from '@/common/posters.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`
 const headRowStyle = `height:${nav.navH}px;padding-right:${nav.capsuleW}px`
 const goBack = () => goBackOrHome()
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 
 /* ---------- 提示条 ---------- */
 const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })

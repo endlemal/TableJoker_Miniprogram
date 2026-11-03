@@ -37,6 +37,7 @@
 import { ref, computed, watch } from 'vue'
 import { options } from '@/common/tally.js'
 import { playerStatus } from '@/common/tally-labels.js'
+import { fmt } from '@/common/format.js'
 
 const props = defineProps({
   table: { type: Object, required: true },
@@ -44,7 +45,6 @@ const props = defineProps({
   turnLeft: { type: Number, default: 0 }
 })
 const emit = defineEmits(['act', 'expand'])
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const hand = computed(() => props.table.hand)
 const mine = computed(() => (hand.value && hand.value.street !== 'done' && hand.value.players[props.seat]) || null)
 const stack = computed(() => (props.table.seats[props.seat] ? props.table.seats[props.seat].stack : 0))

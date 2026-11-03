@@ -206,8 +206,8 @@ import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import ZFitImg from '@/components/z-fit-img/z-fit-img.vue'
-import ZTvScreen from '@/components/z-tv-screen/z-tv-screen.vue'
-import ZRemoteGuide from '@/components/z-remote-guide/z-remote-guide.vue'
+import ZTvScreen from '@/pages/remote/components/z-tv-screen/z-tv-screen.vue'
+import ZRemoteGuide from '@/pages/remote/components/z-remote-guide/z-remote-guide.vue'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { svgUri } from '@/common/svg.js'
 import { coverArt } from '@/common/cover-art.js'
@@ -218,10 +218,10 @@ import { listGroups, playOn, stopOn } from '@/common/posters.js'
 import { fitScreen, posterResolution, screenResolution } from '@/common/poster-display.js'
 import { CAST_CATS, catOf, liveOf, sameContent, contentText, contentCover, castFields } from '@/common/screens.js'
 import { TV_THEMES, ROOM_THEME, HELP } from '@/mock/remote.js'
+import { toast } from '@/common/format.js'
 
 const nav = getNavMetrics()
 const px = (rpx) => uni.upx2px(rpx)
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const buzz = (type = 'light') => { try { uni.vibrateShort({ type }) } catch (e) {} }
 const goBack = () => goBackOrHome()
 

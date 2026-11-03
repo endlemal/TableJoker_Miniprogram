@@ -9,12 +9,12 @@
 </template>
 <script setup>
 import { computed } from 'vue'
+import { fmt } from '@/common/format.js'
 const props = defineProps({ table: { type: Object, required: true }, mySeat: { type: Number, default: -1 }, turnLeft: { type: Number, default: 0 } })
 const emit = defineEmits(['collect'])
 const pots = computed(() => props.table.hand?.pots || [])
 const mine = computed(() => pots.value.flatMap((p, k) => p.shares?.[props.mySeat] && !p.taken[props.mySeat] ? [{ k, amount: p.shares[props.mySeat] }] : []))
 const due = computed(() => mine.value.reduce((s, p) => s + p.amount, 0))
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 const waiting = computed(() => {
   const names = [...new Set(pots.value.flatMap((p) => (p.winners || []).filter((i) => !p.taken[i]).map((i) => props.table.hand.seatRef[i]?.name || '玩家')))]
   return names.length ? '待 ' + names.join('、') + ' 收分' : ''

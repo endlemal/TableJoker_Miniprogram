@@ -23,7 +23,8 @@
 <script setup>
 // members：房间里所有人；assets：现在的资产；start：起点（累计盈亏 = 现在 − 起点）；highlight：和自己同桌的人
 import { computed } from 'vue'
-import ZCount from '@/components/z-count/z-count.vue'
+import ZCount from '@/pages/room/components/z-count/z-count.vue'
+import { fmt } from '@/common/format.js'
 
 const props = defineProps({
   members: { type: Array, default: () => [] },
@@ -34,7 +35,6 @@ const props = defineProps({
   delta: { type: Object, default: null }
 })
 const ROW = 34
-const fmt = (n) => String(n || 0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 // 列表按名字固定顺序渲染（这样每一行是同一个元素），名次只改变它的位置，换位时有动画
 const list = computed(() => {
   const vals = props.members.map((m) => ({ ...m, v: props.assets[m.name] || 0, d: props.delta ? props.delta[m.name] || 0 : (props.assets[m.name] || 0) - (props.start[m.name] || 0) }))

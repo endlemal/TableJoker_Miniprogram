@@ -1,5 +1,5 @@
 // 平台认证页：Lottie 动画位的静态占位（深色圆角卡片里三张扇形牌背，右下角是加 V 的认证标识）
-// 接入 Lottie 后整块替换；海报改用 static/host/poster.jpg
+// 接入 Lottie 后整块替换；海报改用 pages/host/static/poster.jpg
 export function lottiePlaceholder() {
   const back = (rot) => `<g transform="rotate(${rot} 112 214)"><rect x="76" y="70" width="72" height="100" rx="8" fill="#B80000"/>` +
     '<rect x="81" y="75" width="62" height="90" rx="5" fill="none" stroke="#F3B3B3" stroke-width="2"/>' +

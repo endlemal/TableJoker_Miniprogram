@@ -385,7 +385,7 @@
 import { ref, reactive, computed, nextTick, getCurrentInstance, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
-import ZCoverFlow from '@/components/z-cover-flow/z-cover-flow.vue'
+import ZCoverFlow from '@/pages/create/components/z-cover-flow/z-cover-flow.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
 import { getAuth } from '@/common/auth.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
@@ -398,6 +398,7 @@ import { SLOTS, INTRO_MAX, TAG_PRESETS, MAX_TAGS, TAG_MAX_LEN } from '@/mock/pro
 import { tagOf, newTag, tagStatus, tagProblem, TAG_REVIEW_MS } from '@/common/tags.js'
 import { specialOf, NOTE_PRESETS } from '@/common/blind-notes.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
+import { toast } from '@/common/format.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
 const KEY_TEMPLATES = 'zz_match_templates'
@@ -409,7 +410,6 @@ const backStyle = `top:${nav.statusBar + Math.max(0, (nav.navH - 36) / 2)}px`
 
 const p2 = (n) => (n < 10 ? '0' : '') + n
 const clone = (o) => JSON.parse(JSON.stringify(o))
-const toast = (title) => uni.showToast({ title, icon: 'none' })
 const buzz = (type = 'light') => { try { uni.vibrateShort({ type }) } catch (e) {} }
 const instance = getCurrentInstance()
 const pop = reactive({ show: false, text: '', icon: 'check', tone: 'red' })
