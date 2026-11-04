@@ -5,24 +5,7 @@
     <view class="lg-shade"></view>
 
     <view class="lg-stage" :style="stageStyle">
-      <!-- 第一步：微信登录，识别新老用户。老用户（比如微信登录态过期）直接进入，不用重新注册；新用户再显示入场券 -->
-      <view v-if="step === 'wx'" class="lg-wx" :class="{ 'lg-wx--entered': entered, 'lg-wx--leaving': wxLeaving }">
-        <text class="lg-wx-brand">桌趣</text>
-        <text class="lg-wx-title">{{ welcome ? '欢迎回来，' + welcome : '用微信登录' }}</text>
-        <text class="lg-wx-sub">{{ welcome ? '正在进入…' : '老玩家直接进入；第一次来的玩家，登录后领一张入场券' }}</text>
-        <view class="lg-wx-btn" :class="{ 'lg-wx-btn--busy': busy }" hover-class="press" @tap="onWxLogin">
-          <z-icon name="brand-wechat" :size="22" color="#FFFFFF" />
-          <text class="lg-wx-btn-t">{{ busy ? (welcome ? '正在进入…' : '正在登录…') : '微信登录' }}</text>
-        </view>
-        <view class="lg-legal">
-          <text class="lg-legal-t">登录即表示你已阅读并同意</text>
-          <text class="lg-link" @tap="openDoc('terms')">《用户协议》</text>
-          <text class="lg-legal-t">和</text>
-          <text class="lg-link" @tap="openPrivacy">《隐私保护指引》</text>
-        </view>
-      </view>
-      <!-- 第二步（新用户）：入场券注册 -->
-      <view v-else class="lg-ticket" :class="{ 'lg-ticket--entered': entered, 'lg-ticket--shaking': shaking }">
+      <view class="lg-ticket" :class="{ 'lg-ticket--entered': entered, 'lg-ticket--shaking': shaking }">
         <login-ticket
           :profile="form"
           :missing="miss"
@@ -31,7 +14,8 @@
           :busy="busy"
           :leaving="leaving"
           :locating="locating"
-          action="注册"
+          :login-only="!registering"
+          :welcome-name="welcome"
           @choose-avatar="onChooseAvatar"
           @demo-avatar="pickDemoAvatar"
           @nickname-input="onNick"
@@ -128,6 +112,8 @@ const ready = ref(false)
 const entered = ref(false)
 const leaving = ref(false)
 const busy = ref(false)
+const registering = ref(false)
+const welcome = ref('')
 const shaking = ref(false)
 const form = reactive({ avatarUrl: '', nickname: '', city: '' })
 const miss = reactive({ avatar: false, nickname: false, city: false })
@@ -219,6 +205,7 @@ function onRetryLocate() {
 /* ---------- 登录 ---------- */
 function onLoginTap() {
   if (busy.value) return
+  if (!registering.value) return onWxLogin()
   if (!canLogin.value) {
     miss.avatar = !form.avatarUrl
     miss.nickname = !form.nickname
@@ -233,31 +220,22 @@ function onLoginTap() {
 }
 let redirect = ''
 /* ---------- 第一步：微信登录，识别新老用户 ---------- */
-const step = ref('wx') // wx：微信登录；ticket：新用户填入场券注册
-const welcome = ref('') // 老用户的昵称（欢迎回来）
-const wxLeaving = ref(false)
 let regTicket = '' // 新用户的注册凭证（后端在微信登录时给）
 async function onWxLogin() {
-  if (busy.value) return
   busy.value = true
   try {
     const r = await wxLogin()
     if (!r.isNew) {
       // 老用户：登录态已经恢复，直接进入
       welcome.value = r.profile.nickname
-      setTimeout(() => { wxLeaving.value = true }, 600)
+      setTimeout(() => { leaving.value = true }, 600)
       setTimeout(() => uni.reLaunch({ url: redirect || '/pages/home/index' }), 1100)
       return
     }
-    // 新用户：换成入场券
+    // 新用户：在同一张券上展开注册资料
     regTicket = r.ticket
+    registering.value = true
     busy.value = false
-    wxLeaving.value = true
-    setTimeout(() => {
-      step.value = 'ticket'
-      entered.value = false
-      setTimeout(() => { entered.value = true }, 40)
-    }, 320)
   } catch (e) {
     busy.value = false
     toast('微信登录没有成功，请再试一次')
@@ -275,7 +253,7 @@ async function confirmLogin() {
     busy.value = false
     toast((e && e.message) || '注册没有成功，请再试一次')
     // 注册凭证失效：回到微信登录重新拿
-    if (e && /凭证/.test(e.message || '')) { step.value = 'wx'; wxLeaving.value = false; regTicket = '' }
+    if (e && /凭证/.test(e.message || '')) { registering.value = false; regTicket = '' }
   }
 }
 
@@ -341,17 +319,6 @@ onLoad((q) => {
 /* 入场：从下方翻起来；没填完点登录时左右晃 */
 .lg-ticket { position: relative; width: 640rpx; flex: none; opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
 .lg-ticket--entered { opacity: 1; transform: translateY(0) rotateX(0); }
-/* 第一步：微信登录卡片（入场方式和入场券一样） */
-.lg-wx { position: relative; width: 600rpx; flex: none; padding: 56rpx 48rpx 52rpx; box-sizing: border-box; border-radius: 40rpx; background: rgba(14, 15, 20, .74); box-shadow: inset 0 0 0 2rpx rgba(243, 238, 230, .12), 0 40rpx 80rpx rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); display: flex; flex-direction: column; align-items: center;
-  opacity: 0; transform: translateY(140rpx) rotateX(55deg); transition: transform .9s cubic-bezier(.23, 1, .32, 1), opacity .6s ease; }
-.lg-wx--entered { opacity: 1; transform: translateY(0) rotateX(0); }
-.lg-wx--leaving { opacity: 0 !important; transform: translateY(-40rpx) scale(.94) !important; transition: transform .32s ease, opacity .28s ease; }
-.lg-wx-brand { font-family: "ZZDisplay", "PingFang SC", sans-serif; font-size: 88rpx; line-height: 1.1; color: #F3EEE6; }
-.lg-wx-title { margin-top: 24rpx; font-size: 36rpx; font-weight: 700; color: #F3EEE6; }
-.lg-wx-sub { margin-top: 12rpx; font-size: 26rpx; line-height: 1.6; color: #C9CDD4; text-align: center; }
-.lg-wx-btn { margin-top: 48rpx; width: 100%; height: 96rpx; border-radius: 48rpx; background: #07C160; display: flex; align-items: center; justify-content: center; box-shadow: 0 16rpx 40rpx rgba(7, 193, 96, .35); }
-.lg-wx-btn--busy { opacity: .75; }
-.lg-wx-btn-t { margin-left: 12rpx; font-size: 32rpx; font-weight: 700; color: #FFFFFF; }
 .lg-ticket--shaking { animation: login-ticket-shake .5s ease; }
 @keyframes login-ticket-shake { 15%, 55% { transform: translateX(-14rpx); } 35%, 75% { transform: translateX(14rpx); } }
 

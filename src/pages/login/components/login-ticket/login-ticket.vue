@@ -3,7 +3,7 @@
     <view class="ticket__main">
       <view class="ticket__paper ticket__paper--main" aria-hidden="true"></view>
 
-      <view class="ticket__content">
+      <view class="ticket__content" :class="{ 'ticket__content--login': loginOnly }">
         <view class="ticket__header">
           <view class="ticket__brand">
             <view class="ticket__logo" aria-hidden="true"></view>
@@ -14,14 +14,16 @@
           </button>
         </view>
 
-        <view class="ticket__welcome">
-          <text class="ticket__welcome-text">欢迎来到</text>
-          <text class="ticket__welcome-name ticket__gradient">桌趣</text>
+        <view :class="loginOnly ? 'ticket__hero--login' : 'ticket__hero--register'">
+          <view class="ticket__welcome">
+            <text class="ticket__welcome-text">{{ welcomeName ? '欢迎回来' : '欢迎来到' }}</text>
+            <text class="ticket__welcome-name ticket__gradient">{{ welcomeName || '桌趣' }}</text>
+          </view>
+          <text class="ticket__title ticket__gradient">TABLEJOKER</text>
+          <text class="ticket__description">{{ loginOnly ? (welcomeName ? '正在进入…' : '使用微信登录') : '聚会、玩桌游，或者参与比赛，点击下方开始吧！' }}</text>
         </view>
-        <text class="ticket__title ticket__gradient">TABLEJOKER</text>
-        <text class="ticket__description">聚会、玩桌游，或者参与比赛，点击下方开始吧！</text>
 
-        <view class="ticket__profile">
+        <view v-if="!loginOnly" class="ticket__profile">
           <view class="ticket__profile-row ticket__profile-row--primary">
             <view class="ticket__avatar-field" :class="{ 'ticket__field--missing': missing.avatar }">
               <view class="ticket__field-label" aria-hidden="true">
@@ -100,7 +102,7 @@
       </view>
       <button
         class="ticket__login"
-        :class="{ 'ticket__login--ready': canLogin, 'ticket__login--busy': busy }"
+        :class="{ 'ticket__login--ready': loginOnly || canRegister, 'ticket__login--busy': busy }"
         :disabled="busy"
         hover-class="ticket__press"
         @tap="emit('login')"
@@ -127,7 +129,8 @@ const props = defineProps({
   busy: { type: Boolean, default: false },
   leaving: { type: Boolean, default: false },
   locating: { type: Boolean, default: false },
-  action: { type: String, default: '登录' }, // 按钮上的字：新用户注册时是「注册」
+  loginOnly: { type: Boolean, default: false },
+  welcomeName: { type: String, default: '' },
 })
 
 const emit = defineEmits([
@@ -135,7 +138,8 @@ const emit = defineEmits([
   'city-tap', 'login', 'intro',
 ])
 
-const canLogin = computed(() => !!(props.profile.avatarUrl && props.profile.nickname && props.profile.city))
+const action = computed(() => props.loginOnly ? '登录' : '注册')
+const canRegister = computed(() => !!(props.profile.avatarUrl && props.profile.nickname && props.profile.city))
 const cityLabel = computed(() => {
   if (props.locating) return '定位中…'
   return props.profile.city ? shortRegion(props.profile.city) : '点击定位'
@@ -216,8 +220,25 @@ function onAvatarTap() {
 .ticket__title { display: block; height: 68.2rpx; margin-top: 12rpx; font-family: "TicketEnglish", sans-serif; font-size: 62rpx; font-weight: 900; line-height: 68.2rpx; letter-spacing: -.5rpx; background-image: linear-gradient(-73.6476deg, #FFBBBB 39.187%, #FFFAFA 86.395%); }
 .ticket__description { display: block; height: 40.8rpx; margin-top: 18rpx; font-size: 24rpx; font-weight: 500; line-height: 40.8rpx; color: var(--ticket-label); white-space: nowrap; }
 
+.ticket__content--login { display: flex; height: 100%; flex-direction: column; }
+.ticket__content--login .ticket__header { flex: none; }
+.ticket__hero--login { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.ticket__hero--login .ticket__welcome { justify-content: center; max-width: 100%; margin-top: 0; }
+.ticket__hero--login .ticket__welcome-text { flex: none; }
+.ticket__hero--login .ticket__welcome-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.ticket__hero--register { animation: ticket-register-heading .32s cubic-bezier(.2, .75, .25, 1); }
+@keyframes ticket-register-heading {
+  from { opacity: 0; transform: translateY(100rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* 两行资料使用固定标签列与弹性内容列，避免设计稿中超宽实例的裁切。 */
-.ticket__profile { margin-top: 36rpx; height: 286rpx; }
+.ticket__profile { margin-top: 36rpx; height: 286rpx; animation: ticket-register-profile .3s ease-out .12s backwards; }
+@keyframes ticket-register-profile {
+  from { opacity: 0; transform: translateY(16rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .ticket__profile-row { display: flex; align-items: flex-start; margin-top: 28rpx; }
 .ticket__profile-row--primary { height: 138rpx; margin-top: 0; }
 .ticket__field, .ticket__avatar-field { display: flex; width: 268rpx; min-width: 0; box-sizing: border-box; }
@@ -277,6 +298,6 @@ function onAvatarTap() {
 @keyframes ticket-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .ticket__main, .ticket__stub { transition: none; }
-  .ticket__spinner, .ticket__city-loading, .ticket__field--missing .ticket__field-label { animation: none; }
+  .ticket__hero--register, .ticket__profile, .ticket__spinner, .ticket__city-loading, .ticket__field--missing .ticket__field-label { animation: none; }
 }
 </style>
