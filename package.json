@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "scripts": {
     "upload": "node upload.js",
+    "upload:dev": "npm run build:mp-weixin && node upload.js --from-build",
+    "upload:trial": "npm run build:mp-weixin && node upload.js --from-build --for-trial",
     "dev:custom": "uni -p",
     "dev:h5": "uni",
     "dev:h5:ssr": "uni --ssr",

@@ -14,7 +14,7 @@
 
     <!-- 概览：绑定了几台、几台在线 -->
     <view class="sum">
-      <image class="sum-img" src="/static/workbench/bind.png" mode="aspectFit" />
+      <image class="sum-img" :src="bindIcon" mode="aspectFit" />
       <view class="sum-main">
         <text class="sum-t">大屏计时器</text>
         <view class="sum-s">
@@ -29,7 +29,7 @@
     <!-- 设备列表：条形卡片，封面是电视此刻的画面；点开是屏幕设置（改名、识别、解绑） -->
     <view class="sec-h"><text class="sec-t">我的大屏</text><text class="sec-n">{{ checkedText }}</text></view>
     <view v-if="loaded && !devices.length" class="empty">
-      <image class="empty-img" src="/static/workbench/bind.png" mode="aspectFit" />
+      <image class="empty-img" :src="bindIcon" mode="aspectFit" />
       <text class="empty-t">还没有绑定大屏</text>
       <text class="empty-d">在电视上安装「桌趣大屏计时器」，用配对码或扫码连接</text>
     </view>
@@ -181,6 +181,7 @@ import { listDevices, isOnline, parsePairPayload, findByCode, addDevice, renameD
 import { NAME_CHIPS, PAIR_CODE } from '@/mock/devices.js'
 import { toast } from '@/common/format.js'
 
+const bindIcon = '/static/workbench/bind.png'
 const nav = getNavMetrics()
 const cbarStyle = `height:${nav.statusBar + nav.navH}px;padding-top:${nav.statusBar}px`
 const headStyle = `padding-top:${nav.statusBar}px`

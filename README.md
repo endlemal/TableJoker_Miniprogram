@@ -517,6 +517,17 @@ npm run dev:mp-weixin
 
 用微信开发者工具导入 `dist/dev/mp-weixin`。没有 appid 时可以选测试号，或在 `src/manifest.json` 的 `mp-weixin.appid` 里填写。
 
+下面两条命令都会重新构建，并按 UTC 时间生成版本号（`YYMMDD.HHmmss`）和备注。
+
+```bash
+npm run upload:dev    # 用机器人 1 上传开发版
+npm run upload:trial  # 用机器人 2 上传待设为体验版的开发版本
+```
+
+`upload:trial` 上传成功后，到微信公众平台的「版本管理 → 开发版本」找到命令输出的版本号，点击「设为体验版」。`npm run upload` 可以直接上传已有的 `dist/dev/mp-weixin` 开发构建。
+
+可在命令后加 `-- --dry-run` 进行本地检查，或用 `--version`、`--desc` 和 `--robot` 覆盖默认值。默认使用项目根目录的 `private.<AppID>.key`，也可用 `WECHAT_CI_PRIVATE_KEY_PATH` 指定。若微信公众平台已启用上传 IP 白名单，需允许执行命令的机器。
+
 ## 验证记录
 
 - `npm run dev:mp-weixin`：`DONE Build complete. Watching for changes...`，没有警告和报错。
