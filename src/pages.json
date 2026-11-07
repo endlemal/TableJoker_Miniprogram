@@ -198,6 +198,19 @@
           }
         }
       ]
+    },
+    {
+      "root": "pages/host-invite",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "主持人邀请",
+            "backgroundColor": "#14151A"
+          }
+        }
+      ]
     }
   ],
   "preloadRule": {

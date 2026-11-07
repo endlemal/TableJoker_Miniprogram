@@ -173,7 +173,7 @@
             <text class="host-n">我</text>
             <text class="host-s host-s-me">发起人</text>
           </view>
-          <view v-for="h in hosts" :key="h.id" class="host">
+          <view v-for="h in allHosts" :key="h.id" class="host">
             <view class="host-av" :class="{ 'host-wait': h.status === 'pending' }" :style="h.status === 'pending' ? '' : 'background:' + h.bg + ';color:' + h.fg">
               <text>{{ h.c }}</text>
               <view class="host-x" @tap.stop="removeHost(h)"><z-icon name="x" :size="10" :stroke="3" color="#E5E7EB" /></view>
@@ -182,10 +182,11 @@
             <text class="host-n">{{ h.name }}</text>
             <text class="host-s" :class="{ 'host-s-wait': h.status === 'pending' }">{{ h.status === 'pending' ? '待接受' : '已加入' }}</text>
           </view>
-          <view class="host" hover-class="press" @tap="toast('从好友里选择共同主持（待接入）')">
+          <!-- 邀请：转发给微信好友（卡片打开是「主持人邀请」页）；对方接受后这里变成「已加入」 -->
+          <button class="host host-share" open-type="share" data-kind="host-invite" hover-class="press" @tap="onInviteTap">
             <view class="host-av host-add"><z-icon name="user-plus" :size="20" color="#E5E7EB" /></view>
             <text class="host-n host-n-add">邀请</text>
-          </view>
+          </button>
         </view>
       </scroll-view>
 
@@ -383,7 +384,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick, getCurrentInstance, watch } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onUnload, onShow, onShareAppMessage } from '@dcloudio/uni-app'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZCoverFlow from '@/pages/create/components/z-cover-flow/z-cover-flow.vue'
 import ZPop from '@/components/z-pop/z-pop.vue'
@@ -399,6 +400,7 @@ import { tagOf, newTag, tagStatus, tagProblem, TAG_REVIEW_MS } from '@/common/ta
 import { specialOf, NOTE_PRESETS } from '@/common/blind-notes.js'
 import { me, coverScenes, blindSchemeSeeds, coHostSeeds, createDraft, matchTemplateSeeds, VENUES } from '@/mock/data.js'
 import { toast } from '@/common/format.js'
+import { createInvite, invitesOf, revokeInvite } from '@/common/host-invite.js'
 
 const KEY_SCHEMES = 'zz_blind_schemes'
 const KEY_TEMPLATES = 'zz_match_templates'
@@ -565,15 +567,63 @@ function pickLocation() {
 }
 
 /* ---------- 共同主持 ---------- */
+// 列表 = 方案里带来的共同主持 + 这场比赛发出的邀请（待接受的显示「待接受」，对方接受后显示对方并标「已加入」）
+const sent = ref([])
+const refreshInvites = () => { sent.value = invitesOf(matchId).filter((x) => x.status === 'pending' || x.status === 'accepted') }
+onShow(refreshInvites)
+const allHosts = computed(() => hosts.value.concat(sent.value.map((x) => (x.status === 'accepted'
+  ? { id: x.id, invite: true, name: x.to.name, c: x.to.c, bg: x.to.bg, fg: x.to.fg, status: 'joined' }
+  : { id: x.id, invite: true, name: '待对方确认', c: '?', bg: '', fg: '', status: 'pending' }))))
 const hostSummary = computed(() => {
-  const n = hosts.value.length
-  const wait = hosts.value.filter((h) => h.status === 'pending').length
+  const n = allHosts.value.length
+  const wait = allHosts.value.filter((h) => h.status === 'pending').length
   return n ? `已邀请 ${n} 人${wait ? `，${wait} 人待接受` : ''}` : '还没有邀请共同主持'
 })
 function removeHost(h) {
-  hosts.value = hosts.value.filter((x) => x.id !== h.id)
-  toast(h.status === 'pending' ? `已撤回对${h.name}的邀请` : `已移除${h.name}`)
+  if (h.invite) {
+    if (h.status === 'pending') revokeInvite(h.id)
+    sent.value = sent.value.filter((x) => x.id !== h.id)
+  } else hosts.value = hosts.value.filter((x) => x.id !== h.id)
+  toast(h.status === 'pending' ? '已撤回这份邀请' : `已移除${h.name}`)
 }
+// 发出邀请：存一份比赛快照（名称、封面、时间、地点、现有主持人），对方打开时看到的就是这些
+function newHostInvite() {
+  const start = new Date(today)
+  start.setDate(today.getDate() + form.dayIdx)
+  start.setHours(form.hour, form.minute, 0, 0)
+  const meP = { name: me.nickname, c: me.char, bg: '#F1E4D3', fg: '#8A1C1C' }
+  const inv = createInvite({
+    from: { ...meP, certified: isHost.value },
+    match: {
+      id: matchId, name: form.name.trim() || '未命名比赛', cover: form.cover || 'fog', startAt: start.getTime(),
+      venue: form.location ? { name: form.location.name, address: form.location.address } : null,
+      hosts: [{ ...meP, role: 'owner' }].concat(allHosts.value.filter((h) => h.status === 'joined').map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' })))
+    }
+  })
+  refreshInvites()
+  return inv
+}
+// 小程序里点「邀请」直接弹出转发（见 onShareAppMessage）；H5 没有转发，生成邀请后可以预览对方看到的页面
+function onInviteTap() {
+  // #ifndef MP-WEIXIN
+  const inv = newHostInvite()
+  uni.showModal({
+    title: '邀请已生成',
+    content: '小程序里会直接转发给微信好友。这里可以先看看对方收到后看到的页面。',
+    confirmText: '预览',
+    cancelText: '好的',
+    success: ({ confirm }) => { if (confirm) uni.navigateTo({ url: '/pages/host-invite/index?id=' + inv.id + '&preview=1' }) }
+  })
+  // #endif
+}
+onShareAppMessage((res) => {
+  const btn = res && res.from === 'button' && res.target && res.target.dataset
+  if (btn && btn.kind === 'host-invite') {
+    const inv = newHostInvite()
+    return { title: `${me.nickname} 邀请你一起主持「${inv.match.name}」`, path: '/pages/host-invite/index?id=' + inv.id, imageUrl: `/static/covers/${inv.match.cover}.jpg` }
+  }
+  return { title: '桌趣 · 一起来打一场', path: '/pages/home/index' }
+})
 
 /* ---------- 盲注方案 ---------- */
 const levelsOf = (rows) => rows.filter((r) => r.t === 'L')
@@ -960,7 +1010,7 @@ function buildMatch() {
     autoApprove: form.autoApprove,
     location: form.location ? clone(form.location) : null,
     inviter: meP,
-    hosts: [{ ...meP, role: 'owner' }].concat(hosts.value.filter((h) => h.status === 'joined')
+    hosts: [{ ...meP, role: 'owner' }].concat(allHosts.value.filter((h) => h.status === 'joined')
       .map((h) => ({ name: h.name, c: h.c, bg: h.bg, fg: h.fg, role: 'cohost' }))),
     participants: [meP],
     createdAt: Date.now(),
@@ -1306,4 +1356,6 @@ function onPublish() {
 .tpl-name { margin-top: 14rpx; max-width: 100%; font-size: 24rpx; font-weight: 500; color: #FFFFFF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tpl-meta { margin-top: 6rpx; max-width: 100%; font-size: 20rpx; color: #9CA3AF; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tpl.tile-new { justify-content: center; }
+.host-share { margin: 0; padding: 0; background: transparent; line-height: normal; border-radius: 0; }
+.host-share::after { border: none; }
 </style>
