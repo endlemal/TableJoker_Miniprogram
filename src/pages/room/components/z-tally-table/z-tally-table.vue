@@ -5,9 +5,34 @@
     <view class="ztt-head">
       <text class="ztt-name">{{ table.name }}</text><text v-if="observing" class="ztt-ob">OB</text>
       <text class="ztt-sub">{{ subText }}</text>
+      <block v-if="view === 'arrange'">
+        <view class="zte-act" hover-class="ztt-press" @tap="shuffle"><z-icon name="arrows-shuffle" :size="14" color="#F3EEE6" /><text class="zte-act-t">随机</text></view>
+        <view class="zte-act" hover-class="ztt-press" @tap="view = 'table'"><text class="zte-act-t">取消</text></view>
+        <view class="zte-act zte-act-on" hover-class="ztt-press" @tap="finishArrange"><text class="zte-act-t">完成</text></view>
+      </block>
+      <block v-else>
       <view v-if="canJoin" class="ztt-seat" role="button" hover-class="ztt-press" @tap="emit('join')">入座</view>
+      <!-- 主持人：调整座位顺序 -->
+      <view v-if="canArrange" class="ztt-ic" hover-class="ztt-press" role="button" aria-label="调整座位顺序" @longpress="showArrangeHint" @tap="startArrange">
+        <z-icon name="arrows-sort" :size="16" color="#F3EEE6" />
+      </view>
       <view class="ztt-ic" :class="{ 'ztt-ic-on': view === 'rank' }" hover-class="ztt-press" role="button" :aria-label="view === 'rank' ? '返回桌况' : '资产排行'" @longpress="showViewHint" @tap="toggleRank">
         <z-icon :name="view === 'rank' ? 'cards' : 'chart-bar-popular'" :size="16" color="#F3EEE6" />
+      </view>
+      </block>
+    </view>
+
+    <!-- 调座：拖动右边的把手（或长按整行）上下移动；完成后这一手结束、发下一手之前生效 -->
+    <view v-if="view === 'arrange'" class="zte">
+      <text class="zte-hint">{{ hand && hand.street !== 'done' ? '这一手结束后按新顺序坐' : '完成后按新顺序坐' }} · 拖动右边的把手调整顺序</text>
+      <view class="zte-list" @touchmove.stop.prevent="dragMove" @touchend="dragEnd" @touchcancel="dragEnd">
+        <view v-for="(pid, i) in order" :key="pid" class="zte-row" :class="{ 'zte-drag': drag.i === i }" :style="rowStyle(i)" @longpress="dragStart(i, $event)">
+          <text class="zte-no">{{ i + 1 }}</text>
+          <view class="zte-av" :style="'background:' + who(pid).bg + ';color:' + who(pid).fg"><text>{{ who(pid).c }}</text></view>
+          <text class="zte-n">{{ who(pid).name }}</text>
+          <text v-if="pid === buttonPid" class="zte-btn">庄</text>
+          <view class="zte-grip" @touchstart.stop="dragStart(i, $event)"><z-icon name="grip-vertical" :size="18" color="#8E929B" /></view>
+        </view>
       </view>
     </view>
 
@@ -46,7 +71,7 @@
 
 <script setup>
 // 一张记分桌的实时视图（没有扑克牌）。桌面分紧接玩法面板；定胜区、收分栏位于其下方。
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, reactive } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 import ZTallyRank from '@/pages/room/components/z-tally-rank/z-tally-rank.vue'
 import { positions } from '@/common/tally.js'
@@ -61,9 +86,10 @@ const props = defineProps({
   height: { type: Number, default: 300 }, // 这一页能用的高度（px）
   members: { type: Array, default: () => [] },
   assets: { type: Object, default: () => ({}) },
-  start: { type: Object, default: () => ({}) }
+  start: { type: Object, default: () => ({}) },
+  canArrange: { type: Boolean, default: false } // 主持人：可以调整座位顺序
 })
-const emit = defineEmits(['join'])
+const emit = defineEmits(['join', 'arrange'])
 const view = ref('table')
 const canJoin = computed(() => props.observing && props.table.seats.some(s => !s) && props.assets[props.me] > 0)
 const hand = computed(() => props.table.hand)
@@ -72,6 +98,45 @@ const pos = computed(() => positions(props.table))
 const seatedNames = computed(() => props.table.seats.filter(Boolean).map((s) => s.name))
 const subText = computed(() => `${props.table.handNo}手 · ${props.table.seats.filter(Boolean).length}人`)
 const showStatus = (r) => uni.showToast({ title: r.detail, icon: 'none', duration: 2600 })
+/* ---------- 调座：主持人拖动调整座位顺序（下一手生效） ---------- */
+const ROW = 42
+const order = ref([])
+const drag = reactive({ i: -1, y0: 0, dy: 0 })
+const seatedMap = computed(() => { const o = {}; props.table.seats.forEach((x) => { if (x) o[x.pid] = x }); return o })
+const who = (pid) => seatedMap.value[pid] || { name: '已离座', c: '?', bg: '#33363E', fg: '#A9AEB8' }
+const buttonPid = computed(() => { const t = props.table; return t.button >= 0 && t.seats[t.button] ? t.seats[t.button].pid : '' })
+const showArrangeHint = () => uni.showToast({ title: '调整座位顺序', icon: 'none' })
+function startArrange() {
+  // 正在用的顺序：调过还没生效的先按调过的显示
+  const now = props.table.seats.filter(Boolean).map((x) => x.pid)
+  const queued = (props.table.pendingOrder || []).filter((id) => now.includes(id))
+  order.value = queued.concat(now.filter((id) => !queued.includes(id)))
+  view.value = 'arrange'
+}
+const yOf = (e) => { const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e.detail || {}; return t.clientY || t.pageY || t.y || 0 }
+function dragStart(i, e) { drag.i = i; drag.y0 = yOf(e); drag.dy = 0 }
+function dragMove(e) { if (drag.i >= 0) drag.dy = yOf(e) - drag.y0 }
+const target = () => Math.max(0, Math.min(order.value.length - 1, drag.i + Math.round(drag.dy / ROW)))
+function dragEnd() {
+  if (drag.i < 0) return
+  const to = target()
+  if (to !== drag.i) { const list = order.value.slice(); const [x] = list.splice(drag.i, 1); list.splice(to, 0, x); order.value = list }
+  drag.i = -1; drag.dy = 0
+}
+function rowStyle(i) {
+  if (drag.i < 0) return ''
+  if (i === drag.i) return `transform:translateY(${drag.dy}px)`
+  const to = target()
+  if (drag.i < i && i <= to) return `transform:translateY(-${ROW}px)`
+  if (to <= i && i < drag.i) return `transform:translateY(${ROW}px)`
+  return ''
+}
+function shuffle() {
+  const list = order.value.slice()
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]] }
+  order.value = list
+}
+function finishArrange() { emit('arrange', order.value.slice()); view.value = 'table' }
 const showViewHint = () => uni.showToast({ title: view.value === 'rank' ? '返回桌况' : '资产排行', icon: 'none' })
 // 保留开手前的资产快照。结算时先展示原位次，再一次性播放本手盈亏，避免收分途中反复跳榜。
 const resultMode = ref(false)
@@ -273,4 +338,18 @@ onUnmounted(() => { clearTimeout(rankTimer); rankVersion++; effectTimers.forEach
 .ztt-cover-r { left: -100%; background: linear-gradient(to right, #26332C 50%, transparent 50%); }
 .ztt-cover-l { left: 0; background: linear-gradient(to right, transparent 50%, #26332C 50%); }
 @keyframes ztt-pie-turn { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
+/* 调座 */
+.zte-act { flex: none; height: 26px; margin-left: 6px; padding: 0 10px; border-radius: 13px; background: #2C2F36; display: flex; align-items: center; }
+.zte-act-on { background: #5865F2; }
+.zte-act-t { margin-left: 2px; font-size: 12px; color: #F3EEE6; }
+.zte { flex: 1; min-height: 0; margin-top: 4px; display: flex; flex-direction: column; }
+.zte-hint { flex: none; font-size: 11px; line-height: 18px; color: #A9AEB8; }
+.zte-list { position: relative; margin-top: 4px; }
+.zte-row { height: 38px; margin-bottom: 4px; padding: 0 4px 0 8px; border-radius: 10px; background: #24272E; display: flex; align-items: center; transition: transform 160ms ease; }
+.zte-drag { position: relative; z-index: 2; background: #343846; box-shadow: 0 8px 18px rgba(0, 0, 0, .45); transition: none; }
+.zte-no { width: 20px; font-family: "BoardNum", sans-serif; font-weight: 800; font-size: 13px; color: #8E929B; }
+.zte-av { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.zte-n { margin-left: 8px; flex: 1; min-width: 0; font-size: 14px; font-weight: 600; color: #F3EEE6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zte-btn { margin-right: 6px; padding: 0 5px; border-radius: 4px; background: #FFC53A; font-size: 11px; font-weight: 700; line-height: 16px; color: #181A20; }
+.zte-grip { width: 40px; height: 38px; display: flex; align-items: center; justify-content: center; }
 </style>

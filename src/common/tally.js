@@ -36,6 +36,19 @@ function nextSeat(t, from, ok) {
   }
   return -1
 }
+// 调整座位顺序（主持人「调座」）：pids 是在座玩家的新顺序，按这个顺序坐到 0、1、2… 号座位，空位排在后面；
+// 庄位跟着原来坐庄的那个人，下一手照常往后轮。只能在两手之间调整（这一手进行中返回 false）
+export function reorderSeats(t, pids) {
+  if (t.hand && t.hand.street !== 'done') return false
+  const seated = t.seats.filter(Boolean)
+  const byPid = {}
+  seated.forEach((x) => { byPid[x.pid] = x })
+  const order = pids.filter((id) => byPid[id]).concat(seated.map((x) => x.pid).filter((id) => !pids.includes(id)))
+  const btn = t.button >= 0 && t.seats[t.button] ? t.seats[t.button].pid : null
+  t.seats = Array.from({ length: t.size }, (_, i) => (i < order.length ? byPid[order[i]] : null))
+  if (btn) t.button = order.indexOf(btn)
+  return true
+}
 // 位置：从小盲开始依次是 SB、BB、UTG、EP…、MP…、CO、BTN；两人桌时庄位就是小盲
 export function positions(t) {
   const h = t.hand

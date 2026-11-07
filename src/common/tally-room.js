@@ -194,6 +194,16 @@ function trackTurn(t, now) {
   if (mine && mine.t.id === t.id && mine.i === actor) tally.turnLeft = ACT_SECONDS
 }
 
+/* ---------- 主持人调座 ---------- */
+// pids：在座玩家的新顺序。桌上还没开过局就立刻生效，否则等这一手结束、发下一手之前生效（这一手的结果按原来的座位显示）
+export function arrangeTable(id, pids) {
+  const t = tally.tables.find((x) => x.id === id)
+  if (!t) return ''
+  if (!t.hand) { T.reorderSeats(t, pids); return 'now' }
+  t.pendingOrder = pids.slice()
+  return 'next'
+}
+
 /* ---------- 每 300ms 推进一次 ---------- */
 function step() {
   const now = Date.now()
@@ -208,6 +218,8 @@ function step() {
       if (!t._nextAt) t._nextAt = now + (h ? 3200 : 1500) // 上一手结束后留 3 秒看结果
       if (now >= t._nextAt) {
         t._nextAt = 0
+        // 主持人调过座位：在发下一手之前按新顺序坐好
+        if (t.pendingOrder) { T.reorderSeats(t, t.pendingOrder); t.pendingOrder = null }
         if (T.startHand(t, tally.blinds)) { t._synced = false; t._botAt = 0; t._deadline = 0; flushLog(t); trackTurn(t, now) }
       }
       return

@@ -105,11 +105,11 @@
         <text class="dock-name">{{ who.nickname }}</text>
       </view>
       <view class="dock-right">
-        <!-- 直达广场：不用先进个人主页再切换 -->
-        <view class="dock-plaza" hover-class="press" @tap.stop="toPlaza">
-          <z-icon name="compass" :size="16" color="#FFFFFF" />
-          <text class="dock-plaza-t">广场</text>
-          <view class="dock-plaza-n"><text>{{ openMatches }}</text></view>
+        <!-- 消息箱：加入申请、主持人邀请；数字是要处理的消息数（广场从「我的」页底部导航进入） -->
+        <view class="dock-inbox" hover-class="press" @tap.stop="toInbox">
+          <z-icon name="inbox" :size="16" color="#FFFFFF" />
+          <text class="dock-inbox-t">消息</text>
+          <view v-if="inboxN" class="dock-inbox-n"><text>{{ inboxN }}</text></view>
         </view>
         <view class="dock-set" hover-class="press" @tap.stop="toSettings">
           <z-icon name="settings" :size="18" color="#9CA3AF" />
@@ -139,7 +139,7 @@ import SciFiScannerModal from '@/components/SciFiScannerModal/SciFiScannerModal.
 import { openScanner, parseJoinTarget } from '@/common/scanner.js'
 import ZHostOnly from '@/components/z-host-only/z-host-only.vue'
 import { useCertState, setHostMode } from '@/common/cert.js'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { requireLogin, useProfile, isLoggedIn } from '@/common/auth.js'
 import { getNavMetrics } from '@/common/nav.js'
 import { svgUri, bloodMoonBanner } from '@/common/svg.js'
@@ -148,6 +148,7 @@ import { listChannels, joinChannel } from '@/common/channels.js'
 import { publicMatches } from '@/mock/plaza.js'
 import { toast } from '@/common/format.js'
 import { DEMO_MODE } from '@/common/config.js'
+import { inboxCount } from '@/common/inbox.js'
 
 const nav = getNavMetrics()
 // 频道栏：默认频道 + 从广场「主办」进入过的主办方频道
@@ -206,9 +207,11 @@ function onLogoTap() {
   setHostMode(on)
   popMsg(on ? '已进入平台认证后模式' : '已退出认证后模式，恢复为普通玩家', on ? 'rosette-discount-check' : 'user', on ? 'red' : 'gray', 2400)
 }
-const toPlaza = () => uni.navigateTo({ url: '/pages/plaza/index' })
+const toInbox = () => uni.navigateTo({ url: '/pages/inbox/index' })
+// 消息数：每次回到首页重新数（在消息箱、房间里处理过的就少了）
+const inboxN = ref(0)
+onShow(() => { inboxN.value = inboxCount() })
 const toSettings = () => uni.navigateTo({ url: '/pages/settings/index' })
-const openMatches = publicMatches.length
 const createMatch = () => uni.navigateTo({ url: '/pages/create/index' })
 
 // 页内扫码弹窗（不跳转全屏）：认出比赛二维码后打开对应的页面，其他码在弹窗里提示，继续扫
@@ -343,12 +346,12 @@ function joinByLink() {
 .dock-rank-text { margin-left: 8rpx; font-size: 24rpx; font-weight: 500; color: #F4B740; }
 .dock-name { display: block; margin-top: 4rpx; font-size: 34rpx; font-weight: 500; color: #FFFFFF; }
 .dock-right { display: flex; align-items: center; }
-.dock-plaza {
+.dock-inbox {
   position: relative; height: 72rpx; margin-right: 16rpx; padding: 0 24rpx 0 20rpx; box-sizing: border-box;
   border-radius: 999rpx; background: #2A1216; border: 1rpx solid #5A2228; display: flex; align-items: center;
 }
-.dock-plaza-t { margin-left: 8rpx; font-size: 26rpx; font-weight: 500; color: #FFFFFF; }
-.dock-plaza-n {
+.dock-inbox-t { margin-left: 8rpx; font-size: 26rpx; font-weight: 500; color: #FFFFFF; }
+.dock-inbox-n {
   position: absolute; top: -12rpx; right: -10rpx; min-width: 34rpx; height: 34rpx; padding: 0 8rpx; box-sizing: border-box;
   border-radius: 999rpx; background: #DC0000; border: 4rpx solid #1F222A;
   display: flex; align-items: center; justify-content: center; font-size: 20rpx; font-weight: 600; color: #FFFFFF;

@@ -102,7 +102,7 @@ export const room = {
   ],
   notice: '第 7 级结束后休息 15 分钟，复活同时截止',
   // 主持人：房主和共同主持（能控制计时、开关玩法、发公告、改记分）
-  hosts: [{ name: '骰子先生', role: 'owner' }, { name: '老周', role: 'cohost' }],
+  hosts: [{ name: '骰子先生', role: 'owner' }, { name: '老周', role: 'cohost' }, { name: '七七', role: 'cohost' }],
   // 已签到、还没入座的玩家（签到墙上和座位上的人一起显示）
   waiting: [
     { name: '陈默', c: '陈', bg: '#2F4A3A', fg: '#B8E6C8' },
@@ -216,7 +216,7 @@ export function makeDemoMatch() {
     cap: 27,
     intro: createDraft.intro,
     isPublic: true,
-    autoApprove: true,
+    autoApprove: false, // 从邀请页报名要主持人审核（加入申请）
     location: VENUES.north,
     inviter: meP,
     hosts: [{ ...meP, role: 'owner' }, { ...person(coHostSeeds[0]), role: 'cohost' }, { ...person(coHostSeeds[1]), role: 'cohost' }],

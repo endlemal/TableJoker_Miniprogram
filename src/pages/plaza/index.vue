@@ -368,8 +368,9 @@ async function openSearch() {
   searchFrom.value = await rectOf('#plaza-search')
   searchOpen.value = true
 }
-function onSearchPick({ type, item }) {
-  if (type === 'match') return uni.navigateTo({ url: '/pages/invite/index?id=' + item.id })
+function onSearchPick({ type, item, code }) {
+  // 用房间码找到的比赛：带上 via=code，邀请页直接进房间，不用审核
+  if (type === 'match') return uni.navigateTo({ url: '/pages/invite/index?id=' + item.id + (code ? '&via=code' : '') })
   if (type === 'club') return openClub(item)
   openPost(item, true)
 }

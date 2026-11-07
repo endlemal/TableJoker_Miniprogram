@@ -182,6 +182,14 @@
             "navigationBarTitleText": "房间",
             "disableScroll": true
           }
+        },
+        {
+          "path": "host-log",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "主持人操作日志",
+            "backgroundColor": "#181A20"
+          }
         }
       ]
     },
@@ -211,6 +219,19 @@
           }
         }
       ]
+    },
+    {
+      "root": "pages/inbox",
+      "pages": [
+        {
+          "path": "index",
+          "style": {
+            "navigationStyle": "custom",
+            "navigationBarTitleText": "消息",
+            "backgroundColor": "#181A20"
+          }
+        }
+      ]
     }
   ],
   "preloadRule": {
@@ -220,7 +241,9 @@
         "pages/room",
         "pages/invite",
         "pages/create",
-        "pages/login"
+        "pages/login",
+        "pages/inbox",
+        "pages/host-invite"
       ]
     },
     "pages/plaza/index": {

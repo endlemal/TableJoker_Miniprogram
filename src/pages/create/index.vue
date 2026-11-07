@@ -449,7 +449,7 @@ const proDefaults = () => ({ tags: [], tvTheme: { key: TV_THEMES[0].key }, scree
 const schemes = ref(loadList(KEY_SCHEMES, blindSchemeSeeds))
 const templates = ref(loadList(KEY_TEMPLATES, matchTemplateSeeds))
 // 有比赛方案，新建比赛时所有字段都空着：可以一项项填，也可以点底部的「方案」一键填好
-const emptyForm = () => ({ cover: '', coverImage: '', name: '', blindId: '', dayIdx: -1, hour: -1, minute: 0, cap: 0, intro: '', isPublic: true, autoApprove: true, location: null, ...proDefaults() })
+const emptyForm = () => ({ cover: '', coverImage: '', name: '', blindId: '', dayIdx: -1, hour: -1, minute: 0, cap: 0, intro: '', isPublic: true, autoApprove: false, location: null, ...proDefaults() })
 const form = reactive(emptyForm())
 const hosts = ref([])
 

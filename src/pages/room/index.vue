@@ -84,7 +84,7 @@
 
                 <!-- 玩法：记分工具（没入座时是牌桌列表；入座后是自己这桌：玩家纵向排列，右上角看排行） -->
                 <view v-else-if="p.key === 'tally'" class="hp">
-                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :observing="!!spot.observing" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" @join="joinTally(spot.t)" />
+                  <z-tally-table v-if="spot" :table="spot.t" :me="ME_NAME" :observing="!!spot.observing" :blinds="tally.blinds" :height="curStageH - 24" :members="tally.members" :assets="tally.assets" :start="tally.start" :can-arrange="isHost" @join="joinTally(spot.t)" @arrange="onArrange(spot.t, $event)" />
                   <view v-else class="tl">
                     <view class="tl-head"><text class="play-t">牌桌</text><text class="tl-me">余分 {{ fmtNum(tally.assets[ME_NAME]) }}</text></view>
                     <view v-for="t in tally.tables" :key="t.id" class="tl-card">
@@ -158,6 +158,8 @@
             :cursor="cursor"
             placeholder="给房间发消息"
             @send="send"
+            :alert="reqUnread > 0"
+            :alert-key="alertKey"
             @more="toggleMore"
             @emoji="toggleEmoji"
             @kb="onKb"
@@ -188,6 +190,21 @@
                 <block v-else-if="drawer.tab === 'host'">
                   <text class="dp-t">主持人</text>
                   <view class="hosts"><view v-for="h in room.hosts" :key="h.name" class="host-chip"><text class="host-n">{{ h.name }}</text><text class="host-r">{{ h.role === 'owner' ? '房主' : '共同主持' }}</text></view></view>
+                  <!-- 加入申请：从比赛邀请页报名的玩家，任意一位主持人通过即可进入房间 -->
+                  <block v-if="isHost">
+                    <view class="rq-h"><text class="dp-h rq-h-t">加入申请</text><text v-if="requests.length" class="rq-n">{{ requests.length }}</text></view>
+                    <text v-if="!requests.length" class="rq-empty">没有待处理的申请。用房间码或扫签到墙进来的玩家不需要审核。</text>
+                    <view v-for="r in requests" :key="r.key" class="rq" :class="{ 'rq-new': r.isNew }">
+                      <view class="rq-av" :style="'background:' + r.bg + ';color:' + r.fg"><text>{{ r.c }}</text></view>
+                      <view class="rq-main">
+                        <view class="rq-top"><text class="rq-name">{{ r.name }}</text><text class="rq-src">来自邀请页 · {{ ago(r.at) }}</text></view>
+                        <text v-if="r.message" class="rq-msg">「{{ r.message }}」</text>
+                      </view>
+                      <view class="rq-no" hover-class="press" @tap="rejectReq(r)"><text class="rq-no-t">拒绝</text></view>
+                      <view class="rq-ok" hover-class="press" @tap="approveReq([r])"><text class="rq-ok-t">通过</text></view>
+                    </view>
+                    <view v-if="requests.length > 1" class="rq-all" hover-class="press" @tap="approveReq(requests)"><text class="rq-all-t">全部通过（{{ requests.length }}）</text></view>
+                  </block>
                   <block v-if="isHost">
                     <text class="dp-h">计时</text>
                     <view class="hgrid">
@@ -217,6 +234,12 @@
                       <view class="tb-add" hover-class="press" @tap="addTable"><z-icon name="plus" :size="16" color="#FFFFFF" /><text class="tb-add-t">开桌 · {{ newSize }} 人</text></view>
                     </block>
                   </block>
+                  <!-- 操作日志入口：所有主持人做过的操作 -->
+                  <view v-if="isHost" class="lg-entry" hover-class="press" @tap="openHostLog">
+                    <view class="lg-ic"><z-icon name="history" :size="18" color="#F3EEE6" /></view>
+                    <view class="lg-main"><text class="lg-t">操作日志</text><text class="lg-s">{{ lastLogText }}</text></view>
+                    <z-icon name="chevron-right" :size="18" color="#8E929B" />
+                  </view>
                 </block>
                 <!-- 玩法 -->
                 <block v-else-if="drawer.tab === 'play'">
@@ -247,6 +270,7 @@
               <view v-for="t in TABS" :key="t.key" class="dn" :class="{ 'dn-on': drawer.tab === t.key }" hover-class="press" @tap="pickTab(t.key)">
                 <z-icon :name="t.icon" :size="22" :color="drawer.tab === t.key ? '#F3EEE6' : '#8E929B'" />
                 <text class="dn-t">{{ t.name }}</text>
+                <view v-if="t.key === 'host' && reqUnread" class="dn-dot"></view>
               </view>
             </view>
           </view>
@@ -290,7 +314,7 @@
 // 房间：顶部导航、赛事状态栏、可手动横滑的内容展示区（签到墙、Timer、主持人开启的玩法）、气泡弹幕、底部消息输入栏。
 // 「更多」打开底部抽屉：图片｜弹幕｜主持人｜玩法｜排行；「弹幕」打开完整的房间弹幕列表页。
 // 系统键盘、表情面板、更多抽屉三者互斥；键盘或表情面板打开时，赛事区收成一行摘要
-import { ref, reactive, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { onLoad, onShow, onHide, onUnload, onShareAppMessage } from '@dcloudio/uni-app'
 import { requireLogin } from '@/common/auth.js'
 import ZIcon from '@/components/z-icon/z-icon.vue'
@@ -304,7 +328,7 @@ import ZTallyAct from '@/pages/room/components/z-tally-act/z-tally-act.vue'
 import ZTallyPot from '@/pages/room/components/z-tally-pot/z-tally-pot.vue'
 import ZTallySettle from '@/pages/room/components/z-tally-settle/z-tally-settle.vue'
 import ZTallyCollect from '@/pages/room/components/z-tally-collect/z-tally-collect.vue'
-import { tally, initTally, runTally, viewSpot, observe, leaveObservation, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect } from '@/common/tally-room.js'
+import { tally, initTally, runTally, viewSpot, observe, leaveObservation, join, leaveTable, myAct, createTable, removeTable, setAssets, togglePick, confirmDesignation, myCollect, arrangeTable } from '@/common/tally-room.js'
 import { getNavMetrics, goBackOrHome } from '@/common/nav.js'
 import { fitsDisplay } from '@/common/font-coverage.js'
 import { me, room } from '@/mock/data.js'
@@ -312,6 +336,10 @@ import { chat, sendText, sendImage, addSystem, startDemoFeed, stopDemoFeed } fro
 import { insertAt, deleteBefore } from '@/common/emoji.js'
 import { pad2, hhmm, toast } from '@/common/format.js'
 import { DEMO_MODE } from '@/common/config.js'
+import { pendingOf, approve as approveRoster, reject as rejectRoster, addApplicant, unreadOf, markSeen } from '@/common/roster.js'
+import { logHost, hostLog } from '@/common/host-log.js'
+import { getMatch } from '@/common/store.js'
+import { findPublicMatch } from '@/mock/plaza.js'
 
 const noop = () => {}
 const mmss = (sec) => { const m = Math.min(99, Math.floor(sec / 60)); return pad2(m) + ':' + pad2(sec % 60) }
@@ -324,6 +352,76 @@ const fmtNum = (n) => {
 /* ---------- 身份：房主和共同主持是主持人；?role=player 可以预览玩家看到的样子 ---------- */
 const asPlayer = ref(false)
 const isHost = computed(() => !asPlayer.value && room.hosts.some((h) => h.name === me.nickname))
+
+/* ---------- 主持人：加入申请、操作日志 ---------- */
+// 这个房间对应的比赛：申请名单和比赛邀请页、首页消息箱是同一份
+const MATCH_ID = room.matchId || 'demo'
+const matchObj = () => getMatch(MATCH_ID) || findPublicMatch(MATCH_ID)
+const meHost = () => ({ name: me.nickname, c: me.char || me.nickname.slice(0, 1), bg: '#F1E4D3', fg: '#8A1C1C' })
+const meRoster = { nickname: me.nickname, char: me.char }
+// 房间消息照常写「主持人…」（不显示是哪一位）；操作日志里记下是谁做的
+function hostSay(type, text) {
+  addSystem(text)
+  hostLogNow(type, text.replace(/^主持人/, ''))
+}
+const logVer = ref(0)
+function hostLogNow(type, text) { logHost(MATCH_ID, meHost(), type, text); logVer.value++ }
+const lastLogText = computed(() => {
+  logVer.value
+  const l = isHost.value ? hostLog(MATCH_ID)[0] : null
+  return l ? `${l.host.name} ${l.text} · ${ago(l.at)}` : '还没有操作'
+})
+const openHostLog = () => uni.navigateTo({ url: '/pages/room/host-log?id=' + MATCH_ID })
+const ago = (t) => { const m = Math.floor((Date.now() - (t || 0)) / 60000); return m < 1 ? '刚刚' : m < 60 ? m + ' 分钟前' : Math.floor(m / 60) + ' 小时前' }
+// 加入申请
+const reqVer = ref(0)
+let seenAt = 0
+const requests = computed(() => {
+  reqVer.value
+  const m = matchObj()
+  return isHost.value && m ? pendingOf(m, meRoster).map((r) => ({ ...r, isNew: (r.at || 0) > seenAt })) : []
+})
+const reqUnread = computed(() => { reqVer.value; const m = matchObj(); return isHost.value && m ? unreadOf(m, meRoster) : 0 })
+const alertKey = ref(0)
+function approveReq(list) {
+  approveRoster(MATCH_ID, list.map((r) => r.key), me.nickname)
+  list.forEach((r) => { addSystem(`${r.name} 加入了房间`); hostLogNow('request', `通过了「${r.name}」的加入申请`) })
+  reqVer.value++
+  toast(list.length > 1 ? `已通过 ${list.length} 人` : `已通过「${list[0].name}」`)
+}
+function rejectReq(r) {
+  uni.showModal({
+    title: `拒绝「${r.name}」的申请？`,
+    content: '对方会收到通知。',
+    confirmText: '拒绝',
+    confirmColor: '#8E929B',
+    success: ({ confirm }) => {
+      if (!confirm) return
+      rejectRoster(MATCH_ID, [r.key], me.nickname)
+      hostLogNow('request', `拒绝了「${r.name}」的加入申请`)
+      reqVer.value++
+    }
+  })
+}
+// 演示：主持人在房间里时陆续有人申请（进房间约 6 秒后来第一位，之后每 45 秒一位，最多 4 位）
+const APPLICANTS = [
+  { name: '小明', c: '明', bg: '#2F4A3A', fg: '#B8E6C8', msg: '和朋友一起来的，想坐一桌' },
+  { name: 'Lulu', c: 'L', bg: '#4A3A24', fg: '#F2D3A0', msg: '第一次玩，会认真学规则' },
+  { name: '阿鹏', c: '鹏', bg: '#24404A', fg: '#A6DDEB', msg: '' },
+  { name: '大卫', c: '卫', bg: '#3A2440', fg: '#E0B5F2', msg: '晚到半小时，可以吗' }
+]
+let applyTimer = null
+let applied = 0
+function demoApply() {
+  if (!DEMO_MODE || !isHost.value || applied >= APPLICANTS.length) return
+  const a = APPLICANTS[applied++]
+  addApplicant(MATCH_ID, a, a.msg)
+  reqVer.value++
+  alertKey.value++
+  applyTimer = setTimeout(demoApply, 45000)
+}
+onMounted(() => { applyTimer = setTimeout(demoApply, 6000) })
+onUnmounted(() => clearTimeout(applyTimer))
 onLoad((q) => {
   if (!requireLogin()) return // 必须登录：未登录（比如扫码直接打开房间）转到登录页，登录后回到这里
   if (DEMO_MODE && q && q.role === 'player') asPlayer.value = true
@@ -472,8 +570,8 @@ function jumpToEnd() {
 }
 // 主持人：暂停 / 继续、上一级 / 下一级、加减时间
 function togglePause() {
-  if (paused.value) { endAt = Date.now() + remaining.value * 1000; paused.value = false; addSystem('主持人继续了计时') }
-  else { paused.value = true; addSystem('主持人暂停了计时') }
+  if (paused.value) { endAt = Date.now() + remaining.value * 1000; paused.value = false; hostSay('timer', '主持人继续了计时') }
+  else { paused.value = true; hostSay('timer', '主持人暂停了计时') }
   tick()
 }
 function stepLevel(d) {
@@ -483,9 +581,10 @@ function stepLevel(d) {
   remaining.value = S[n].dur
   endAt = Date.now() + S[n].dur * 1000
   setClock(remaining.value)
-  addSystem(`主持人把计时切到了${S[n].type === 'break' ? '休息' : '第 ' + S[n].no + ' 级'}`)
+  hostSay('timer', `主持人把计时切到了${S[n].type === 'break' ? '休息' : '第 ' + S[n].no + ' 级'}`)
 }
 function addTime(sec) {
+  hostLogNow('timer', sec > 0 ? '给本级加了 1 分钟' : '给本级减了 1 分钟')
   const next = Math.max(10, remaining.value + sec)
   remaining.value = next
   endAt = Date.now() + next * 1000
@@ -500,7 +599,7 @@ function shuffleSeats() {
   const list = members.value.slice()
   for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = list[i]; list[i] = list[j]; list[j] = t }
   members.value = list.map((m, i) => ({ ...m, seat: i < 9 ? i + 1 : 0 }))
-  addSystem('主持人重新抽了座位，签到墙上可以看到座位号')
+  hostSay('seats', '主持人重新抽了座位，签到墙上可以看到座位号')
   toast('已重新抽座位')
 }
 
@@ -523,10 +622,10 @@ function togglePlay(pl) {
   if (playsOn.value.includes(pl.key)) {
     playsOn.value = playsOn.value.filter((k) => k !== pl.key)
     if (pageKey.value === pl.key) pageKey.value = 'timer' // 关掉的正是当前页：回到 Timer
-    addSystem(`主持人关闭了「${pl.name}」`)
+    hostSay('scene', `主持人关闭了「${pl.name}」`)
   } else {
     playsOn.value = PLAYS.filter((p) => p.key === pl.key || playsOn.value.includes(p.key)).map((p) => p.key)
-    addSystem(`主持人开启了「${pl.name}」，在 Timer 后面左右滑动查看`)
+    hostSay('scene', `主持人开启了「${pl.name}」，在 Timer 后面左右滑动查看`)
   }
 }
 
@@ -590,8 +689,18 @@ watch(myTurn, (v) => { if (!v) tallyRaising.value = false })
 watch(isHost, (v) => { tally.iAmHost = v }, { immediate: true })
 const onPick = (k, seat) => togglePick(k, seat)
 function onDesignate() {
+  const name = spot.value ? spot.value.t.name : ''
   const err = confirmDesignation()
-  if (err) toast(err)
+  if (err) return toast(err)
+  hostLogNow('tally', `指定了${name}各个池的赢家`)
+}
+// 主持人调座：这一手进行中就等这一手结束后生效
+function onArrange(t, pids) {
+  if (!isHost.value) return
+  const r = arrangeTable(t.id, pids)
+  if (!r) return
+  hostSay('seats', `主持人调整了${t.name}的座位顺序`)
+  toast(r === 'now' ? '座位顺序已调整' : '这一手结束后按新顺序坐')
 }
 function onCollect(k) {
   const err = myCollect(k)
@@ -605,7 +714,7 @@ const newSize = ref(9)
 function addTable() {
   if (!isHost.value) return
   const t = createTable(newSize.value)
-  addSystem(`主持人开了${t.name}（${t.size} 人桌）`)
+  hostSay('tally', `主持人开了${t.name}（${t.size} 人桌）`)
 }
 function deleteTable(t) {
   uni.showModal({
@@ -613,7 +722,7 @@ function deleteTable(t) {
     content: seatedOf(t) ? '桌上的人会离座，正在进行的这一手退回投入。' : '删除这张空桌？',
     confirmText: '删除',
     confirmColor: '#D9534F',
-    success: ({ confirm }) => { if (confirm) { removeTable(t.id); addSystem(`主持人关闭了${t.name}`) } }
+    success: ({ confirm }) => { if (confirm) { removeTable(t.id); hostSay('scene', `主持人关闭了${t.name}`) } }
   })
 }
 // 调整资产（主持人点玩法面板里的玩家头像）
@@ -627,7 +736,7 @@ function openAssets(m) {
 function saveAssets() {
   const m = assetsEdit.value
   setAssets(m.name, assetsDraft.value)
-  addSystem(`主持人把 ${m.name} 的资产调整为 ${fmtNum(tally.assets[m.name])}`)
+  hostSay('tally', `主持人把 ${m.name} 的资产调整为 ${fmtNum(tally.assets[m.name])}`)
   assetsEdit.value = null
 }
 
@@ -638,7 +747,7 @@ function publishNotice() {
   const t = noticeDraft.value.trim()
   if (!t || t === notice.value) return
   notice.value = t
-  addSystem('主持人更新了公告：' + t)
+  hostSay('scene', '主持人更新了公告：' + t)
   toast('公告已发布')
 }
 const tickerItems = computed(() => {
@@ -744,6 +853,8 @@ const TABS = [
   { key: 'score', name: '排行', icon: 'trophy' }
 ]
 const drawer = reactive({ show: false, open: false, tab: 'image', dir: 'r', drag: 0 })
+// 打开「主持人」标签就算看过了加入申请（新申请的高亮留到下次打开）
+watch(() => drawer.show && drawer.tab === 'host', (on) => { if (on && reqUnread.value) { markSeen(MATCH_ID); reqVer.value++ } else if (!on) seenAt = Date.now() })
 let drawerTimer = null
 function openDrawer() {
   uni.hideKeyboard()
@@ -1074,4 +1185,32 @@ onShareAppMessage(() => ({ title: `${room.name}，${room.table} 号桌等你入�
 .dn-on { background: #383C45; }
 .dn-t { margin-top: 2px; font-size: 12px; color: #8E929B; }
 .dn-on .dn-t { color: #F3EEE6; font-weight: 600; }
+/* 主持人：加入申请 */
+.rq-h { display: flex; align-items: center; }
+.rq-h-t { flex: none; }
+.rq-n { margin-left: 8px; padding: 0 7px; border-radius: 9px; background: #DC0000; font-size: 11px; font-weight: 700; line-height: 18px; color: #FFFFFF; }
+.rq-empty { display: block; margin-top: 6px; font-size: 12px; line-height: 1.6; color: #8E929B; }
+.rq { margin-top: 8px; padding: 10px; border-radius: 14px; background: #262A34; display: flex; align-items: center; }
+.rq-new { box-shadow: inset 0 0 0 1px rgba(255, 59, 48, .6); }
+.rq-av { width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600; }
+.rq-main { flex: 1; min-width: 0; margin-left: 10px; }
+.rq-top { display: flex; align-items: baseline; }
+.rq-name { flex: none; font-size: 14px; font-weight: 700; color: #F3EEE6; }
+.rq-src { margin-left: 6px; font-size: 11px; color: #8E929B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rq-msg { display: block; margin-top: 2px; font-size: 12px; color: #C9CDD4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rq-no { flex: none; height: 30px; margin-left: 8px; padding: 0 12px; border-radius: 15px; background: #35383F; display: flex; align-items: center; }
+.rq-no-t { font-size: 13px; color: #C9CDD4; }
+.rq-ok { flex: none; height: 30px; margin-left: 6px; padding: 0 14px; border-radius: 15px; background: #DC0000; display: flex; align-items: center; }
+.rq-ok-t { font-size: 13px; font-weight: 700; color: #FFFFFF; }
+.rq-all { margin-top: 8px; height: 36px; border-radius: 12px; background: rgba(220, 0, 0, .14); display: flex; align-items: center; justify-content: center; }
+.rq-all-t { font-size: 13px; font-weight: 700; color: #FF8A80; }
+/* 主持人：操作日志入口 */
+.lg-entry { margin-top: 16px; padding: 12px; border-radius: 14px; background: #262A34; display: flex; align-items: center; }
+.lg-ic { width: 34px; height: 34px; flex: none; border-radius: 10px; background: #35383F; display: flex; align-items: center; justify-content: center; }
+.lg-main { flex: 1; min-width: 0; margin: 0 8px 0 10px; display: flex; flex-direction: column; }
+.lg-t { font-size: 14px; font-weight: 700; color: #F3EEE6; }
+.lg-s { margin-top: 2px; font-size: 12px; color: #8E929B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 抽屉导航：主持人标签有未读申请时的红点 */
+.dn { position: relative; }
+.dn-dot { position: absolute; top: 4px; left: 50%; margin-left: 10px; width: 8px; height: 8px; border-radius: 50%; background: #FF3B30; }
 </style>

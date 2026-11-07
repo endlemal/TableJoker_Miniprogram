@@ -245,5 +245,18 @@ for (let g = 0; g < 200; g++) {
 check('机器人不会做出不合规则的动作', illegal === 0, `不合规则 ${illegal} 次`);
 check('下注中主池与边池之和始终等于桌面分（待跟不重复计入）', liveValid && previews > 0, `${previews} 次实时分池`);
 check(`压力测试：${hands} 手（${[...sizes].sort((a, b) => a - b).join('、')} 人桌），每手都结束，记分守恒`, ok && hands > 1500, `其中 ${collects} 手要选赢家，${splits} 手平分；单手最多 ${maxSteps} 步`);
+// 调座（主持人调整座位顺序）：只能在两手之间；按新顺序坐好，空位在后；庄位跟着原来坐庄的人
+{
+  const tb = T.createTable({ id: 'arr', name: 'x', size: 6 });
+  ['A', 'B', 'C', 'D'].forEach((n, i) => T.sit(tb, i, P(n, 5000)));
+  T.startHand(tb, { sb: 100, bb: 200, ante: 0 });
+  const btnName = tb.seats[tb.button].name;
+  check('调座：这一手进行中不能调', T.reorderSeats(tb, ['D', 'C', 'B', 'A']) === false);
+  T.abortHand(tb);
+  check('调座：两手之间可以调，按新顺序坐好、空位在后', T.reorderSeats(tb, ['D', 'C', 'B', 'A']) && tb.seats.map((x) => x && x.name).join(',') === 'D,C,B,A,,');
+  check('调座：庄位跟着原来坐庄的人', tb.seats[tb.button].name === btnName);
+  check('调座：漏写的人排在后面', T.reorderSeats(tb, ['B']) && tb.seats.map((x) => x && x.name).join(',') === 'B,D,C,A,,');
+  check('调座：之后能正常开下一手', T.startHand(tb, { sb: 100, bb: 200, ante: 0 }) && tb.hand.street === 'preflop');
+}
 console.log(fails ? `\n${fails} 项失败` : '\n全部通过');
 process.exit(fails ? 1 : 0);

@@ -366,6 +366,7 @@ const now = ref(Date.now())
 const clock = ref(['0', '0', '0', '0'])
 
 onLoad((q) => {
+  if (q && (q.via === 'code' || q.via === 'wall')) via.value = q.via
   if (!requireLogin()) return // 必须登录：未登录转到登录页，登录后回到这里
   const query = { ...(q || {}) }
   // 微信扫票据上的二维码进来（扫普通链接二维码打开小程序）：完整链接在 q 里，从中取出比赛 id
@@ -717,7 +718,9 @@ function saveTicket() {
 }
 
 /* ---------- 底部按钮 ---------- */
-const direct = computed(() => m.value.isPublic && m.value.autoApprove)
+// 直接进房间不用审核：用房间码找到（via=code）、扫签到墙二维码（via=wall），或者发起人打开了「加入房间自动通过」
+const via = ref('')
+const direct = computed(() => via.value === 'code' || via.value === 'wall' || (m.value.isPublic && m.value.autoApprove))
 const blocked = computed(() => isFull.value && joinStatus.value !== 'pending')
 const mainText = computed(() => {
   if (joinStatus.value === 'pending') return '等待主持人通过'
@@ -728,6 +731,8 @@ const mainText = computed(() => {
 const mainIcon = computed(() => (joinStatus.value === 'pending' ? 'hourglass' : direct.value ? 'door-enter' : 'user-plus'))
 const noteText = computed(() => {
   if (isFull.value) return '名额已满，主持人放开名额后会重新开放'
+  if (via.value === 'code') return '用房间码进入，不需要审核'
+  if (via.value === 'wall') return '扫签到墙进入，不需要审核'
   if (direct.value) return '直接进入房间，不需要审核'
   return m.value.isPublic ? '提交报名后，由主持人审核' : '这是一场非公开比赛，报名后需要主持人同意'
 })

@@ -17,7 +17,7 @@
           <view v-if="scopeOpen" class="zsm-scopes">
             <text v-for="s in SCOPES" :key="s.key" class="zsm-scope" :class="{ 'zsm-scope-on': scope === s.key }" @tap="setScope(s.key)">{{ s.label }}</text>
           </view>
-          <view v-if="res.code" class="zsm-code" hover-class="zsm-press-soft" @tap="pick('match', res.code)">
+          <view v-if="res.code" class="zsm-code" hover-class="zsm-press-soft" @tap="pick('match', res.code, true)">
             <view class="zsm-code-l"><text class="zsm-code-k">房间码</text><text class="zsm-code-v">{{ res.code.roomCode }}</text></view>
             <view class="zsm-main"><text class="zsm-n">{{ res.code.name }}</text><text class="zsm-s">{{ whenOf(res.code) }}{{ res.code.location ? ' · ' + res.code.location.name : '' }}</text></view>
             <view class="zsm-go"><text class="zsm-go-t">进入</text></view>
@@ -132,8 +132,9 @@ function close(then) {
   open.value = false
   setTimeout(() => { emit('close'); if (typeof then === 'function') then() }, 300)
 }
-function pick(type, item) {
-  close(() => emit('pick', { type, item }))
+// code：用 6 位房间码精确找到的比赛（这样进来的玩家不用审核，直接进房间）
+function pick(type, item, code = false) {
+  close(() => emit('pick', { type, item, code }))
 }
 </script>
 

@@ -1,7 +1,11 @@
 <template>
   <view class="ri">
     <view class="ri-box">
-      <view class="ri-ic" hover-class="ri-press" @tap="emit('more')"><z-icon :name="panel === 'more' ? 'x' : 'plus'" :size="22" color="#C9CDD4" /></view>
+      <!-- 「+」：有新的加入申请时动一下，并且一直带红点，直到主持人看过 -->
+      <view class="ri-ic" hover-class="ri-press" @tap="emit('more')">
+        <view :key="'w' + alertKey" class="ri-plus" :class="{ 'ri-wiggle': alert && alertKey > 0 }"><z-icon :name="panel === 'more' ? 'x' : 'plus'" :size="22" color="#C9CDD4" /></view>
+        <view v-if="alert" class="ri-dot"></view>
+      </view>
       <input
         class="ri-in"
         :value="modelValue"
@@ -35,6 +39,8 @@ import { ref, computed, watch } from 'vue'
 import ZIcon from '@/components/z-icon/z-icon.vue'
 
 const props = defineProps({
+  alert: { type: Boolean, default: false }, // 有未读的加入申请（主持人）
+  alertKey: { type: Number, default: 0 }, // 每来一条新申请加一，「+」重新动一下
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '给房间发消息' },
   panel: { type: String, default: 'none' }, // none / emoji / more
@@ -72,4 +78,9 @@ const onKb = (e) => emit('kb', (e && e.detail && e.detail.height) || 0)
 .ri-send-on { width: 44px; margin-left: 8px; opacity: 1; transform: none; }
 .ri-send-fail { background: #D9534F; }
 .ri-press { opacity: .7; }
+.ri-ic { position: relative; }
+.ri-plus { display: flex; align-items: center; justify-content: center; }
+.ri-wiggle { animation: ri-wiggle .7s ease-in-out 2; }
+@keyframes ri-wiggle { 0%, 100% { transform: rotate(0deg) scale(1); } 15% { transform: rotate(-22deg) scale(1.12); } 35% { transform: rotate(18deg) scale(1.12); } 55% { transform: rotate(-12deg) scale(1.06); } 75% { transform: rotate(8deg) scale(1.03); } }
+.ri-dot { position: absolute; right: 4px; top: 4px; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; background: #FF3B30; border: 2px solid #24272E; }
 </style>
